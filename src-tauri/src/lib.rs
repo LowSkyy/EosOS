@@ -1,5 +1,7 @@
 mod appbar;
 mod dock;
+mod dockact;
+mod dockstore;
 mod dockwin;
 mod foreground;
 mod glass;
@@ -23,6 +25,33 @@ fn get_active_app() -> Option<foreground::ActiveApp> {
 #[tauri::command(async)]
 fn dock_items() -> Vec<dock::DockItem> {
     dock::items()
+}
+
+/// Clic su un'icona del Dock. Il frontend manda solo l'`id` di una voce che il
+/// Dock sta mostrando: il percorso da eseguire lo ricava Rust.
+#[tauri::command(async)]
+fn dock_activate(id: String) {
+    if let Some(item) = dock::find(&id) {
+        dockact::activate(&item);
+    }
+}
+
+/// Clic destro su un'icona: menu nativo con Apri / Esci / Fissa o Rimuovi.
+#[tauri::command]
+fn dock_menu(app: tauri::AppHandle, window: tauri::Window, id: String) -> tauri::Result<()> {
+    use dockact::{menu_id, MenuAction};
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+    let Some(item) = dock::find(&id) else { return Ok(()) };
+    let open = MenuItem::with_id(&app, menu_id(MenuAction::Open, &id), "Apri", true, None::<&str>)?;
+    let quit = MenuItem::with_id(&app, menu_id(MenuAction::Quit, &id), "Esci", item.running, None::<&str>)?;
+    let sep = PredefinedMenuItem::separator(&app)?;
+    let pin = if item.pinned {
+        MenuItem::with_id(&app, menu_id(MenuAction::Unpin, &id), "Rimuovi dal Dock", true, None::<&str>)?
+    } else {
+        MenuItem::with_id(&app, menu_id(MenuAction::Pin, &id), "Fissa nel Dock", true, None::<&str>)?
+    };
+    let menu = Menu::with_items(&app, &[&open, &quit, &sep, &pin])?;
+    window.popup_menu(&menu)
 }
 
 /// Il frontend del Dock comunica le misure della pillola (px CSS).
@@ -116,7 +145,13 @@ pub fn run() {
     }
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit])
+        .on_menu_event(|_app, event| {
+            if let Some((action, id)) = dockact::parse_menu_id(event.id().as_ref()) {
+                // Fuori dal thread UI: le azioni enumerano finestre e avviano processi.
+                std::thread::spawn(move || dockact::run_menu_action(action, &id));
+            }
+        })
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

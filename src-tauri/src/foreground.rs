@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 use serde::Serialize;
@@ -38,6 +39,9 @@ pub struct ActiveApp {
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
 static LAST: Mutex<Option<ActiveApp>> = Mutex::new(None);
+/// Ultima finestra attivata dall'utente che non sia di EosOS (l'hook salta già i
+/// propri eventi). Serve al Dock: cliccandolo, il primo piano passa a EosOS.
+static LAST_HWND: AtomicIsize = AtomicIsize::new(0);
 static DESCRIPTIONS: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
 
 /// Classi delle finestre della shell: quando una di queste è in primo piano
@@ -177,6 +181,18 @@ fn app_from_hwnd(hwnd: HWND) -> Option<ActiveApp> {
     Some(ActiveApp { name, pid })
 }
 
+/// L'ultima finestra attivata dall'utente (fuori da EosOS), se nota.
+pub fn last_window() -> Option<HWND> {
+    let h = LAST_HWND.load(Ordering::Relaxed);
+    (h != 0).then_some(HWND(h as *mut _))
+}
+
+/// Registra una finestra attivata da EosOS stessa (il Dock): l'hook di sistema può
+/// notificarla in ritardo o non farlo, e il clic successivo deve già saperlo.
+pub fn note_activated(hwnd: HWND) {
+    LAST_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+}
+
 fn update(hwnd: HWND) {
     let Some(app) = app_from_hwnd(hwnd) else { return };
     // Mai mostrare EosOS stessa come app attiva (l'hook salta già i propri eventi,
@@ -184,6 +200,7 @@ fn update(hwnd: HWND) {
     if app.pid == std::process::id() {
         return;
     }
+    LAST_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
     {
         let Ok(mut last) = LAST.lock() else { return };
         if last.as_ref() == Some(&app) {

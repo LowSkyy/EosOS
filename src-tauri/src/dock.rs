@@ -67,7 +67,7 @@ pub struct Running {
     pub path: PathBuf,
 }
 
-fn key(path: &Path) -> String {
+pub(crate) fn key(path: &Path) -> String {
     path.to_string_lossy().to_lowercase()
 }
 
@@ -235,7 +235,7 @@ fn is_app_window(hwnd: HWND) -> bool {
 unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
     // Un panic non deve attraversare il confine FFI: lo si assorbe.
     let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let out = unsafe { &mut *(lparam.0 as *mut Vec<Running>) };
+        let out = unsafe { &mut *(lparam.0 as *mut Vec<(HWND, PathBuf)>) };
         if !is_app_window(hwnd) {
             return;
         }
@@ -257,18 +257,42 @@ unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
         if stem(&path).eq_ignore_ascii_case("ApplicationFrameHost") {
             return;
         }
-        if !out.iter().any(|r| key(&r.path) == key(&path)) {
-            out.push(Running { path });
-        }
+        out.push((hwnd, path));
     }));
     true.into()
+}
+
+/// Eseguibile del processo proprietario di una finestra.
+pub fn window_exe(hwnd: HWND) -> Option<PathBuf> {
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 {
+        return None;
+    }
+    let h = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?;
+    let path = image_path(h);
+    unsafe {
+        let _ = CloseHandle(h);
+    }
+    path
+}
+
+/// Tutte le finestre "da app" con il loro eseguibile, nell'ordine Z (dall'alto).
+pub fn app_windows() -> Vec<(HWND, PathBuf)> {
+    let mut out: Vec<(HWND, PathBuf)> = Vec::new();
+    unsafe {
+        let _ = EnumWindows(Some(collect_window), LPARAM(&mut out as *mut _ as isize));
+    }
+    out
 }
 
 /// Eseguibili con almeno una finestra aperta, nell'ordine Z (dall'alto).
 pub fn read_running() -> Vec<Running> {
     let mut out: Vec<Running> = Vec::new();
-    unsafe {
-        let _ = EnumWindows(Some(collect_window), LPARAM(&mut out as *mut _ as isize));
+    for (_, path) in app_windows() {
+        if !out.iter().any(|r| key(&r.path) == key(&path)) {
+            out.push(Running { path });
+        }
     }
     out
 }
@@ -342,8 +366,13 @@ fn encode_png(w: u32, h: u32, rgba: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// L'estrazione dalla shell non regge chiamate simultanee (fallisce a caso): si
+/// serializza. Così un fallimento è genuino e si può ricordare nella cache.
+static ICON_LOCK: Mutex<()> = Mutex::new(());
+
 /// Icona dell'eseguibile come data URL PNG.
 pub fn icon_data_url(path: &Path) -> Option<String> {
+    let _serial = ICON_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let _com = ComScope::new();
     unsafe {
         let factory: IShellItemImageFactory =
@@ -377,18 +406,58 @@ fn cached_icon(path: &Path) -> Option<String> {
 
 // ------------------------------------------------------------- insieme
 
-/// Elenco completo del Dock: fissate + aperte, con nomi e icone.
-pub fn items() -> Vec<DockItem> {
-    let mut items = merge(&read_pinned(), &read_running());
+/// Mantiene l'ordine di comparsa delle app aperte: quelle già note restano dove
+/// sono, le nuove si accodano nell'ordine dato, quelle chiuse spariscono. Senza
+/// questo le icone si riordinerebbero a ogni cambio di finestra (l'ordine Z).
+/// Pura, testata: `known` è lo stato da una chiamata all'altra.
+pub fn stable_order(known: &mut Vec<String>, current: &[String]) -> Vec<String> {
+    known.retain(|k| current.contains(k));
+    for k in current {
+        if !known.contains(k) {
+            known.push(k.clone());
+        }
+    }
+    known.clone()
+}
+
+static RUN_ORDER: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+/// Riordina le voci non fissate secondo l'ordine di comparsa.
+fn apply_run_order(items: &mut [DockItem]) {
+    let first = items.iter().position(|i| !i.pinned).unwrap_or(items.len());
+    let tail = &mut items[first..];
+    let current: Vec<String> = tail.iter().map(|i| i.id.clone()).collect();
+    let order = stable_order(&mut RUN_ORDER.lock().unwrap_or_else(|e| e.into_inner()), &current);
+    tail.sort_by_key(|i| order.iter().position(|k| *k == i.id));
+}
+
+/// Voci senza icone, con i nomi risolti. Serve a ritrovare una voce dall'`id`.
+pub fn items_basic() -> Vec<DockItem> {
+    let mut items = merge(&crate::dockstore::load(), &read_running());
     for it in &mut items {
-        let path = PathBuf::from(&it.path);
         if it.name.is_empty() {
+            let path = PathBuf::from(&it.path);
             let desc = cached_description(&path);
             it.name = display_name(desc.as_deref(), &stem(&path), "", "");
         }
-        it.icon = cached_icon(&path);
+    }
+    apply_run_order(&mut items);
+    items
+}
+
+/// Elenco completo del Dock: fissate + aperte, con nomi e icone.
+pub fn items() -> Vec<DockItem> {
+    let mut items = items_basic();
+    for it in &mut items {
+        it.icon = cached_icon(Path::new(&it.path));
     }
     items
+}
+
+/// La voce con questo `id`, se è davvero nel Dock in questo momento. Le azioni
+/// partono sempre da qui: il frontend non può far eseguire percorsi arbitrari.
+pub fn find(id: &str) -> Option<DockItem> {
+    items_basic().into_iter().find(|i| i.id == id)
 }
 
 #[cfg(test)]
@@ -426,6 +495,18 @@ mod tests {
         // stesso nome ma cartelle non annidate: sono app diverse
         assert!(!same_app(Path::new(r"C:\A\FiveM\FiveM.exe"), Path::new(r"C:\B\FiveM.exe")));
         assert!(!same_app(Path::new(r"C:\A\a.exe"), Path::new(r"C:\A\b.exe")));
+    }
+
+    #[test]
+    fn stable_order_keeps_known_appends_new_and_drops_closed() {
+        let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let mut known = Vec::new();
+        assert_eq!(stable_order(&mut known, &v(&["a", "b"])), v(&["a", "b"]));
+        // Cambia l'ordine Z e compare una nuova app: l'ordine di comparsa resta.
+        assert_eq!(stable_order(&mut known, &v(&["c", "b", "a"])), v(&["a", "b", "c"]));
+        // "b" si chiude e poi riapre: va in fondo.
+        assert_eq!(stable_order(&mut known, &v(&["a", "c"])), v(&["a", "c"]));
+        assert_eq!(stable_order(&mut known, &v(&["b", "a", "c"])), v(&["a", "c", "b"]));
     }
 
     #[test]

@@ -36,7 +36,13 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
    - **Niente sfocatura dello sfondo.** Acrilico, blur (accent), `DwmEnableBlurBehindWindow` e lo sfondo di sistema di Windows 11 (`DWMSBT_TRANSIENTWINDOW`) riempiono tutti l'intero rettangolo della finestra e ignorano `SetWindowRgn`: gli angoli restavano quadrati (grigi o neri). Il vetro è quindi una tinta traslucida con bordo luminoso in una capsula con angoli perfetti. Una vera sfocatura in forma di capsula richiede la Composition API di Windows (rinviata a D5).
    - Solo il monitor primario (un Dock per monitor non è previsto).
    - Il Dock oggi si sovrappone alle finestre massimizzate (non riserva spazio); l'auto-nascondi di D4 lo renderà meno invasivo.
-3. **D3 – Interazione**: clic per avviare/portare in primo piano/minimizzare, puntini di stato, menu contestuale, fissa/rimuovi.
+3. **D3 – Interazione** — FATTA (7 nov 2026): `dockact.rs`, `dockstore.rs`, comandi `dock_activate` e `dock_menu`. Verificata dal vivo con clic reali del mouse (Blocco note): minimizza/ripristina in alternanza per 6 clic su 6; menu con Apri / Esci / Fissa nel Dock / Rimuovi dal Dock (fissa, esci, clic su icona fissata che avvia l'app, rimuovi: tutto OK). Note:
+   - **Sicurezza**: il frontend manda solo l'`id` di una voce; il percorso da avviare lo ricava Rust da `dock::find`, quindi la pagina non può far eseguire percorsi arbitrari.
+   - **Elenco fissate** in `%LOCALAPPDATA%\EosOS\dock.json`: al primo avvio parte dalla taskbar (senza doppioni, per esempio più collegamenti a Chrome), poi è indipendente. Scrittura atomica; un file illeggibile fa ripartire dalla taskbar.
+   - **Quale app è "davanti"**: non si usa né `GetForegroundWindow` (cliccando sul Dock il primo piano passa a EosOS) né l'ordine Z (Explorer ha finestre sempre in primo piano che stanno davanti a tutto): si usa l'ultima finestra attivata dall'utente, vista dall'hook di sistema in `foreground.rs`, più quelle attivate dal Dock stesso.
+   - **Ordine stabile**: le app aperte non fissate restano nell'ordine di comparsa (`stable_order`), non si riordinano a ogni cambio di finestra.
+   - **Icone**: l'estrazione dalla shell è serializzata (chiamate simultanee fallivano a caso).
+   - Non ancora: trascinare per riordinare, app dello Store/UWP, rimbalzo all'avvio (D4).
 4. **D4 – Effetti**: ingrandimento a onda, rimbalzo all'avvio, auto-nascondi con scorrimento.
 5. **D5 – Rifiniture**: puntino grigio per app senza finestre, DPI misti, riavvio di Explorer, cursore Liquid Glass, riserva di spazio opzionale.
 
