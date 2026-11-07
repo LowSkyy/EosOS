@@ -11,6 +11,9 @@
 //! agisce su una finestra (attivarla, chiuderla) è Rust, che prima ricontrolla che l'id sia ancora
 //! tra le finestre elencate.
 
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use serde::Serialize;
 use tauri::AppHandle;
 use windows::Win32::Foundation::{HWND, RECT};
@@ -19,7 +22,7 @@ use windows::Win32::UI::WindowsAndMessaging::{GetWindowRect, GetWindowTextW, IsI
 
 use crate::dock::{app_display_name, raw_app_windows, ComScope};
 use crate::dockgeom::Rect;
-use crate::mclayout::{layout, monitor_of, reading_order, Item, Options, Placed};
+use crate::mclayout::{fit_in, layout, monitor_of, reading_order, thumb_box, to_css, Item, Options, Placed};
 
 /// Misure della panoramica in pixel CSS: moltiplicate per la scala del monitor.
 const MARGIN: i32 = 60;
@@ -45,6 +48,9 @@ pub struct McWindow {
     pub rect: [i32; 4],
     /// Cella nella griglia della panoramica, in pixel dello schermo.
     pub cell: [i32; 4],
+    /// Identità dell'app (eseguibile o identificatore dello Store): serve a trovare l'icona. Non va alla pagina.
+    #[serde(skip)]
+    pub identity: PathBuf,
 }
 
 /// Un monitor con le sue finestre già disposte.
@@ -75,6 +81,7 @@ pub struct Raw {
     pub rect: Rect,
     /// Indice del monitor se già noto (finestre minimizzate); altrimenti si ricava dal rettangolo.
     pub monitor: Option<usize>,
+    pub identity: PathBuf,
 }
 
 /// Area in cui disporre le finestre di un monitor, in pixel dello schermo: il monitor meno i margini
@@ -130,11 +137,72 @@ pub fn build(raws: &[Raw], mons: &[Mon]) -> Vec<McMonitor> {
                     minimized: r.minimized,
                     rect: [r.rect.x, r.rect.y, r.rect.w, r.rect.h],
                     cell: [p.rect.x, p.rect.y, p.rect.w, p.rect.h],
+                    identity: r.identity.clone(),
                 })
             })
             .collect();
     }
     out
+}
+
+/// Margine interno di una cella e altezza della fascia dell'etichetta (px CSS, per la scala del monitor).
+pub const CELL_PAD: i32 = 8;
+pub const LABEL_H: i32 = 38;
+
+/// Una finestra come la disegna la pagina della panoramica: tutte le misure in px CSS relativi
+/// all'origine del monitor (la pagina occupa il monitor intero).
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct ViewWindow {
+    pub id: u64,
+    pub title: String,
+    pub app: String,
+    pub minimized: bool,
+    /// Data URL dell'icona dell'app, se disponibile.
+    pub icon: Option<String>,
+    pub cell: [f64; 4],
+    /// Dove sta la miniatura viva (disegnata da Windows sopra la pagina); `None` per le minimizzate e
+    /// per le finestre di cui Windows non dà la miniatura: la pagina disegna una scheda con l'icona.
+    pub thumb: Option<[f64; 4]>,
+}
+
+/// La panoramica di un monitor, per la pagina.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct View {
+    pub index: usize,
+    pub scale: f64,
+    pub width: f64,
+    pub height: f64,
+    pub windows: Vec<ViewWindow>,
+}
+
+/// Dove va la miniatura di una finestra nella sua cella: il riquadro libero della cella (senza
+/// margine e senza fascia dell'etichetta) con le proporzioni della finestra sorgente, in pixel
+/// dello schermo. `None` se non c'è spazio o la sorgente non ha dimensioni. Pura, testata.
+pub fn thumb_rect(cell: Rect, src: (i32, i32), scale: f64) -> Option<Rect> {
+    let k = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
+    let b = thumb_box(cell, (f64::from(CELL_PAD) * k).round() as i32, (f64::from(LABEL_H) * k).round() as i32)?;
+    fit_in(src.0, src.1, b)
+}
+
+/// Costruisce la vista di un monitor. `thumbs`: miniature effettivamente registrate (id → rettangolo in
+/// pixel dello schermo); `icons`: icone per identità. Pura, testata.
+pub fn view_of(index: usize, m: &McMonitor, thumbs: &HashMap<u64, Rect>, icons: &HashMap<PathBuf, String>) -> View {
+    let origin = (m.x, m.y);
+    let windows = m
+        .windows
+        .iter()
+        .map(|w| ViewWindow {
+            id: w.id,
+            title: w.title.clone(),
+            app: w.app.clone(),
+            minimized: w.minimized,
+            icon: icons.get(&w.identity).cloned(),
+            cell: to_css(Rect { x: w.cell[0], y: w.cell[1], w: w.cell[2], h: w.cell[3] }, origin, m.scale),
+            thumb: if w.minimized { None } else { thumbs.get(&w.id).map(|r| to_css(*r, origin, m.scale)) },
+        })
+        .collect();
+    let k = if m.scale.is_finite() && m.scale > 0.0 { m.scale } else { 1.0 };
+    View { index, scale: m.scale, width: f64::from(m.w) / k, height: f64::from(m.h) / k, windows }
 }
 
 fn title_of(hwnd: HWND) -> String {
@@ -174,7 +242,7 @@ fn geometry(hwnd: HWND, mons: &[Mon]) -> Option<(Rect, bool, Option<usize>)> {
 }
 
 /// Monitor del sistema (pixel fisici e scala).
-fn monitors(app: &AppHandle) -> Vec<Mon> {
+pub(crate) fn monitors(app: &AppHandle) -> Vec<Mon> {
     app.available_monitors()
         .map(|v| {
             v.iter()
@@ -205,6 +273,7 @@ pub fn snapshot(app: &AppHandle) -> Vec<McMonitor> {
                 minimized,
                 rect,
                 monitor,
+                identity,
             })
         })
         .collect();
@@ -219,7 +288,7 @@ mod tests {
     const M1: Mon = Mon { rect: Rect { x: 0, y: 0, w: 2880, h: 1620 }, scale: 1.5 };
 
     fn raw(id: u64, x: i32, y: i32, w: i32, h: i32, minimized: bool) -> Raw {
-        Raw { id, title: format!("Finestra {id}"), app: "App".into(), minimized, rect: Rect { x, y, w, h }, monitor: None }
+        Raw { id, title: format!("Finestra {id}"), app: "App".into(), minimized, rect: Rect { x, y, w, h }, monitor: None, identity: PathBuf::from("app.exe") }
     }
 
     fn inside(c: [i32; 4], a: Rect) -> bool {
@@ -303,6 +372,77 @@ mod tests {
         let out = build(&[], &[M0, M1]);
         assert_eq!(out.len(), 2);
         assert!(out.iter().all(|m| m.windows.is_empty()));
+    }
+
+    fn monitor_with(windows: &[(u64, [i32; 4], bool)]) -> McMonitor {
+        McMonitor {
+            x: -1920,
+            y: 0,
+            w: 1920,
+            h: 1080,
+            scale: 1.5,
+            windows: windows
+                .iter()
+                .map(|(id, cell, min)| McWindow {
+                    id: *id,
+                    title: format!("T{id}"),
+                    app: "App".into(),
+                    minimized: *min,
+                    rect: [0, 0, 800, 600],
+                    cell: *cell,
+                    identity: PathBuf::from(format!("app{id}.exe")),
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn thumbnails_leave_room_for_padding_and_the_label_and_keep_the_source_proportions() {
+        let cell = Rect { x: 0, y: 0, w: 600, h: 500 };
+        let t = thumb_rect(cell, (1600, 800), 1.0).unwrap();
+        // Riquadro libero: 584 x 454; sorgente 2:1 -> piu' larga: larghezza piena.
+        assert_eq!((t.w, t.h), (584, 292));
+        assert!(t.y + t.h <= cell.h - LABEL_H, "sopra la fascia dell'etichetta");
+        assert!(t.x >= CELL_PAD && t.y >= CELL_PAD);
+        // A scala 1,5 i margini crescono.
+        let t15 = thumb_rect(Rect { x: 0, y: 0, w: 900, h: 750 }, (1600, 800), 1.5).unwrap();
+        assert!(t15.y + t15.h <= 750 - (f64::from(LABEL_H) * 1.5) as i32 + 1);
+        assert!(thumb_rect(Rect { x: 0, y: 0, w: 100, h: 50 }, (800, 600), 1.0).is_none(), "cella troppo piccola");
+        assert!(thumb_rect(cell, (0, 600), 1.0).is_none());
+    }
+
+    #[test]
+    fn the_view_is_in_css_pixels_relative_to_the_monitor() {
+        let m = monitor_with(&[(1, [-1860, 210, 600, 450], false), (2, [-1200, 210, 480, 300], true)]);
+        let mut thumbs = HashMap::new();
+        thumbs.insert(1u64, Rect { x: -1850, y: 220, w: 300, h: 150 });
+        thumbs.insert(2u64, Rect { x: -1190, y: 220, w: 10, h: 10 });
+        let mut icons = HashMap::new();
+        icons.insert(PathBuf::from("app1.exe"), "data:image/png;base64,AAA".to_string());
+        let v = view_of(3, &m, &thumbs, &icons);
+        assert_eq!(v.index, 3);
+        assert_eq!((v.width, v.height, v.scale), (1280.0, 720.0, 1.5));
+        assert_eq!(v.windows[0].cell, [40.0, 140.0, 400.0, 300.0]);
+        assert_eq!(v.windows[0].thumb, Some([46.666_666_666_666_664, 146.666_666_666_666_66, 200.0, 100.0]));
+        assert_eq!(v.windows[0].icon.as_deref(), Some("data:image/png;base64,AAA"));
+        // Una minimizzata non ha mai miniatura viva, anche se ne risultasse una registrata; senza icona nota: None.
+        assert!(v.windows[1].minimized && v.windows[1].thumb.is_none() && v.windows[1].icon.is_none());
+    }
+
+    #[test]
+    fn a_window_without_a_registered_thumbnail_falls_back_to_a_card() {
+        let m = monitor_with(&[(1, [-1800, 300, 500, 400], false)]);
+        let v = view_of(0, &m, &HashMap::new(), &HashMap::new());
+        assert!(v.windows[0].thumb.is_none(), "la pagina disegna la scheda con l'icona");
+    }
+
+    #[test]
+    fn the_identity_never_reaches_the_page() {
+        let m = monitor_with(&[(1, [-1800, 300, 500, 400], false)]);
+        let json = serde_json::to_string(&m).unwrap();
+        assert!(!json.contains("identity") && !json.contains("app1.exe"), "{json}");
+        let v = serde_json::to_string(&view_of(0, &m, &HashMap::new(), &HashMap::new())).unwrap();
+        assert!(!v.contains("app1.exe") && !v.contains("identity"));
     }
 
     #[test]

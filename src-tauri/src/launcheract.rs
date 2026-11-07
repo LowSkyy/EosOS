@@ -118,6 +118,14 @@ pub const ACTIONS: &[Action] = &[
         run: Run::Internal("hotkey:Ctrl+Shift+Space"),
     },
     Action {
+        id: "action:mission-control",
+        name: "Mission Control",
+        keywords: &["finestre", "windows", "panoramica", "expose", "overview"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("mc-open"),
+    },
+    Action {
         id: "action:settings",
         name: "Impostazioni",
         keywords: &["settings", "preferenze", "opzioni"],
@@ -213,6 +221,14 @@ pub fn cancel_pending() {
 
 static PENDING: Mutex<Pending> = Mutex::new(None);
 
+/// Funzione che apre Mission Control, registrata all'avvio dell'app.
+static MC_OPEN: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
+
+/// Registra la funzione che apre Mission Control (la chiama l'avvio dell'app).
+pub fn set_mc_open(f: fn()) {
+    let _ = MC_OPEN.set(f);
+}
+
 fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
@@ -229,6 +245,12 @@ fn execute(action: &Action) -> bool {
         return true;
     }
     match action.run {
+        Run::Internal("mc-open") => {
+            // Chi apre la panoramica la registra all'avvio dell'app (`set_mc_open`): questo modulo non
+            // nomina il codice delle finestre Tauri, altrimenti gli eseguibili di test, che non hanno il
+            // manifest di comctl32 v6, non partirebbero (STATUS_ENTRYPOINT_NOT_FOUND).
+            MC_OPEN.get().map(|f| f()).is_some()
+        }
         Run::Internal("clip-clear") => {
             crate::launcherclip::clear();
             true

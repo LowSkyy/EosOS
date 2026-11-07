@@ -153,6 +153,15 @@ fn grab(r: Rect) -> Option<Vec<u8>> {
     }
 }
 
+/// Scatta una volta sola il rettangolo `r` dello schermo e lo restituisce già ridotto e serializzato
+/// (come un fotogramma di `latest`). Lo usa Mission Control per lo sfondo statico, scattato prima di
+/// mostrare la panoramica. `None` se la cattura non riesce.
+pub fn capture_bytes(r: Rect) -> Option<Vec<u8>> {
+    let bgra = grab(r)?;
+    let (w, h, rgba) = downscale(&bgra, r.w as usize, r.h as usize, FACTOR);
+    (w > 0).then(|| encode(1, 0, 0, w as u32, h as u32, FACTOR as u32, &rgba))
+}
+
 /// Avvia il thread di cattura (un giro per canale, solo se ha qualcosa da catturare).
 pub fn start() {
     std::thread::spawn(|| {

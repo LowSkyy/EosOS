@@ -19,6 +19,7 @@ mod launcherstore;
 mod launcherwin;
 mod mc;
 mod mclayout;
+mod mcwin;
 mod panelwin;
 mod taskbar;
 mod util;
@@ -206,6 +207,43 @@ fn indicators_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Resul
 #[tauri::command(async)]
 fn mc_windows(app: tauri::AppHandle) -> Vec<mc::McMonitor> {
     mc::snapshot(&app)
+}
+
+/// Apre la panoramica di Mission Control su tutti i monitor.
+#[tauri::command(async)]
+fn mc_open(app: tauri::AppHandle) {
+    mcwin::open(&app);
+}
+
+/// Chiude la panoramica (Esc, clic sullo sfondo).
+#[tauri::command(async)]
+fn mc_close(app: tauri::AppHandle) {
+    mcwin::close(&app);
+}
+
+/// Porta in primo piano la finestra `id` (la ripristina se è minimizzata) e chiude la panoramica. Solo id
+/// elencati dalla panoramica e ancora esistenti.
+#[tauri::command(async)]
+fn mc_activate(app: tauri::AppHandle, id: u64) -> bool {
+    mcwin::activate(&app, id)
+}
+
+/// Chiede alla finestra `id` di chiudersi (come il pulsante X). Solo id elencati.
+#[tauri::command(async)]
+fn mc_close_window(app: tauri::AppHandle, id: u64) -> bool {
+    mcwin::close_window(&app, id)
+}
+
+/// Lo scatto dello sfondo del monitor `index` (vuoto se non c'è), stesso formato di `dock_backdrop`.
+#[tauri::command]
+fn mc_backdrop(index: usize) -> tauri::ipc::Response {
+    tauri::ipc::Response::new(mcwin::backdrop(index))
+}
+
+/// Stato della panoramica per la diagnostica e le prove.
+#[tauri::command]
+fn mc_state() -> mcwin::Diag {
+    mcwin::diag()
 }
 
 /// Esegue un'azione del Launcher. Le azioni che spengono o riavviano rispondono "confirm" alla
@@ -412,12 +450,12 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
         .on_window_event(|window, event| {
-            if launcherwin::on_window_event(window, event) || panelwin::on_window_event(window, event) {
+            if launcherwin::on_window_event(window, event) || panelwin::on_window_event(window, event) || mcwin::on_window_event(window, event) {
                 return;
             }
             if let tauri::WindowEvent::CloseRequested { .. } = event {
@@ -433,6 +471,8 @@ pub fn run() {
             indicators::start(app.handle().clone());
             launcherwin::start(app.handle());
             panelwin::start(app.handle());
+            mcwin::start(app.handle());
+            launcheract::set_mc_open(mcwin::open_soon);
             foreground::start(app.handle().clone());
             Ok(())
         })

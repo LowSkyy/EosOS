@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794091145.9005039,
-    "seen": 1794091153.14759,
-    "ast_hash": "396e9b23bf8b5ebf1ff2e91985676c8d",
+    "mtime": 1794091823.3277447,
+    "seen": 1794091828.7058806,
+    "ast_hash": "7a2dc6eb7a00e3f55d61f4c505db0bf8",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -42,15 +42,15 @@
     "semantic_hash": ""
   },
   "src-tauri/capabilities/default.json": {
-    "mtime": 1794088597.962407,
-    "seen": 1794089359.856281,
-    "ast_hash": "607416cb7552a809624f5551c8d392db",
+    "mtime": 1794091363.792886,
+    "seen": 1794091828.7058203,
+    "ast_hash": "e4a80cc062b3f29f269a8e625e7cecad",
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794091014.9689147,
-    "seen": 1794091153.1475494,
-    "ast_hash": "daf28d0f9ac4c897a4c9147eb26842a8",
+    "mtime": 1794091435.1448867,
+    "seen": 1794091828.7058392,
+    "ast_hash": "1ed27d282e97599983568719cbd1f266",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -72,9 +72,9 @@
     "semantic_hash": ""
   },
   "src/main.tsx": {
-    "mtime": 1794088681.7820482,
-    "seen": 1794089359.856325,
-    "ast_hash": "44030718b8c2ef5184503c6fa1607f34",
+    "mtime": 1794091476.823003,
+    "seen": 1794091828.7058723,
+    "ast_hash": "7c026b0b1f2ca35b801b60ba72e61221",
     "semantic_hash": ""
   },
   "src/vite-env.d.ts": {
@@ -414,9 +414,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/backdrop.rs": {
-    "mtime": 1794088597.9619012,
-    "seen": 1794089359.8562832,
-    "ast_hash": "0a3c359e2072d6a1c5ce3d429840c7a8",
+    "mtime": 1794091363.7908902,
+    "seen": 1794091828.7058222,
+    "ast_hash": "44b66f2bf0353c339494ce8a6450f0c5",
     "semantic_hash": ""
   },
   "src/lib/backdrop.test.ts": {
@@ -528,9 +528,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/launcheract.rs": {
-    "mtime": 1794087118.141326,
-    "seen": 1794087292.3873365,
-    "ast_hash": "58d277c6bf0bd86bbdb7d6f2bba2792a",
+    "mtime": 1794091435.1448867,
+    "seen": 1794091828.7058327,
+    "ast_hash": "9194a4fe29bdb52aeaeab6a6704b98e5",
     "semantic_hash": ""
   },
   "src-tauri/src/launchercalc.rs": {
@@ -648,9 +648,9 @@
     "semantic_hash": ""
   },
   "docs/MISSION-CONTROL.md": {
-    "mtime": 1794091145.9005039,
-    "seen": 1794091153.147595,
-    "ast_hash": "c01d488d896ff6ed3a57d307ace0cad0",
+    "mtime": 1794091823.3277447,
+    "seen": 1794091828.705885,
+    "ast_hash": "d2696687b923ee9597eeb5c8be22e450",
     "semantic_hash": ""
   },
   "scripts/test-mc-windows.ps1": {
@@ -660,15 +660,45 @@
     "semantic_hash": ""
   },
   "src-tauri/src/mc.rs": {
-    "mtime": 1794091024.214726,
-    "seen": 1794091153.1475515,
-    "ast_hash": "ef6312e887fba0a265f681a9784c91cf",
+    "mtime": 1794091363.7918904,
+    "seen": 1794091828.7058408,
+    "ast_hash": "44c5ef6ac9f21a551f3ea238ce3f1f9c",
     "semantic_hash": ""
   },
   "src-tauri/src/mclayout.rs": {
-    "mtime": 1794091070.1530583,
-    "seen": 1794091153.1475525,
-    "ast_hash": "f9b2518b03c6b4ee25406d52c0ccda75",
+    "mtime": 1794091284.509025,
+    "seen": 1794091828.7058418,
+    "ast_hash": "eb92b230922859a0bf6dbf52710c34c3",
+    "semantic_hash": ""
+  },
+  "scripts/test-mc-overlay.ps1": {
+    "mtime": 1794091720.469404,
+    "seen": 1794091828.7058113,
+    "ast_hash": "d1c9cc75af8859be6c856a996a5b0c00",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/mcwin.rs": {
+    "mtime": 1794091372.218877,
+    "seen": 1794091828.7058427,
+    "ast_hash": "51345974454aea181216a95399969944",
+    "semantic_hash": ""
+  },
+  "src/components/Mc.tsx": {
+    "mtime": 1794091476.823003,
+    "seen": 1794091828.7058554,
+    "ast_hash": "a8a67cb36e4240680f7ffd9630484bed",
+    "semantic_hash": ""
+  },
+  "src/lib/mc.test.ts": {
+    "mtime": 1794091485.680013,
+    "seen": 1794091828.7058706,
+    "ast_hash": "b06631f2fac5de829ea546faa8a4d409",
+    "semantic_hash": ""
+  },
+  "src/lib/mc.ts": {
+    "mtime": 1794091476.8220043,
+    "seen": 1794091828.7058716,
+    "ast_hash": "78a51d1e64255b3766825e73f400f656",
     "semantic_hash": ""
   },
   "package-lock.json": {

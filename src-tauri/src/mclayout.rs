@@ -135,8 +135,35 @@ pub fn layout(items: &[Item], area: Rect, o: Options) -> Vec<Placed> {
     out
 }
 
+/// Adatta un'immagine `src_w` x `src_h` dentro `bounds` mantenendo le proporzioni, senza ingrandirla
+/// oltre la sua dimensione, centrata. `None` se la sorgente o il riquadro non hanno dimensioni.
+/// Serve alla miniatura di una finestra dentro la sua cella (Windows la stira per riempire il
+/// rettangolo di destinazione, quindi le proporzioni le deve dare chi chiama). Pura, testata.
+pub fn fit_in(src_w: i32, src_h: i32, bounds: Rect) -> Option<Rect> {
+    if src_w <= 0 || src_h <= 0 || bounds.w <= 0 || bounds.h <= 0 {
+        return None;
+    }
+    let s = (f64::from(bounds.w) / f64::from(src_w)).min(f64::from(bounds.h) / f64::from(src_h)).min(1.0);
+    let (w, h) = (((f64::from(src_w) * s).round() as i32).max(1), ((f64::from(src_h) * s).round() as i32).max(1));
+    Some(Rect { x: bounds.x + (bounds.w - w) / 2, y: bounds.y + (bounds.h - h) / 2, w, h })
+}
+
+/// Il riquadro della cella dove sta la miniatura: la cella meno il margine interno `pad` su tutti i
+/// lati e la fascia dell'etichetta `label_h` in basso. `None` se non resta spazio. Pura, testata.
+pub fn thumb_box(cell: Rect, pad: i32, label_h: i32) -> Option<Rect> {
+    let (w, h) = (cell.w - 2 * pad, cell.h - 2 * pad - label_h);
+    (w > 0 && h > 0).then_some(Rect { x: cell.x + pad, y: cell.y + pad, w, h })
+}
+
+/// Rettangolo in pixel dello schermo → pixel CSS relativi all'origine del monitor (quello che
+/// disegna la pagina della panoramica a schermo intero su quel monitor). Pura, testata.
+pub fn to_css(r: Rect, origin: (i32, i32), scale: f64) -> [f64; 4] {
+    let k = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
+    [f64::from(r.x - origin.0) / k, f64::from(r.y - origin.1) / k, f64::from(r.w) / k, f64::from(r.h) / k]
+}
+
 /// La finestra sotto il punto, se c'è. Le celle non si sovrappongono, quindi al massimo una. Pura, testata.
-#[cfg_attr(not(test), allow(dead_code))] // la usa la panoramica (M2)
+#[cfg_attr(not(test), allow(dead_code))] // la pagina fa il suo hit-test sugli elementi; resta per le prove
 pub fn hit_test(placed: &[Placed], x: i32, y: i32) -> Option<u64> {
     placed.iter().find(|p| p.rect.contains((x, y))).map(|p| p.id)
 }
@@ -319,6 +346,51 @@ mod tests {
         let area = Rect { x: -1920, y: 100, w: 1800, h: 700 };
         let items: Vec<Item> = (0..8).map(|i| item(i + 1, 1280, 720)).collect();
         check_invariants(&items, &layout(&items, area, OPT), area);
+    }
+
+    #[test]
+    fn thumbnails_fit_their_box_keeping_proportions_and_never_grow() {
+        let b = Rect { x: 100, y: 50, w: 400, h: 300 };
+        // Piu' larga del riquadro: si riduce alla larghezza e si centra in verticale.
+        let r = fit_in(1600, 800, b).unwrap();
+        assert_eq!((r.w, r.h), (400, 200));
+        assert_eq!((r.x, r.y), (100, 50 + 50));
+        // Piu' alta: si riduce all'altezza e si centra in orizzontale.
+        let r = fit_in(300, 900, b).unwrap();
+        assert_eq!((r.w, r.h), (100, 300));
+        assert_eq!((r.x, r.y), (100 + 150, 50));
+        // Piu' piccola del riquadro: non si ingrandisce, si centra.
+        let r = fit_in(200, 100, b).unwrap();
+        assert_eq!((r.w, r.h), (200, 100));
+        assert_eq!((r.x, r.y), (100 + 100, 50 + 100));
+        assert!(fit_in(0, 100, b).is_none() && fit_in(100, -1, b).is_none());
+        assert!(fit_in(100, 100, Rect { x: 0, y: 0, w: 0, h: 50 }).is_none());
+        // Proporzioni estreme: mai zero pixel.
+        let r = fit_in(5000, 3, b).unwrap();
+        assert!(r.w >= 1 && r.h >= 1 && r.w <= 400);
+        // Dentro il riquadro, sempre.
+        for (w, h) in [(1920, 1080), (1, 1), (777, 13), (13, 777)] {
+            let r = fit_in(w, h, b).unwrap();
+            assert!(r.x >= b.x && r.y >= b.y && r.x + r.w <= b.x + b.w && r.y + r.h <= b.y + b.h);
+        }
+    }
+
+    #[test]
+    fn the_thumbnail_box_leaves_room_for_padding_and_the_label() {
+        let cell = Rect { x: 10, y: 20, w: 500, h: 400 };
+        assert_eq!(thumb_box(cell, 8, 34), Some(Rect { x: 18, y: 28, w: 484, h: 350 }));
+        assert_eq!(thumb_box(cell, 0, 0), Some(cell));
+        assert!(thumb_box(Rect { x: 0, y: 0, w: 100, h: 40 }, 8, 34).is_none(), "nessuno spazio per la miniatura");
+        assert!(thumb_box(Rect { x: 0, y: 0, w: 10, h: 400 }, 8, 0).is_none());
+    }
+
+    #[test]
+    fn css_conversion_is_relative_to_the_monitor_and_scaled() {
+        let r = Rect { x: -1800, y: 300, w: 600, h: 300 };
+        assert_eq!(to_css(r, (-1920, 0), 1.0), [120.0, 300.0, 600.0, 300.0]);
+        assert_eq!(to_css(Rect { x: 300, y: 150, w: 600, h: 300 }, (0, 0), 1.5), [200.0, 100.0, 400.0, 200.0]);
+        assert_eq!(to_css(r, (-1920, 0), f64::NAN), to_css(r, (-1920, 0), 1.0), "scala assurda: 1");
+        assert_eq!(to_css(r, (-1920, 0), 0.0), to_css(r, (-1920, 0), 1.0));
     }
 
     #[test]

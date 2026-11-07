@@ -430,3 +430,89 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---- Mission Control (finestre "mc-N", vista ?view=mc&m=N) ---- */
+
+.mc-root { position: fixed; inset: 0; overflow: hidden; background: transparent; }
+/* Sfondo: lo scatto del monitor (fatto da Rust prima di mostrare la panoramica), sfocato e scurito. */
+.mc-bg {
+  position: absolute;
+  inset: -40px;
+  width: calc(100% + 80px);
+  height: calc(100% + 80px);
+  filter: blur(28px) saturate(1.2);
+  opacity: 0;
+}
+:root[data-mc-bg="on"] .mc-bg { opacity: 1; }
+.mc-dim { position: absolute; inset: 0; background: rgba(8, 8, 12, 0.55); }
+:root:not([data-mc-bg="on"]) .mc-dim { background: rgba(8, 8, 12, 0.82); }
+
+.mc-cell {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 12px;
+  cursor: default;
+  outline: none;
+  transition: background 0.12s;
+}
+.mc-cell[data-hover="true"],
+.mc-cell:focus-visible { background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 0 3px #0a84ff; }
+/* La miniatura viva la disegna Windows sopra questa pagina, nel rettangolo libero della cella. */
+.mc-card {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.mc-cell[data-minimized="true"] .mc-card { opacity: 0.6; }
+.mc-card-icon { width: 64px; height: 64px; object-fit: contain; }
+.mc-card-letter {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: rgba(128, 128, 128, 0.35);
+  font-size: 30px;
+  font-weight: var(--weight-strong);
+  color: #fff;
+}
+.mc-card-badge { font-size: 11px; color: rgba(255, 255, 255, 0.75); }
+.mc-label {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-size: 13px;
+}
+.mc-label-icon { width: 20px; height: 20px; flex: none; object-fit: contain; }
+.mc-label-letter { display: grid; place-items: center; width: 20px; height: 20px; flex: none; border-radius: 5px; background: rgba(128, 128, 128, 0.4); font-size: 11px; }
+.mc-label-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: default;
+  opacity: 0;
+}
+.mc-cell[data-hover="true"] .mc-close, .mc-close:focus-visible { opacity: 1; }
+.mc-close:hover { background: #ff453a; }
