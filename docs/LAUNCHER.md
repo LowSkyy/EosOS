@@ -10,7 +10,7 @@ Fonti: [Apple Support: cronologia degli appunti](https://support.apple.com/guide
 
 - Un pannello di vetro, in alto rispetto al centro dello schermo, con un campo di ricerca grande. Compare con una scorciatoia e sparisce con Esc o cliccando fuori.
 - Risultati a elenco sotto il campo, con icona, nome e tipo; si naviga con le frecce e si apre con Invio.
-- Quattro schede: **App**, **File**, **Azioni**, **Appunti**, richiamabili da tastiera (Cmd+1…4 su Mac; qui Ctrl+1…4).
+- Quattro schede: **App**, **File**, **Azioni**, **Appunti**, richiamabili da tastiera (Cmd+1…4 su Mac; qui Ctrl+1…4, nell'ordine App, File, Azioni, Appunti).
 - Calcoli e conversioni digitando nel campo (`12*7`, `20% di 340`).
 - Cronologia degli appunti breve (ore, non archivio), con richiesta di permesso al primo uso.
 - Le app usate più spesso salgono in cima ("frecency": frequenza e recenza).
@@ -87,6 +87,18 @@ Non provati: più monitor con scale diverse e riavvio di Explorer (previsti in L
 Verifica dal vivo (tasti veri, 50 controlli totali con L2): `12*7` → 84 copiato negli appunti (poi ripristinati); Ctrl+2 mostra solo azioni con l'etichetta, Ctrl+2 di nuovo la toglie, Ctrl+1 solo app; "riavvia" + Invio → riga rossa di conferma e nulla eseguito; digitare annulla la conferma e serve di nuovo; il secondo Invio registra l'azione una sola volta (non eseguita, build di prova); "Impostazioni" si apre senza conferma e la finestra è stata chiusa. Test: 131 Rust, 63 pagina, clippy a 0 avvisi.
 
 Non provato dal vivo: l'esecuzione reale di blocca/sospendi/riavvia/spegni (volutamente: i comandi sono fissi e testati come dati); `Sospendi` usa `SetSuspendState` e su PC con ibernazione attiva può ibernare invece di sospendere (limite noto di quel comando).
+
+## L4 — File: FATTA (7 nov 2026)
+
+- **Ricerca** (`launcherfiles.rs`, 11 test): si interroga l'**indice di Windows Search** con le API WinRT (`StorageFolder.CreateFileQueryWithOptions` + `QueryOptions` con `IndexerOption::OnlyUseIndexer`, profondità `Deep`), sulle cartelle vere dell'utente prese da `SHGetKnownFolderPath` (Documenti, Scrivania, Download, Immagini, Musica, Video: seguono anche lo spostamento su OneDrive). Nessuna scansione del disco, niente OLE DB. La query gira su un thread dedicato in apartment MTA, serializzata: se ne arriva una più recente mentre un'altra aspetta, la vecchia ritorna vuota.
+- **Solo risultati per nome**: l'indice cerca anche nel contenuto; `rank_hits` tiene i file il cui NOME (anche senza estensione) corrisponde, toglie i doppioni, ordina per punteggio, poi nome più corto, poi percorso. Una query a più parole (`eosos prova`) deve trovare **ogni** parola nel nome, in qualsiasi ordine e con qualsiasi separatore (`eosos-prova-launcher.txt`): era un difetto trovato dalla prova dal vivo, il confronto trattava la query come un blocco unico (`name_score`).
+- **Ripiego**: se l'indice non dà risultati per nome (servizio spento, cartella non indicizzata) si visitano le stesse cartelle in ampiezza, al massimo 4 livelli, 20 000 elementi e 400 ms, saltando cartelle nascoste, `node_modules` e `$Recycle.Bin` (`bounded_walk`, testata su cartelle temporanee). `EOSOS_NO_INDEX=1` forza il ripiego (per le prove).
+- **Sicurezza**: la pagina riceve il percorso come `id` ma Rust apre o mostra **solo** percorsi che ha appena restituito (`is_known`, ultimi 256, senza badare alle maiuscole); un percorso arbitrario come `C:\Windows\System32\cmd.exe` è rifiutato (test). Il testo cercato è ripulito da virgolette, parentesi, due punti e caratteri jolly (la sintassi di Windows Search), e servono almeno 2 caratteri.
+- **Pagina**: i file sono un comando a parte (`launcher_files`) chiamato dopo 150 ms di pausa nella digitazione, con la stessa protezione contro le risposte in ritardo; non bloccano app, azioni e calcolo. Scheda **Ctrl+2 = File** (la mappa è ora Ctrl+1 App, Ctrl+2 File, Ctrl+3 Azioni; Ctrl+4 è riservato agli Appunti). Con "tutto" i file riempiono le righe che restano (almeno 2 se ce ne sono, totale 8). Ogni riga mostra icona del file, nome e la cartella accorciata (`~\Documents`). **Invio** apre con il programma predefinito, **Ctrl+Invio** mostra il file in Esplora risorse.
+- Verifica dal vivo (tasti veri, 51 controlli): un file di prova creato in Documenti compare nella scheda File, Ctrl+Invio porta in primo piano Esplora risorse, Invio lo apre con il programma predefinito; poi file cancellato e finestre chiuse. Sull'indice reale la prima ricerca costa circa 0,4 s a freddo. Test: 141 Rust, 69 pagina, clippy a 0 avvisi.
+- Nota sulla prova: il test del cursore ha mostrato una cosa corretta ma da sapere: **il Launcher si apre sul monitor dove sta il cursore** (nel mio PC il secondo monitor è a sinistra); lo script ora porta il cursore sul principale prima di aprire.
+
+Limiti noti: si cerca solo nelle cartelle personali sopra elencate (altri dischi o cartelle di progetto, come `D:\`, non compaiono a meno di aggiungerle: previsto in L6 come impostazione); un file appena creato può non essere ancora nell'indice di Windows e allora lo trova il ripiego; non distinguo la fonte (indice o ripiego) nella pagina. Non provato: Windows Search davvero disattivato, volumi di rete, nomi con caratteri non latini nelle cartelle.
 
 ## Fuori scopo
 

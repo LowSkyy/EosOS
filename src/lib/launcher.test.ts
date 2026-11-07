@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   clampSelection,
+  combine,
+  filterLabel,
+  wantsFiles,
   fallbackLetter,
   filterForKey,
   glyphFor,
@@ -96,11 +99,13 @@ describe("filters", () => {
     expect(toggleFilter(null, "app")).toBe("app");
     expect(toggleFilter("app", "app")).toBeNull();
     expect(toggleFilter("app", "action")).toBe("action");
+    expect(toggleFilter("file", "file")).toBeNull();
   });
   it("maps Ctrl+digit to a tab", () => {
     expect(filterForKey("1")).toBe("app");
-    expect(filterForKey("2")).toBe("action");
-    expect(filterForKey("3")).toBeUndefined();
+    expect(filterForKey("2")).toBe("file");
+    expect(filterForKey("3")).toBe("action");
+    expect(filterForKey("4")).toBeUndefined();
     expect(filterForKey("a")).toBeUndefined();
   });
 });
@@ -116,5 +121,50 @@ describe("glyphFor and kindLabel", () => {
     expect(kindLabel({ kind: "action" }, false)).toBe("Azione");
     expect(kindLabel({ kind: "calc" }, false)).toBe("Invio per copiare");
     expect(kindLabel({ kind: "action" }, true)).toBe("Invio per confermare");
+    expect(kindLabel({ kind: "file" }, false)).toBe("File");
+  });
+});
+
+const mk = (n: number, kind: LauncherItem["kind"]): LauncherItem[] =>
+  Array.from({ length: n }, (_, i) => ({ id: `${kind}${i}`, name: `${kind}${i}`, kind, icon: null }));
+
+describe("combine", () => {
+  it("shows only files on the file tab and only fast results on the other tabs", () => {
+    expect(combine(mk(5, "app"), mk(3, "file"), "file").map((i) => i.kind)).toEqual(["file", "file", "file"]);
+    expect(combine(mk(5, "app"), mk(3, "file"), "app")).toHaveLength(5);
+    expect(combine(mk(5, "app"), mk(3, "file"), "action").every((i) => i.kind === "app")).toBe(true);
+  });
+  it("fills the rest of the list with files on the all tab", () => {
+    const r = combine(mk(3, "app"), mk(10, "file"), null);
+    expect(r).toHaveLength(8);
+    expect(r.filter((i) => i.kind === "file")).toHaveLength(5);
+    expect(r.slice(0, 3).every((i) => i.kind === "app")).toBe(true);
+  });
+  it("always leaves at least two rows for files when there are any", () => {
+    const r = combine(mk(8, "app"), mk(10, "file"), null);
+    expect(r).toHaveLength(8);
+    expect(r.filter((i) => i.kind === "file")).toHaveLength(2);
+    expect(combine(mk(8, "app"), mk(1, "file"), null).filter((i) => i.kind === "file")).toHaveLength(1);
+  });
+  it("copes with empty inputs", () => {
+    expect(combine([], [], null)).toEqual([]);
+    expect(combine([], mk(3, "file"), null)).toHaveLength(3);
+    expect(combine(mk(2, "app"), [], null)).toHaveLength(2);
+  });
+});
+
+describe("wantsFiles and filterLabel", () => {
+  it("needs the right tab and two characters", () => {
+    expect(wantsFiles("ab", null)).toBe(true);
+    expect(wantsFiles(" a ", null)).toBe(false);
+    expect(wantsFiles("", "file")).toBe(false);
+    expect(wantsFiles("relazione", "app")).toBe(false);
+    expect(wantsFiles("relazione", "action")).toBe(false);
+    expect(wantsFiles("😀😀", "file")).toBe(true);
+  });
+  it("labels tabs", () => {
+    expect(filterLabel("file")).toBe("File");
+    expect(filterLabel("action")).toBe("Azioni");
+    expect(filterLabel("app")).toBe("App");
   });
 });

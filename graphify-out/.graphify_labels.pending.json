@@ -26,7 +26,7 @@
   "24": "package.json",
   "25": "glass.rs",
   "26": "tokens.test.ts",
-  "27": "aumid_path",
+  "27": "launcherfiles.rs",
   "28": "app_windows",
   "29": "WebviewWindow",
   "30": "EosOS",
@@ -64,7 +64,7 @@
   "62": "capture_info",
   "63": "Launcher — specifica",
   "64": "APPBARDATA",
-  "65": "is_active",
+  "65": "FakeWindow",
   "66": "launcher.ts",
   "67": "main.tsx",
   "68": "DockItem",
@@ -75,6 +75,7 @@
   "73": "theme.ts",
   "74": "Window",
   "75": "scripts",
-  "76": "util.rs",
+  "76": "TimedCache",
+  "77": "merge",
   "79": "BOOL"
 }

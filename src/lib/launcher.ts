@@ -1,13 +1,13 @@
-export type ItemKind = "app" | "action" | "calc";
+export type ItemKind = "app" | "action" | "calc" | "file";
 
 /** Scheda attiva: solo le app, solo le azioni, o tutto (`null`). */
-export type Filter = "app" | "action" | null;
+export type Filter = "app" | "file" | "action" | null;
 
 /** Un risultato del Launcher, come lo manda Rust (`launcher_search`). */
 export type LauncherItem = {
   id: string;
   name: string;
-  /** "app", "action" (azione di sistema) o "calc" (risultato di un calcolo). */
+  /** "app", "action" (azione di sistema), "calc" (risultato di un calcolo) o "file". */
   kind: ItemKind;
   /** Testo secondario: per il calcolo, l'espressione digitata. */
   detail?: string | null;
@@ -81,7 +81,35 @@ export function toggleFilter(current: Filter, wanted: Exclude<Filter, null>): Fi
 
 /** Scheda associata a un tasto numerico con Ctrl, o `undefined` se non è una scheda. Pura, testata. */
 export function filterForKey(key: string): Exclude<Filter, null> | undefined {
-  return key === "1" ? "app" : key === "2" ? "action" : undefined;
+  return key === "1" ? "app" : key === "2" ? "file" : key === "3" ? "action" : undefined;
+}
+
+/** Nome della scheda per l'etichetta accanto al campo. */
+export function filterLabel(f: Exclude<Filter, null>): string {
+  return f === "app" ? "App" : f === "file" ? "File" : "Azioni";
+}
+
+/** Quante righe al massimo nell'elenco. */
+export const MAX_ROWS = 8;
+/** Con la scheda "tutto", ai file spettano almeno tante righe (se ci sono). */
+export const MIN_FILE_ROWS = 2;
+
+/**
+ * Unisce i risultati veloci (calcolo, app, azioni) con quelli dei file, che arrivano a parte.
+ * Con una scheda si vede solo la sua categoria; con "tutto" i file prendono lo spazio che resta
+ * dopo i veloci, ma mai meno di `MIN_FILE_ROWS` (se ce ne sono), per un totale di `MAX_ROWS`.
+ * Pura, testata.
+ */
+export function combine(fast: LauncherItem[], files: LauncherItem[], filter: Filter, cap = MAX_ROWS): LauncherItem[] {
+  if (filter === "file") return files.slice(0, cap);
+  if (filter !== null) return fast.slice(0, cap);
+  const nFiles = Math.min(files.length, Math.max(MIN_FILE_ROWS, cap - fast.length));
+  return [...fast.slice(0, cap - nFiles), ...files.slice(0, nFiles)];
+}
+
+/** Servono i file per questa ricerca? (scheda giusta e almeno 2 caratteri) Pura, testata. */
+export function wantsFiles(query: string, filter: Filter): boolean {
+  return (filter === null || filter === "file") && [...query.trim()].length >= 2;
 }
 
 /** Simbolo al posto dell'icona per le voci che non hanno un'icona di app. Pura, testata. */
@@ -97,11 +125,13 @@ export function glyphFor(item: Pick<LauncherItem, "id" | "kind" | "name">): stri
     "action:documents": "📄",
     "action:desktop": "🖥",
   };
+  if (item.kind === "file") return "📄";
   return byId[item.id] ?? fallbackLetter(item.name);
 }
 
 /** Etichetta a destra della riga. Pura, testata. */
 export function kindLabel(item: Pick<LauncherItem, "kind">, confirming: boolean): string {
   if (confirming) return "Invio per confermare";
-  return item.kind === "calc" ? "Invio per copiare" : item.kind === "action" ? "Azione" : "App";
+  if (item.kind === "calc") return "Invio per copiare";
+  return item.kind === "action" ? "Azione" : item.kind === "file" ? "File" : "App";
 }

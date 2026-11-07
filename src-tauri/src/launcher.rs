@@ -19,6 +19,7 @@ use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 use crate::dock::{aumid_path, cached_icon, ComScope};
 use crate::launcheract;
 use crate::launchercalc;
+use crate::launcherfiles;
 use crate::launcherrank::{fold, rank};
 use crate::launcherstore;
 
@@ -39,7 +40,7 @@ pub struct AppEntry {
 pub struct LauncherItem {
     pub id: String,
     pub name: String,
-    /// "app", "action" o "calc".
+    /// "app", "action", "calc" o "file".
     pub kind: &'static str,
     /// Testo secondario (per il calcolo: l'espressione).
     pub detail: Option<String>,
@@ -186,6 +187,29 @@ pub fn search(query: &str, have: &[String], filter: Option<&str>) -> Vec<Launche
     out.extend(scored.into_iter().map(|(_, it)| it));
     out.truncate(LIMIT);
     out
+}
+
+/// Cerca `query` tra i file (indice di Windows Search, con ripiego). Lento rispetto al resto: la
+/// pagina lo chiama a parte. L'`id` di un file è il suo percorso; il nome è il nome del file e il
+/// testo secondario la cartella accorciata.
+pub fn files(query: &str, have: &[String]) -> Vec<LauncherItem> {
+    let home = std::env::var("USERPROFILE").ok();
+    let have: HashSet<String> = have.iter().map(|h| fold(h)).collect();
+    launcherfiles::search(query)
+        .into_iter()
+        .map(|h| {
+            let id = h.path.to_string_lossy().to_string();
+            let dir = h.path.parent().map(|d| d.to_string_lossy().to_string()).unwrap_or_default();
+            let icon = (!have.contains(&fold(&id))).then(|| cached_icon(&h.path)).flatten();
+            LauncherItem {
+                kind: "file",
+                detail: Some(launcherfiles::short_dir(&dir, home.as_deref(), 48)),
+                name: h.name,
+                id,
+                icon,
+            }
+        })
+        .collect()
 }
 
 /// Avvia l'app con questo `id`, se è nell'indice, e ne registra l'uso. `false` se l'id è

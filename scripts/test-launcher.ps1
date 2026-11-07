@@ -22,6 +22,10 @@ public static class LT {
   public static IntPtr Find(string title) { IntPtr f = IntPtr.Zero; EnumWindows((h, l) => { var sb = new StringBuilder(256); GetWindowText(h, sb, 256); if (sb.ToString() == title) { f = h; return false; } return true; }, IntPtr.Zero); return f; }
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
   public static bool PostClose(IntPtr h) { return PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero); }
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+  public static string ClassOf(IntPtr h) { var sb = new StringBuilder(128); GetClassName(h, sb, 128); return sb.ToString(); }
+  public static IntPtr FindLike(string part) { IntPtr f = IntPtr.Zero; EnumWindows((h, l) => { var sb = new StringBuilder(512); GetWindowText(h, sb, 512); if (IsWindowVisible(h) && sb.ToString().IndexOf(part, StringComparison.OrdinalIgnoreCase) >= 0) { f = h; return false; } return true; }, IntPtr.Zero); return f; }
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   public static void Key(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
   public static void Ctrl(byte vk) { keybd_event(0x11, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); keybd_event(0x11, 0, 2, UIntPtr.Zero); }
   public static void AltSpace() { keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x20, 0, 0, UIntPtr.Zero); keybd_event(0x20, 0, 2, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); }
@@ -66,6 +70,9 @@ try {
   Check 'non in Alt+Tab (TOOLWINDOW), attivabile (no NOACTIVATE)' ((($ex -band 0x80) -ne 0) -and (($ex -band 0x08000000) -eq 0)) ('ex=0x{0:X}' -f $ex)
 
   Write-Host 'B. Alt+Spazio apre, a fuoco, centrata'
+  Add-Type -AssemblyName System.Windows.Forms
+  $pw = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+  [void][LT]::SetCursorPos($pw.X + [int]($pw.Width / 2), $pw.Y + [int]($pw.Height / 2))   # il Launcher si apre dove sta il cursore
   [LT]::AltSpace(); Start-Sleep -Milliseconds 900
   Check 'aperta' (IsOpen)
   $h = Launcher; $r = New-Object LT+R; [void][LT]::GetWindowRect($h, [ref]$r)
@@ -134,11 +141,11 @@ try {
   TypeText 'impost'; Start-Sleep -Milliseconds 700
   $kindsAll = Js "Array.from(document.querySelectorAll('.launcher-item')).map(function(e){return e.dataset.kind}).join(',')"
   Check 'senza scheda: azione Impostazioni presente (o app omonima)' ($kindsAll -match 'action|app') $kindsAll
-  PressCtrl 0x32; Start-Sleep -Milliseconds 700
+  PressCtrl 0x33; Start-Sleep -Milliseconds 700
   Check 'chip Azioni visibile' ((Js "!!document.querySelector('.launcher-chip') && document.querySelector('.launcher-chip').textContent") -eq 'Azioni')
   $kinds = Js "Array.from(document.querySelectorAll('.launcher-item')).map(function(e){return e.dataset.kind}).join(',')"
   Check 'solo azioni' ($kinds -eq 'action') $kinds
-  PressCtrl 0x32; Start-Sleep -Milliseconds 600
+  PressCtrl 0x33; Start-Sleep -Milliseconds 600
   Check 'secondo Ctrl+2 toglie la scheda' ((Js "!document.querySelector('.launcher-chip')") -eq $true)
   PressCtrl 0x31; Start-Sleep -Milliseconds 600
   $kinds = Js "Array.from(document.querySelectorAll('.launcher-item')).map(function(e){return e.dataset.kind}).join(',')"
@@ -166,7 +173,7 @@ try {
   $settingsBefore = [LT]::Find('Impostazioni')
   if ($settingsBefore -ne [IntPtr]::Zero) { Write-Host '  (Impostazioni gia aperta: provo solo che il Launcher si chiuda)' }
   [LT]::AltSpace(); Start-Sleep -Milliseconds 900
-  PressCtrl 0x32; Start-Sleep -Milliseconds 300
+  PressCtrl 0x33; Start-Sleep -Milliseconds 300
   TypeText 'impost'; Start-Sleep -Milliseconds 700
   Press 0x0D; Start-Sleep -Seconds 3
   Check 'Launcher chiuso' (-not (IsOpen))
@@ -176,9 +183,56 @@ try {
     if ($sw -ne [IntPtr]::Zero) { [void][LT]::PostClose($sw) }
   }
   Check 'nessuna nuova azione di alimentazione' ((Get-Content $actionLog -Raw) -notmatch 'settings|lock|sleep|shutdown')
+
+  Write-Host 'M. file (scheda File, apertura, mostra nella cartella)'
+  $docs = [Environment]::GetFolderPath('MyDocuments')
+  $stem = 'eosos-prova-launcher-' + (Get-Random -Maximum 99999)
+  $testFile = Join-Path $docs ($stem + '.txt')
+  Set-Content -Path $testFile -Value 'prova del Launcher, si puo cancellare' -Encoding ASCII
+  $explorerBefore = [LT]::FindLike((Split-Path $docs -Leaf))
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  Check 'aperta' (IsOpen)
+  PressCtrl 0x32; Start-Sleep -Milliseconds 300
+  Check 'chip File' ((Js "!!document.querySelector('.launcher-chip') && document.querySelector('.launcher-chip').textContent") -eq 'File')
+  TypeText $stem.Replace('-', ' ').Split(' ')[0]   # "eosos": parola iniziale del nome
+  TypeText ' '
+  TypeText 'prova'
+  $found = $false
+  for ($i = 0; $i -lt 30 -and -not $found; $i++) {
+    Start-Sleep -Milliseconds 300
+    $found = (Js "Array.from(document.querySelectorAll('.launcher-name')).some(function(e){return e.textContent.indexOf('$stem') === 0})") -eq $true
+  }
+  Check 'il file di prova compare tra i risultati' $found
+  if ($found) {
+    $kind = Js "Array.from(document.querySelectorAll('.launcher-item')).filter(function(e){return e.querySelector('.launcher-name').textContent.indexOf('$stem') === 0})[0].dataset.kind"
+    Check 'e di tipo file' ($kind -eq 'file')
+    $idx = Js "Array.from(document.querySelectorAll('.launcher-item')).findIndex(function(e){return e.querySelector('.launcher-name').textContent.indexOf('$stem') === 0})"
+    foreach ($i in 1..$idx) { Press 0x28 }   # freccia giu fino al file
+    Start-Sleep -Milliseconds 200
+    PressCtrl 0x0D; Start-Sleep -Seconds 3     # Ctrl+Invio: mostra nella cartella
+    Check 'Launcher chiuso' (-not (IsOpen))
+    $fg = [LT]::GetForegroundWindow()
+    Check 'Esplora risorse in primo piano sulla cartella' (([LT]::ClassOf($fg) -eq 'CabinetWClass')) ([LT]::ClassOf($fg))
+    if ($explorerBefore -eq [IntPtr]::Zero -and [LT]::ClassOf($fg) -eq 'CabinetWClass') { [void][LT]::PostClose($fg) }
+    Start-Sleep -Milliseconds 800
+
+    [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+    PressCtrl 0x32; Start-Sleep -Milliseconds 300
+    TypeText 'eosos'; TypeText ' '; TypeText 'prova'
+    $found = $false
+    for ($i = 0; $i -lt 30 -and -not $found; $i++) { Start-Sleep -Milliseconds 300; $found = (Js "Array.from(document.querySelectorAll('.launcher-name')).some(function(e){return e.textContent.indexOf('$stem') === 0})") -eq $true }
+    $idx = Js "Array.from(document.querySelectorAll('.launcher-item')).findIndex(function(e){return e.querySelector('.launcher-name').textContent.indexOf('$stem') === 0})"
+    foreach ($i in 1..[math]::Max(1, $idx)) { if ($idx -gt 0) { Press 0x28 } }
+    Press 0x0D
+    $editor = [IntPtr]::Zero
+    for ($i = 0; $i -lt 20 -and $editor -eq [IntPtr]::Zero; $i++) { Start-Sleep -Milliseconds 300; $editor = [LT]::FindLike($stem) }
+    Check 'Invio apre il file con il programma predefinito' ($editor -ne [IntPtr]::Zero)
+    if ($editor -ne [IntPtr]::Zero) { [void][LT]::PostClose($editor) }
+  }
 }
 finally {
   Cleanup
+  if ($testFile) { Remove-Item $testFile -ErrorAction SilentlyContinue }
   if ($savedClip) { Set-Clipboard -Value $savedClip }
   Remove-Item $actionLog -ErrorAction SilentlyContinue
 }

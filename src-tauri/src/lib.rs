@@ -10,6 +10,7 @@ mod glass;
 mod launcher;
 mod launchercalc;
 mod launcheract;
+mod launcherfiles;
 mod launcherrank;
 mod launcherstore;
 mod launcherwin;
@@ -86,6 +87,20 @@ fn dock_backdrop(since: u64) -> tauri::ipc::Response {
 #[tauri::command(async)]
 fn launcher_search(query: String, have: Option<Vec<String>>, filter: Option<String>) -> Vec<launcher::LauncherItem> {
     launcher::search(&query, &have.unwrap_or_default(), filter.as_deref())
+}
+
+/// Ricerca dei file del Launcher (indice di Windows Search). Bloccante e più lenta: la pagina la
+/// chiama a parte dopo una breve pausa.
+#[tauri::command(async)]
+fn launcher_files(query: String, have: Option<Vec<String>>) -> Vec<launcher::LauncherItem> {
+    launcher::files(&query, &have.unwrap_or_default())
+}
+
+/// Apre un file del Launcher, o lo mostra in Esplora risorse (`reveal`). Solo se Rust lo ha
+/// appena mostrato come risultato: un percorso arbitrario è rifiutato.
+#[tauri::command(async)]
+fn launcher_open_file(id: String, reveal: bool) -> bool {
+    launcherfiles::open(&id, reveal)
 }
 
 /// Esegue un'azione del Launcher. Le azioni che spengono o riavviano rispondono "confirm" alla
@@ -279,7 +294,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_action, launcher_hide, launcher_fit])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_action, launcher_hide, launcher_fit])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

@@ -3,6 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
   clampSelection,
+  combine,
+  filterLabel,
   filterForKey,
   glyphFor,
   kindLabel,
@@ -10,6 +12,7 @@ import {
   mergeIcons,
   moveSelection,
   toggleFilter,
+  wantsFiles,
   windowHeight,
   type Filter,
   type IconCache,
@@ -23,9 +26,11 @@ import {
  */
 export default function Launcher() {
   const [query, setQuery] = useState("");
-  const [items, setItems] = useState<LauncherItem[]>([]);
-  const [sel, setSel] = useState(0);
   const [filter, setFilter] = useState<Filter>(null);
+  const [fast, setFast] = useState<LauncherItem[]>([]);
+  const [fileItems, setFileItems] = useState<LauncherItem[]>([]);
+  const items = combine(fast, fileItems, filter);
+  const [sel, setSel] = useState(0);
   // Azione che aspetta la conferma (Riavvia, Spegni): la conferma vera la gestisce Rust.
   const [confirming, setConfirming] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -44,16 +49,37 @@ export default function Launcher() {
       });
       if (mine !== epoch.current) return;
       const merged = mergeIcons(found, cache.current);
-      setItems(merged);
-      setSel((s) => clampSelection(s, merged.length));
+      setFast(merged);
     } catch {
-      if (mine === epoch.current) setItems([]);
+      if (mine === epoch.current) setFast([]);
     }
   }, []);
 
   useEffect(() => {
     void search(query, filter);
   }, [query, filter, search]);
+
+  // I file arrivano a parte, dopo una breve pausa nella digitazione (la ricerca nell'indice costa di più).
+  const fileEpoch = useRef(0);
+  useEffect(() => {
+    const mine = ++fileEpoch.current;
+    setFileItems([]);
+    if (!wantsFiles(query, filter)) return;
+    const timer = setTimeout(async () => {
+      try {
+        const found = await invoke<LauncherItem[]>("launcher_files", { query, have: knownIds(cache.current) });
+        if (mine === fileEpoch.current) setFileItems(mergeIcons(found, cache.current));
+      } catch {
+        /* nessun file: l'elenco resta com'è */
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [query, filter]);
+
+  // La selezione resta dentro l'elenco quando i risultati cambiano.
+  useEffect(() => {
+    setSel((s) => clampSelection(s, items.length));
+  }, [items.length]);
 
   // All'apertura: campo vuoto e a fuoco, elenco delle app più usate.
   useEffect(() => {
@@ -78,9 +104,12 @@ export default function Launcher() {
 
   const hide = () => void invoke("launcher_hide");
 
-  const launch = async (item: LauncherItem | undefined) => {
+  const launch = async (item: LauncherItem | undefined, reveal = false) => {
     if (!item) return;
-    if (item.kind === "calc") {
+    if (item.kind === "file") {
+      hide();
+      await invoke("launcher_open_file", { id: item.id, reveal });
+    } else if (item.kind === "calc") {
       // Copia il risultato: il Launcher è a fuoco, quindi la pagina può scrivere negli appunti.
       try {
         await navigator.clipboard.writeText(item.name);
@@ -123,7 +152,7 @@ export default function Launcher() {
         break;
       case "Enter":
         e.preventDefault();
-        void launch(items[sel]);
+        void launch(items[sel], e.ctrlKey);
         break;
       case "Escape":
         e.preventDefault();
@@ -148,7 +177,7 @@ export default function Launcher() {
             setQuery(e.target.value);
             setSel(0);
           }}
-          placeholder={filter === "action" ? "Cerca azioni" : filter === "app" ? "Cerca app" : "Cerca app, azioni, calcoli"}
+          placeholder={filter ? `Cerca in ${filterLabel(filter)}` : "Cerca app, file, azioni, calcoli"}
           spellCheck={false}
           autoComplete="off"
           autoFocus
@@ -157,7 +186,7 @@ export default function Launcher() {
           aria-controls="launcher-list"
           aria-activedescendant={items[sel] ? `launcher-item-${sel}` : undefined}
         />
-        {filter && <span className="launcher-chip">{filter === "app" ? "App" : "Azioni"}</span>}
+        {filter && <span className="launcher-chip">{filterLabel(filter)}</span>}
       </div>
       {(items.length > 0 || hasQuery) && (
         <ul className="launcher-list" id="launcher-list" role="listbox">
@@ -178,7 +207,7 @@ export default function Launcher() {
                   setConfirming(null);
                 }
               }}
-              onClick={() => void launch(it)}
+              onClick={(e) => void launch(it, e.ctrlKey)}
             >
               {it.icon ? (
                 <img className="launcher-icon" src={it.icon} alt="" draggable={false} />
