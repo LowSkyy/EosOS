@@ -45,6 +45,20 @@ static DESCRIPTIONS: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock
 const DESKTOP_CLASSES: [&str; 4] =
     ["Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd"];
 
+/// Nome comprensibile per i processi di shell di Windows più comuni.
+fn shell_component_name(exe_stem: &str) -> Option<&'static str> {
+    const KNOWN: [(&str, &str); 7] = [
+        ("StartMenuExperienceHost", "Start"),
+        ("SearchHost", "Cerca"),
+        ("SearchApp", "Cerca"),
+        ("SearchUI", "Cerca"),
+        ("ShellExperienceHost", "Windows"),
+        ("TextInputHost", "Tastiera"),
+        ("LockApp", "Blocco schermo"),
+    ];
+    KNOWN.iter().find(|(k, _)| k.eq_ignore_ascii_case(exe_stem)).map(|(_, v)| *v)
+}
+
 /// Nome da mostrare a partire da descrizione del file, nome dell'exe e classe
 /// della finestra. Funzione pura, testata.
 pub fn display_name(
@@ -59,6 +73,11 @@ pub fn display_name(
     // Le app UWP girano dentro ApplicationFrameHost: il nome utile è il titolo.
     if exe_stem.eq_ignore_ascii_case("ApplicationFrameHost") && !title.trim().is_empty() {
         return title.trim().to_string();
+    }
+    // Componenti di shell di Windows: la descrizione del file è tecnica
+    // ("Windows Shell Experience Host"), meglio un nome comprensibile.
+    if let Some(n) = shell_component_name(exe_stem) {
+        return n.to_string();
     }
     if let Some(d) = description.map(str::trim).filter(|d| !d.is_empty()) {
         return d.to_string();
@@ -289,6 +308,16 @@ mod tests {
             display_name(Some("Application Frame Host"), "ApplicationFrameHost", "ApplicationFrameWindow", "Calcolatrice"),
             "Calcolatrice"
         );
+    }
+
+    #[test]
+    fn shell_components_get_friendly_names() {
+        assert_eq!(
+            display_name(Some("Windows Shell Experience Host"), "ShellExperienceHost", "Windows.UI.Core.CoreWindow", ""),
+            "Windows"
+        );
+        assert_eq!(display_name(Some("Start"), "startmenuexperiencehost", "X", ""), "Start");
+        assert_eq!(display_name(None, "SearchHost", "X", ""), "Cerca");
     }
 
     #[test]
