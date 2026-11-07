@@ -90,8 +90,8 @@ pub fn run() {
         enable_taskbar_hiding();
     }
 
-    // Solo build debug: provoca un panic dopo 9 s per testare il panic hook.
-    #[cfg(debug_assertions)]
+    // Solo build debug o con la feature `test-hooks`: provoca un panic dopo 9 s per testare il panic hook.
+    #[cfg(any(debug_assertions, feature = "test-hooks"))]
     if std::env::var("EOSOS_TEST_PANIC").is_ok_and(|v| v == "1") {
         std::thread::spawn(|| {
             std::thread::sleep(std::time::Duration::from_secs(9));

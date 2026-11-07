@@ -54,16 +54,16 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 
 **Prova in Windows Sandbox (7 nov 2026)**: build release su Windows 11 Enterprise 10.0.26100, utente `WDAGUtilityAccount`, via `scripts/prepare-sandbox.ps1`. Prova automatica tutta OK:
 - `test-workarea`: area di lavoro 0..775 → 28..823 con taskbar nascosta, nessuna fascia vuota; uscita normale e kill del processo principale ripristinano taskbar, area di lavoro e marcatore; dopo il kill simultaneo di EosOS e watchdog (limite noto: taskbar ancora nascosta) il riavvio recupera tutto.
+- Panic sulla build release verificato con la feature Cargo `test-hooks` (`cargo build --release --features test-hooks`, build separata, mai distribuita): `test-taskbar` completo, 4 scenari su 4 OK. Nota: il release usa `panic = "abort"`, ma l'hook di panic gira prima dell'abort e il watchdog copre comunque la morte del processo.
 - `test-taskbar -SkipPanic`: uscita normale, kill brutale e scorciatoia `Ctrl+Alt+Shift+Esc` ripristinano la taskbar (confermato dal log del watchdog).
 - Prova manuale (`Ctrl+Alt+Shift+Esc`, chiusura, kill dal Task Manager, ripristino): tutto OK.
 
 **Non verificato / aperto**
-- Il panic sulla build release: l'hook di test esiste solo in debug.
 - Scale oltre il 125% e ritorno al 100% con EosOS aperto (rinviati su richiesta).
 - Scollegamento reale di un monitor (solo hook di debug).
 - Prova in VM Hyper-V o con un secondo utente: sostituita dalla Windows Sandbox per la parte automatica.
-- Un'esecuzione isolata di `test-multimonitor -Hotplug` è risultata KO senza righe di errore e non si è più riprodotta.
-- Dopo il kill simultaneo di EosOS e watchdog l'auto-nascondi resta attivo fino al prossimo avvio di EosOS.
+- Un'esecuzione isolata di `test-multimonitor -Hotplug` è risultata KO senza righe di errore; 5 esecuzioni consecutive successive sono tutte OK, quindi non riproducibile (probabile interferenza esterna).
+- Dopo il kill simultaneo di EosOS e watchdog l'auto-nascondi resta attivo fino al prossimo avvio di EosOS (limite accettato: non resta nessun processo vivo che possa ripristinare; il recupero avviene all'avvio successivo).
 
 ## Roadmap (FUORI SCOPE per ora)
 
