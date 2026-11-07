@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794023027.6876402,
-    "seen": 1794023028.5632799,
-    "ast_hash": "017b4d97df935ef9d7962dcb53ba8a49",
+    "mtime": 1794023726.0165029,
+    "seen": 1794023726.861353,
+    "ast_hash": "079f8d70c52a07f814a5e0944502cd1a",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -42,15 +42,15 @@
     "semantic_hash": ""
   },
   "src-tauri/capabilities/default.json": {
-    "mtime": 1794021210.1819148,
-    "seen": 1794021694.1359057,
-    "ast_hash": "107b9b4c38f1f358c5f4ba938fe93a79",
+    "mtime": 1794023210.98776,
+    "seen": 1794023726.8613331,
+    "ast_hash": "8c2bfc746ad562e2c4a342079b0e63b5",
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794022873.177269,
-    "seen": 1794023028.563263,
-    "ast_hash": "d410639b9ad78c1abcc5a81d670e3f8e",
+    "mtime": 1794023593.098418,
+    "seen": 1794023726.861336,
+    "ast_hash": "9240ee2721339c6c0891489f56184aa4",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -222,9 +222,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/appbar.rs": {
-    "mtime": 1794022624.1905012,
-    "seen": 1794022733.0599313,
-    "ast_hash": "8dd0865d19c23de924d17b94290e7426",
+    "mtime": 1794023339.8509805,
+    "seen": 1794023726.8613343,
+    "ast_hash": "0d1f382134875955a4b56fc10b7536b3",
     "semantic_hash": ""
   },
   "src-tauri/src/foreground.rs": {
@@ -261,6 +261,12 @@
     "mtime": 1794022951.6143,
     "seen": 1794023028.5632732,
     "ast_hash": "2d2bfc3fcf79fd5aa0a1ec2ab2f6dcf2",
+    "semantic_hash": ""
+  },
+  "scripts/test-multimonitor.ps1": {
+    "mtime": 1794023339.969638,
+    "seen": 1794023726.8613286,
+    "ast_hash": "376c2a7f5d06062fd26767728b6e2e88",
     "semantic_hash": ""
   },
   "package-lock.json": {

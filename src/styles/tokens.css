@@ -1,0 +1,43 @@
+/* Design tokens di EosOS. Fonte unica dei valori: i test (tokens.test.ts)
+   leggono questo file e verificano il contrasto. */
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Barra: tinta traslucida sopra l'effetto vetro, e variante opaca di ripiego. */
+  --bar-bg: rgba(246, 246, 248, 0.82);
+  --bar-bg-solid: #f6f6f8;
+  --bar-fg: #1c1c1e;
+  --bar-fg-muted: #3a3a3c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --bar-bg: rgba(30, 30, 32, 0.82);
+    --bar-bg-solid: #1e1e20;
+    --bar-fg: #f5f5f7;
+    --bar-fg-muted: #c7c7cc;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bar-bg: rgba(30, 30, 32, 0.82);
+  --bar-bg-solid: #1e1e20;
+  --bar-fg: #f5f5f7;
+  --bar-fg-muted: #c7c7cc;
+}
+
+/* Valori indipendenti dal tema. */
+:root {
+  --font-sans: "Inter Variable", "Segoe UI Variable", system-ui, sans-serif;
+  --font-size-bar: 13px;
+  --weight-regular: 400;
+  --weight-strong: 600;
+  --space-bar-x: 12px;
+  --space-gap: 8px;
+}

@@ -1,5 +1,6 @@
 mod appbar;
 mod foreground;
+mod glass;
 mod taskbar;
 mod util;
 mod watchdog;
@@ -14,6 +15,11 @@ use windows::Win32::System::Console::SetConsoleCtrlHandler;
 #[tauri::command]
 fn get_active_app() -> Option<foreground::ActiveApp> {
     foreground::current()
+}
+
+#[tauri::command]
+fn glass_state() -> &'static str {
+    glass::state().as_str()
 }
 
 /// Il nascondimento della taskbar è disattivato di default: serve
@@ -92,7 +98,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_active_app])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

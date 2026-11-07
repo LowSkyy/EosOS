@@ -232,6 +232,7 @@ fn create_window(app: &AppHandle, label: &str, info: &MonitorInfo) -> tauri::Res
         .skip_taskbar(true)
         .resizable(false)
         .shadow(false)
+        .transparent(true)
         .focused(false)
         .visible(false)
         .position(info.x as f64, info.y as f64)
@@ -275,6 +276,7 @@ fn apply(window: &WebviewWindow, info: &MonitorInfo) -> Result<(), Box<dyn std::
     window.set_position(PhysicalPosition::new(rc.left, rc.top))?;
     window.set_size(size)?;
     if !window.is_visible()? {
+        crate::glass::apply(window);
         window.show()?;
         // La prima visualizzazione può spostare la finestra: si riafferma la posizione.
         window.set_position(PhysicalPosition::new(rc.left, rc.top))?;

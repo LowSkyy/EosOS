@@ -1,9 +1,13 @@
-:root {
-  font-family: "Inter Variable", system-ui, sans-serif;
-  color-scheme: light dark;
+@import "./styles/tokens.css";
+
+html, body, #root { height: 100%; margin: 0; background: transparent; }
+body {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-bar);
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
 }
-html, body, #root { height: 100%; margin: 0; }
-body { overflow: hidden; user-select: none; cursor: default; }
 
 .menubar {
   box-sizing: border-box;
@@ -11,10 +15,24 @@ body { overflow: hidden; user-select: none; cursor: default; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 12px;
-  font-size: 13px;
-  background: Canvas;
-  color: CanvasText;
+  gap: var(--space-gap);
+  padding: 0 var(--space-bar-x);
+  background: var(--bar-bg);
+  color: var(--bar-fg);
 }
-.active-app { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.clock { white-space: pre; font-variant-numeric: tabular-nums; }
+
+/* Senza effetto vetro (sistema non supportato): fondo opaco. */
+:root[data-glass="none"] .menubar { background: var(--bar-bg-solid); }
+
+.active-app {
+  font-weight: var(--weight-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.clock {
+  font-weight: var(--weight-regular);
+  color: var(--bar-fg-muted);
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+}

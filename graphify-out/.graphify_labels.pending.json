@@ -20,5 +20,7 @@
   "18": "appbar.rs",
   "19": "test-appbar.ps1",
   "20": "foreground.rs",
-  "21": "App.tsx"
+  "21": "test-multimonitor.ps1",
+  "22": "App",
+  "23": "AtomicIsize"
 }
