@@ -103,7 +103,8 @@ Il tema si forza con `?theme=light|dark` nell'URL o con `localStorage["eosos.the
 ## Limiti noti
 
 - Con la taskbar nascosta EosOS attiva temporaneamente l'**auto-nascondi** di Windows (altrimenti resterebbe una fascia vuota in basso) e lo disattiva all'uscita; se era già attivo non lo tocca. Se vengono terminati **contemporaneamente** EosOS e il watchdog, l'impostazione resta attiva finché non rilanci EosOS (la annulla da solo all'avvio; marcatore in `%LOCALAPPDATA%\EosOS\autohide-pending`) e la taskbar può restare nascosta: usa il ripristino manuale sopra.
-- Scollegamento reale di un monitor e scale DPI diverse da 100% sono coperti da test unitari, non verificati dal vivo.
+- Scale DPI: verificate dal vivo a 100% e 125% (anche miste: primario 125%, secondo 100%): altezza barra 35 px e 28 px, area di lavoro corretta, testo nitido e non tagliato (screenshot sul primario). Non provate 150% o più, né il cambio di scala con EosOS già aperto.
+- Lo scollegamento reale di un monitor è coperto solo da test unitari e dall'hook di debug, non verificato dal vivo.
 - Il nome dell'app per finestre di sistema (es. menu Start) può mostrare una descrizione tecnica.
 
 ## Fuori scopo (roadmap)
