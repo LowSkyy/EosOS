@@ -28,7 +28,10 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
 
 ## Fasi
 
-1. **D1 – Dati (Rust)**: leggere le app fissate, enumerare le app aperte, estrarre le icone; comandi Tauri `dock_items`. Test unitari sull'elenco e sul raggruppamento.
+1. **D1 – Dati (Rust)** — FATTA (7 nov 2026): `src-tauri/src/dock.rs`, comando Tauri `dock_items`. Verificata sui dati reali (12 app fissate, app aperte, icone PNG 128 px con colori e trasparenza corretti). Note:
+   - Le app che si aggiornano in una sottocartella versionata (Discord) sono abbinate per nome di file e cartella antenata, così non compaiono due volte.
+   - Non ancora gestite: app dello Store/UWP (fissate senza percorso, e finestre dentro `ApplicationFrameHost`) e ordine reale delle fissate (registro `Taskband`): ora sono ordinate per nome.
+   - `cargo test dump_dock -- --ignored --nocapture` stampa le voci reali e salva le icone in `%TEMP%\eosos-dock`.
 2. **D2 – Finestra e vetro**: finestra Dock in basso al centro, pillola di vetro con icone statiche, hit-testing corretto, più monitor (Dock sul monitor primario).
 3. **D3 – Interazione**: clic per avviare/portare in primo piano/minimizzare, puntini di stato, menu contestuale, fissa/rimuovi.
 4. **D4 – Effetti**: ingrandimento a onda, rimbalzo all'avvio, auto-nascondi con scorrimento.

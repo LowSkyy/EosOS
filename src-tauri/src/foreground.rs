@@ -129,7 +129,7 @@ fn file_description(path: &Path) -> Option<String> {
     }
 }
 
-fn cached_description(path: &Path) -> Option<String> {
+pub(crate) fn cached_description(path: &Path) -> Option<String> {
     let cache = DESCRIPTIONS.get_or_init(Default::default);
     let key = path.to_string_lossy().to_lowercase();
     if let Some(v) = cache.lock().ok()?.get(&key) {

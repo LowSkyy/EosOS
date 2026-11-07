@@ -1,4 +1,5 @@
 mod appbar;
+mod dock;
 mod foreground;
 mod glass;
 mod taskbar;
@@ -15,6 +16,12 @@ use windows::Win32::System::Console::SetConsoleCtrlHandler;
 #[tauri::command]
 fn get_active_app() -> Option<foreground::ActiveApp> {
     foreground::current()
+}
+
+/// Voci del Dock (fissate + aperte). Lavoro bloccante (COM, icone): fuori dal thread UI.
+#[tauri::command(async)]
+fn dock_items() -> Vec<dock::DockItem> {
+    dock::items()
 }
 
 #[tauri::command]
@@ -100,7 +107,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
