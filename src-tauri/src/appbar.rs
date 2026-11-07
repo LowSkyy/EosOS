@@ -152,6 +152,11 @@ pub fn reserve_bottom(hwnd: HWND, mon: RECT, height_px: i32) -> RECT {
         };
         if is_new {
             SHAppBarMessage(ABM_NEW, &mut abd);
+            // Una registrazione nuova non ha ancora nessuna posizione: anche se il
+            // rettangolo è uguale all'ultimo applicato, va comunicato di nuovo. Succede
+            // dopo il riavvio di Explorer, che perde tutte le appbar (vedi
+            // `handle_explorer_restart`): senza questo la riserva andrebbe persa.
+            *LAST_BOTTOM.lock().unwrap_or_else(|e| e.into_inner()) = None;
         }
         abd.rc = RECT { left: mon.left, top: mon.bottom - height_px, right: mon.right, bottom: mon.bottom };
         SHAppBarMessage(ABM_QUERYPOS, &mut abd);

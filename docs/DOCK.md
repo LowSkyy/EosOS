@@ -58,7 +58,7 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
    - ~~Sfocatura vera dello sfondo~~: fatta, vedi "Sfocatura vera" sotto.
    - ~~App dello Store (UWP)~~: fatte, vedi "App dello Store" sotto.
    - **Ordine reale delle fissate**: è nel registro (`Taskband`) in un formato binario non documentato. Ora sono in ordine alfabetico al primo avvio; trascinare per riordinare sarebbe la strada più sensata.
-   - **Riavvio di Explorer dal vivo con il Dock**: lo script esistente riavvia davvero Explorer sul PC (chiude anche le finestre di Esplora risorse) e non l'ho lanciato senza consenso. Il Dock non dipende da Explorer (processo e finestra propri, monitor e area di lavoro riletti ogni secondo).
+   - ~~Riavvio di Explorer dal vivo~~: fatto, vedi "Riavvio di Explorer" sotto.
    - **DPI misti / scala diversa**: la geometria è testata a 100%, 125%, 150% e con origine negativa, ma non ho cambiato la scala del tuo schermo.
    - ~~Riserva di spazio~~: fatta, vedi "Spazio riservato" sotto.
 
@@ -91,6 +91,12 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
    - **Verifica**: `scripts/test-dock-reserve.ps1` (nessun clic): area di lavoro −92 px; Blocco note massimizzato che finisce sopra la capsula (fondo 964 = 956 + 8 px di cornice invisibile, la capsula parte a 962); `EOSOS_DOCK_RESERVE=0` e auto-nascondi senza riduzione; uscita normale e kill che ripristinano l'area di lavoro.
    - **Difetto trovato e corretto durante la prova**: il Dock restava a volte nascosto all'avvio (4 esecuzioni su 4 in una serie, poi 6 su 6 corrette). Causa: competizione tra thread. `enforce_styles` leggeva lo stile della finestra e lo riscriveva senza la cornice; se nel frattempo `show()` (altro thread) aveva aggiunto `WS_VISIBLE`, la scrittura basata sulla lettura vecchia lo cancellava. Ora si rilegge lo stile subito prima di scrivere e, come rete di sicurezza, se il Dock mostrato risulta nascosto lo si rimostra.
    - **Limite**: solo il monitor primario, come il Dock.
+
+10. **Riavvio di Explorer** — FATTO (7 nov 2026): `scripts/test-explorer-restart.ps1 -Exe ... -Dock`, correzione in `appbar::reserve_bottom`. Con il consenso dell'utente si è riavviato davvero Explorer (taskbar e desktop spariscono per qualche secondo e le finestre di Esplora risorse si chiudono).
+   - **Difetto trovato prima della correzione** (primo riavvio): Explorer perde tutte le appbar registrate. La barra in alto si ri-registra (`handle_explorer_restart`), ma il Dock "ricordava" di aver già applicato la fascia: dopo il riavvio si registrava di nuovo (`ABM_NEW`) e poi saltava `ABM_SETPOS` perché il rettangolo coincideva con quello memorizzato. Risultato misurato: area di lavoro in basso da 988 a 1080, cioè **riserva persa** fino al riavvio di EosOS. Il Dock stesso restava visibile e allo stesso punto.
+   - **Correzione**: una registrazione nuova azzera la memoria dell'ultima fascia applicata, così la posizione si comunica sempre.
+   - **Dopo la correzione** (secondo riavvio): area di lavoro in basso 988 prima e dopo; Dock visibile, allo stesso livello e centrato; taskbar ri-nascosta; barra in alto ri-registrata; uscita normale che ripristina taskbar e marcatore.
+   - Il controllo "stesso punto" confronta bordo inferiore e centro, non la larghezza: il riavvio chiude le finestre di Esplora risorse e la sua icona sparisce, quindi la capsula si restringe.
 
 ## Fuori scopo
 
