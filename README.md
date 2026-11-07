@@ -1,4 +1,4 @@
-# EosOS
+﻿# EosOS
 
 Shell desktop ispirata a macOS che gira **sopra Windows 11**. Non è un sistema operativo, non modifica file di sistema e si chiude in qualsiasi momento.
 
@@ -104,10 +104,14 @@ Il tema si forza con `?theme=light|dark` nell'URL o con `localStorage["eosos.the
 - Con la taskbar nascosta EosOS attiva temporaneamente l'**auto-nascondi** di Windows (altrimenti resterebbe una fascia vuota in basso) e lo disattiva all'uscita; se era già attivo non lo tocca. Se vengono terminati **contemporaneamente** EosOS e il watchdog, l'impostazione resta attiva finché non rilanci EosOS (la annulla da solo all'avvio; marcatore in `%LOCALAPPDATA%\EosOS\autohide-pending`) e la taskbar può restare nascosta: usa il ripristino manuale sopra.
 - Scollegamento reale di un monitor e scale DPI diverse da 100% sono coperti da test unitari, non verificati dal vivo.
 - Il nome dell'app per finestre di sistema (es. menu Start) può mostrare una descrizione tecnica.
-- Le icone sono quelle predefinite di Tauri, da sostituire con un set open source.
 
 ## Fuori scopo (roadmap)
 
 Dock, launcher stile Spotlight, indicatori di sistema, Mission Control, menu globale per app.
 
 Vedi `PIANO.md` per il piano e lo stato dei passi.
+
+## Icona
+
+L'icona è originale (un sole che sorge, da Eos = alba), generata da `scripts/make-icon.py` (Pillow) in `assets/icon-source.png` e convertita con `npm run tauri icon assets/icon-source.png`. Nessun asset di terzi.
+
