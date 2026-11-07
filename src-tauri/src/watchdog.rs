@@ -17,18 +17,18 @@ use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
-use windows::core::{HSTRING, PWSTR};
+use windows::core::HSTRING;
 use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0, WAIT_TIMEOUT};
 use windows::Win32::System::Threading::{
-    CreateEventW, OpenEventW, OpenProcess, QueryFullProcessImageNameW, SetEvent,
-    TerminateProcess, WaitForSingleObject, EVENT_MODIFY_STATE, INFINITE, PROCESS_NAME_WIN32,
-    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+    CreateEventW, OpenEventW, OpenProcess, SetEvent, TerminateProcess, WaitForSingleObject,
+    EVENT_MODIFY_STATE, INFINITE, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     RegisterHotKey, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, VK_ESCAPE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetMessageW, MSG, WM_HOTKEY};
 
+use crate::util::image_path;
 use crate::{appbar, taskbar};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -118,16 +118,6 @@ pub fn wait_and_restore(pid: u32, classes: &[&str]) -> bool {
     let n = taskbar::restore(classes);
     log(&format!("processo {pid} terminato (osservato={observed}); finestre ripristinate: {n}"));
     observed
-}
-
-/// Percorso dell'eseguibile di un processo aperto.
-fn image_path(h: HANDLE) -> Option<PathBuf> {
-    let mut buf = [0u16; 1024];
-    let mut len = buf.len() as u32;
-    unsafe {
-        QueryFullProcessImageNameW(h, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), &mut len).ok()?;
-    }
-    Some(PathBuf::from(String::from_utf16_lossy(&buf[..len as usize])))
 }
 
 fn same_exe(a: &PathBuf, b: &PathBuf) -> bool {

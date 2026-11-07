@@ -16,5 +16,7 @@
   "14": "vite-env.d.ts",
   "15": "taskbar.rs",
   "16": "test-taskbar.ps1",
-  "17": "BOOL"
+  "17": "BOOL",
+  "18": "appbar.rs",
+  "19": "test-appbar.ps1"
 }

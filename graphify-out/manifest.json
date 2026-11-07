@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794022360.0704381,
-    "seen": 1794022360.958628,
-    "ast_hash": "4fe60ee006c5db99d13d33907f135cc0",
+    "mtime": 1794022732.2546911,
+    "seen": 1794022733.0599449,
+    "ast_hash": "26961642f8aa6ec46ce04c1c568d7b4e",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -30,9 +30,9 @@
     "semantic_hash": ""
   },
   "src-tauri/Cargo.toml": {
-    "mtime": 1794021974.680085,
-    "seen": 1794022049.1279204,
-    "ast_hash": "98ba6d667d5b7066f9a82fab9ce19a24",
+    "mtime": 1794022488.2019503,
+    "seen": 1794022733.0599282,
+    "ast_hash": "306783a2339310facd3df274457c9a5d",
     "semantic_hash": ""
   },
   "src-tauri/build.rs": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794022295.8156,
-    "seen": 1794022360.9586155,
-    "ast_hash": "a46eca8f5c0e593e6183f85c5db385ff",
+    "mtime": 1794022479.2700398,
+    "seen": 1794022733.0599325,
+    "ast_hash": "16ffbb6f030fdde48f5fccb560e2b5fa",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -60,9 +60,9 @@
     "semantic_hash": ""
   },
   "src-tauri/tauri.conf.json": {
-    "mtime": 1794021210.216295,
-    "seen": 1794021694.1359081,
-    "ast_hash": "c44b2e2913c1e5d7c3d934739e0ff2c3",
+    "mtime": 1794022479.3046281,
+    "seen": 1794022733.0599372,
+    "ast_hash": "d7751ae51a2e3ce0198af99b2bb8e7cc",
     "semantic_hash": ""
   },
   "src/App.tsx": {
@@ -204,15 +204,27 @@
     "semantic_hash": ""
   },
   "src-tauri/src/watchdog.rs": {
-    "mtime": 1794021974.8813617,
-    "seen": 1794022049.1279283,
-    "ast_hash": "879b5a592b4a8f5ce11046c0178e76a8",
+    "mtime": 1794022530.6300077,
+    "seen": 1794022733.0599365,
+    "ast_hash": "ea0667dda696c061532c450a0a4b6b77",
     "semantic_hash": ""
   },
   "scripts/test-taskbar.ps1": {
     "mtime": 1794022295.8804283,
     "seen": 1794022360.95861,
     "ast_hash": "3f0c93eb42015568b4ead8a387db19ee",
+    "semantic_hash": ""
+  },
+  "scripts/test-appbar.ps1": {
+    "mtime": 1794022530.6802397,
+    "seen": 1794022733.0599256,
+    "ast_hash": "a2d6e52ba40e38d1b745970ce7dbf0f5",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/appbar.rs": {
+    "mtime": 1794022624.1905012,
+    "seen": 1794022733.0599313,
+    "ast_hash": "8dd0865d19c23de924d17b94290e7426",
     "semantic_hash": ""
   },
   "package-lock.json": {

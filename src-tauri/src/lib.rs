@@ -1,5 +1,7 @@
 mod appbar;
+mod foreground;
 mod taskbar;
+mod util;
 mod watchdog;
 
 #[cfg(test)]
@@ -7,6 +9,11 @@ mod tests;
 
 use windows::core::BOOL;
 use windows::Win32::System::Console::SetConsoleCtrlHandler;
+
+#[tauri::command]
+fn get_active_app() -> Option<foreground::ActiveApp> {
+    foreground::current()
+}
 
 /// Il nascondimento della taskbar è disattivato di default: serve
 /// esplicitamente `EOSOS_HIDE_TASKBAR=1`.
@@ -84,9 +91,11 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![get_active_app])
         .setup(|app| {
             let window = appbar::main_window(app).ok_or("finestra principale mancante")?;
             appbar::setup(&window)?;
+            foreground::start(app.handle().clone());
             Ok(())
         })
         .build(tauri::generate_context!())
