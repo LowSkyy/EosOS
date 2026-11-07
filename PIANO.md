@@ -55,12 +55,12 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 **Prova in Windows Sandbox (7 nov 2026)**: build release su Windows 11 Enterprise 10.0.26100, utente `WDAGUtilityAccount`, via `scripts/prepare-sandbox.ps1`. Prova automatica tutta OK:
 - `test-workarea`: area di lavoro 0..775 → 28..823 con taskbar nascosta, nessuna fascia vuota; uscita normale e kill del processo principale ripristinano taskbar, area di lavoro e marcatore; dopo il kill simultaneo di EosOS e watchdog (limite noto: taskbar ancora nascosta) il riavvio recupera tutto.
 - `test-taskbar -SkipPanic`: uscita normale, kill brutale e scorciatoia `Ctrl+Alt+Shift+Esc` ripristinano la taskbar (confermato dal log del watchdog).
+- Prova manuale (`Ctrl+Alt+Shift+Esc`, chiusura, kill dal Task Manager, ripristino): tutto OK.
 
 **Non verificato / aperto**
 - Il panic sulla build release: l'hook di test esiste solo in debug.
 - Scale oltre il 125% e ritorno al 100% con EosOS aperto (rinviati su richiesta).
 - Scollegamento reale di un monitor (solo hook di debug).
-- Prova manuale in Windows Sandbox (`Ctrl+Alt+Shift+Esc`, chiusura, kill dal Task Manager): da fare a mano, vedi sotto.
 - Prova in VM Hyper-V o con un secondo utente: sostituita dalla Windows Sandbox per la parte automatica.
 - Un'esecuzione isolata di `test-multimonitor -Hotplug` è risultata KO senza righe di errore e non si è più riprodotta.
 - Dopo il kill simultaneo di EosOS e watchdog l'auto-nascondi resta attivo fino al prossimo avvio di EosOS.
