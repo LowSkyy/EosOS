@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use windows::core::BOOL;
 use windows::Win32::Foundation::{HWND, LPARAM};
+use windows::Win32::UI::Shell::{ABM_GETSTATE, ABM_SETSTATE, ABS_AUTOHIDE, APPBARDATA, SHAppBarMessage};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetClassNameW, IsWindowVisible, ShowWindow, SW_HIDE, SW_SHOWNA,
 };
@@ -78,13 +79,101 @@ pub fn restore(classes: &[&str]) -> usize {
     n
 }
 
-/// Nasconde la vera taskbar.
+/// File che esiste finché abbiamo attivato noi l'auto-nascondi della taskbar.
+/// Serve a ripristinare l'impostazione anche dopo un kill di tutti i processi:
+/// al prossimo avvio di EosOS viene riletto e annullato.
+fn autohide_marker() -> Option<std::path::PathBuf> {
+    let base = std::env::var_os("LOCALAPPDATA")?;
+    Some(std::path::PathBuf::from(base).join("EosOS").join("autohide-pending"))
+}
+
+fn appbar_state(hwnd: HWND) -> (APPBARDATA, usize) {
+    let mut abd = APPBARDATA {
+        cbSize: std::mem::size_of::<APPBARDATA>() as u32,
+        hWnd: hwnd,
+        ..Default::default()
+    };
+    let state = unsafe { SHAppBarMessage(ABM_GETSTATE, &mut abd) };
+    (abd, state)
+}
+
+fn set_state(hwnd: HWND, state: usize) {
+    let mut abd = APPBARDATA {
+        cbSize: std::mem::size_of::<APPBARDATA>() as u32,
+        hWnd: hwnd,
+        lParam: LPARAM(state as isize),
+        ..Default::default()
+    };
+    unsafe {
+        SHAppBarMessage(ABM_SETSTATE, &mut abd);
+    }
+}
+
+/// Attiva l'auto-nascondi della taskbar: così Windows non riserva più la sua
+/// fascia nell'area di lavoro (altrimenti resta uno spazio vuoto in basso).
+/// Se era già attivo dall'utente non tocca nulla.
+fn enable_autohide() {
+    let Some(tray) = find(&["Shell_TrayWnd"]).first().copied() else { return };
+    let (_, state) = appbar_state(tray);
+    if state & ABS_AUTOHIDE as usize != 0 {
+        return;
+    }
+    if let Some(marker) = autohide_marker() {
+        if let Some(dir) = marker.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        // Prima il marcatore, poi la modifica: in caso di kill nel mezzo il ripristino è comunque innocuo.
+        if std::fs::write(&marker, b"1").is_err() {
+            return; // senza marcatore non si cambia un'impostazione dell'utente
+        }
+    } else {
+        return;
+    }
+    set_state(tray, state | ABS_AUTOHIDE as usize);
+}
+
+/// Annulla l'auto-nascondi se l'abbiamo attivato noi. Idempotente.
+pub fn restore_autohide() {
+    let Some(marker) = autohide_marker() else { return };
+    if !marker.exists() {
+        return;
+    }
+    if let Some(tray) = find(&["Shell_TrayWnd"]).first().copied() {
+        let (_, state) = appbar_state(tray);
+        set_state(tray, state & !(ABS_AUTOHIDE as usize));
+    }
+    let _ = std::fs::remove_file(marker);
+}
+
+/// Vero finché la taskbar va tenuta nascosta. Il lock serializza il thread di
+/// mantenimento e il ripristino: dopo `restore_real` nessuno la rinasconde.
+static KEEP_HIDDEN: std::sync::Mutex<bool> = std::sync::Mutex::new(false);
+
+/// Nasconde la vera taskbar e la tiene nascosta: Explorer, dopo il cambio di
+/// auto-nascondi, tende a rimostrarla, quindi un thread la ri-nasconde.
 pub fn hide_real() -> usize {
-    hide(&TASKBAR_CLASSES)
+    enable_autohide();
+    let n = {
+        let mut keep = KEEP_HIDDEN.lock().unwrap_or_else(|e| e.into_inner());
+        *keep = true;
+        hide(&TASKBAR_CLASSES)
+    };
+    std::thread::spawn(|| loop {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let keep = KEEP_HIDDEN.lock().unwrap_or_else(|e| e.into_inner());
+        if !*keep {
+            break;
+        }
+        hide(&TASKBAR_CLASSES);
+    });
+    n
 }
 
 /// Ripristina la vera taskbar, sempre.
 pub fn restore_real() -> usize {
+    let mut keep = KEEP_HIDDEN.lock().unwrap_or_else(|e| e.into_inner());
+    *keep = false;
+    restore_autohide();
     restore(&TASKBAR_CLASSES)
 }
 
@@ -93,5 +182,7 @@ pub fn restore_real() -> usize {
 pub fn restore_if_hidden() {
     if HIDDEN.load(Ordering::SeqCst) {
         restore_real();
+    } else {
+        restore_autohide();
     }
 }

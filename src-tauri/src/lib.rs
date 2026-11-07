@@ -83,6 +83,8 @@ pub fn run() {
         watchdog::run(pid);
     }
 
+    // Recupero: se un'esecuzione precedente è stata uccisa lasciando l'auto-nascondi attivo.
+    taskbar::restore_autohide();
     install_local_safety_nets();
     if hide_requested() {
         enable_taskbar_hiding();
