@@ -43,6 +43,27 @@ function Focused { $h = Launcher; $h -ne [IntPtr]::Zero -and [LT]::GetForeground
 function Press($vk) { if (Focused) { [LT]::Key([byte]$vk) } else { Write-Host '  (tasto saltato: il Launcher non e in primo piano)' -ForegroundColor Yellow } }
 function TypeText($text) { foreach ($c in $text.ToCharArray()) { Press ([int][char]$c.ToString().ToUpper()); Start-Sleep -Milliseconds 60 } }
 function PressCtrl($vk) { if (Focused) { [LT]::Ctrl([byte]$vk) } else { Write-Host '  (tasto saltato: il Launcher non e in primo piano)' -ForegroundColor Yellow } }
+# Gli appunti possono essere occupati per un istante da chi li legge (anche l'ascoltatore di EosOS): si riprova.
+function SetClip($v) { for ($k = 0; $k -lt 15; $k++) { try { Set-Clipboard -Value $v -ErrorAction Stop; return } catch { Start-Sleep -Milliseconds 120 } }; throw "appunti sempre occupati" }
+function GetClip { for ($k = 0; $k -lt 15; $k++) { try { return (Get-Clipboard -Raw -ErrorAction Stop) } catch { Start-Sleep -Milliseconds 120 } }; return $null }
+# Cerca un testo (ASCII/UTF-8 e UTF-16) nei file sotto le cartelle date, anche se aperti da altri
+# (condivisione in lettura+scrittura). Restituisce i file che lo contengono e quanti non si sono potuti leggere.
+function FindInFiles($dirs, $needle) {
+  $a = [System.Text.Encoding]::ASCII.GetBytes($needle)
+  $u = [System.Text.Encoding]::Unicode.GetBytes($needle)
+  $found = New-Object System.Collections.Generic.List[string]; $unreadable = 0
+  foreach ($f in (Get-ChildItem $dirs -Recurse -File -ErrorAction SilentlyContinue)) {
+    try {
+      $fs = [System.IO.File]::Open($f.FullName, 'Open', 'Read', 'ReadWrite,Delete')
+      try { $buf = New-Object byte[] $fs.Length; [void]$fs.Read($buf, 0, $buf.Length) } finally { $fs.Dispose() }
+      $text = [System.Text.Encoding]::GetEncoding(28591).GetString($buf)
+      $needleA = [System.Text.Encoding]::GetEncoding(28591).GetString($a)
+      $needleU = [System.Text.Encoding]::GetEncoding(28591).GetString($u)
+      if ($text.Contains($needleA) -or $text.Contains($needleU)) { $found.Add($f.FullName) }
+    } catch { $unreadable++ }
+  }
+  [pscustomobject]@{ Found = $found; Unreadable = $unreadable }
+}
 function Cleanup {
   Get-Process | Where-Object { $_.ProcessName -like 'Calculator*' } | ForEach-Object { [void]$_.CloseMainWindow() }
   Start-Sleep 1
@@ -136,7 +157,7 @@ try {
   Check 'risultato 84' ((Js "document.querySelector('.launcher-name').textContent") -eq '84')
   Press 0x0D; Start-Sleep -Milliseconds 800
   Check 'Launcher chiuso dopo la copia' (-not (IsOpen))
-  Check 'risultato negli appunti' ((Get-Clipboard -Raw).Trim() -eq '84')
+  Check 'risultato negli appunti' ((GetClip).Trim() -eq '84')
 
   Write-Host 'J. schede con Ctrl+1 / Ctrl+2'
   [LT]::AltSpace(); Start-Sleep -Milliseconds 900
@@ -240,7 +261,7 @@ try {
   }
   function ClipRows { Js "Array.from(document.querySelectorAll('.launcher-item')).map(function(e){return e.dataset.kind + '|' + e.querySelector('.launcher-name').textContent}).join('~')" }
   # 1. copia PRIMA del consenso: non va registrata
-  Set-Clipboard -Value "$tag prima-del-consenso"; Start-Sleep -Milliseconds 500
+  SetClip "$tag prima-del-consenso"; Start-Sleep -Milliseconds 500
   [LT]::AltSpace(); Start-Sleep -Milliseconds 900
   PressCtrl 0x34; Start-Sleep -Milliseconds 800
   Check 'chip Appunti' ((Js "!!document.querySelector('.launcher-chip') && document.querySelector('.launcher-chip').textContent") -eq 'Appunti')
@@ -252,10 +273,10 @@ try {
   Check 'chiuso' (-not (IsOpen))
 
   # 2. copie dopo il consenso
-  Set-Clipboard -Value "$tag uno"; Start-Sleep -Milliseconds 500
+  SetClip "$tag uno"; Start-Sleep -Milliseconds 500
   SetExcluded "$tag segreto-escluso" 'ExcludeClipboardContentFromMonitorProcessing' '1,0,0,0'; Start-Sleep -Milliseconds 500
   SetExcluded "$tag segreto-no-storia" 'CanIncludeInClipboardHistory' '0,0,0,0'; Start-Sleep -Milliseconds 500
-  Set-Clipboard -Value "$tag due`nsecondariga"; Start-Sleep -Milliseconds 500
+  SetClip "$tag due`nsecondariga"; Start-Sleep -Milliseconds 500
   [LT]::AltSpace(); Start-Sleep -Milliseconds 900
   # nella ricerca generale gli appunti NON compaiono
   TypeText 'eosos'; Start-Sleep -Milliseconds 900
@@ -271,10 +292,10 @@ try {
   Check 'filtro per testo' (((ClipRows) -like "clip|$tag uno*") -and -not ((ClipRows) -like '*due*'))
 
   # 3. Invio rimette la voce negli appunti
-  Set-Clipboard -Value 'altro-contenuto'; Start-Sleep -Milliseconds 400
+  SetClip 'altro-contenuto'; Start-Sleep -Milliseconds 400
   Press 0x0D; Start-Sleep -Milliseconds 900
   Check 'Launcher chiuso' (-not (IsOpen))
-  Check 'la voce e di nuovo negli appunti' ((Get-Clipboard -Raw).Trim() -eq "$tag uno")
+  Check 'la voce e di nuovo negli appunti' ((GetClip).Trim() -eq "$tag uno")
 
   # 4. Canc toglie una voce
   [LT]::AltSpace(); Start-Sleep -Milliseconds 900
@@ -287,9 +308,9 @@ try {
 
   # 5. nulla su disco
   [LT]::Key(0x1B); Start-Sleep -Milliseconds 500
-  $hits = @(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'EosOS'), (Join-Path $env:LOCALAPPDATA 'dev.eosos.app') -Recurse -File -ErrorAction SilentlyContinue | Select-String -SimpleMatch 'eosos-clip-test' -List)
-  $hits += @(Get-ChildItem $env:TEMP -Filter 'eosos-actions.log' -ErrorAction SilentlyContinue | Select-String -SimpleMatch 'eosos-clip-test' -List)
-  Check 'il testo copiato non e su disco (dati di EosOS, profilo WebView2, log)' ($hits.Count -eq 0) ($hits | ForEach-Object { $_.Path })
+  $scan = FindInFiles @((Join-Path $env:LOCALAPPDATA 'EosOS'), (Join-Path $env:LOCALAPPDATA 'dev.eosos.app')) 'eosos-clip-test'
+  $logHit = (Test-Path $actionLog) -and ((Get-Content $actionLog -Raw) -match 'eosos-clip-test')
+  Check 'il testo copiato non e su disco (dati di EosOS, profilo WebView2, log)' (($scan.Found.Count -eq 0) -and -not $logHit) ("trovato in: " + ($scan.Found -join ', ') + " | non leggibili: " + $scan.Unreadable)
 
   # 6. disattivare svuota la memoria
   [LT]::AltSpace(); Start-Sleep -Milliseconds 900
@@ -305,7 +326,7 @@ try {
 finally {
   Cleanup
   if ($testFile) { Remove-Item $testFile -ErrorAction SilentlyContinue }
-  if ($savedClip) { Set-Clipboard -Value $savedClip }
+  if ($savedClip) { SetClip $savedClip }
   Remove-Item $actionLog -ErrorAction SilentlyContinue
   if ($ljBackup) { Set-Content -Path $lj -Value $ljBackup -Encoding UTF8 -NoNewline } else { Remove-Item $lj -ErrorAction SilentlyContinue }
 }
