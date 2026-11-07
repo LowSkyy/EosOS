@@ -17,6 +17,8 @@ mod launcherfiles;
 mod launcherrank;
 mod launcherstore;
 mod launcherwin;
+mod mc;
+mod mclayout;
 mod panelwin;
 mod taskbar;
 mod util;
@@ -197,6 +199,13 @@ fn indicators_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Resul
     let sep = PredefinedMenuItem::separator(&app)?;
     let menu = Menu::with_items(&app, &[&battery, &percent, &sep, &network, &volume])?;
     window.popup_menu(&menu)
+}
+
+/// Finestre aperte (desktop corrente) per monitor, già disposte a griglia per la panoramica di
+/// Mission Control. Sola lettura: non muove né attiva nulla. Lavoro bloccante (COM, processi).
+#[tauri::command(async)]
+fn mc_windows(app: tauri::AppHandle) -> Vec<mc::McMonitor> {
+    mc::snapshot(&app)
 }
 
 /// Esegue un'azione del Launcher. Le azioni che spengono o riavviano rispondono "confirm" alla
@@ -403,7 +412,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794090111.886161,
-    "seen": 1794090113.4093125,
-    "ast_hash": "3fa503d1d3eab153433a11a157eef082",
+    "mtime": 1794091145.9005039,
+    "seen": 1794091153.14759,
+    "ast_hash": "396e9b23bf8b5ebf1ff2e91985676c8d",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794089528.8402884,
-    "seen": 1794090005.223523,
-    "ast_hash": "5f3e5cb8e319ec1c0e442df4d415d57f",
+    "mtime": 1794091014.9689147,
+    "seen": 1794091153.1475494,
+    "ast_hash": "daf28d0f9ac4c897a4c9147eb26842a8",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -366,9 +366,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/dock.rs": {
-    "mtime": 1794082924.615873,
-    "seen": 1794083080.0855963,
-    "ast_hash": "0fcc8fcbf33d3dbbf4e92bc9bc94e1e0",
+    "mtime": 1794091014.9689147,
+    "seen": 1794091153.147532,
+    "ast_hash": "4e5670008efdc9819267beb13ea8227d",
     "semantic_hash": ""
   },
   "src-tauri/src/dockwin.rs": {
@@ -648,9 +648,27 @@
     "semantic_hash": ""
   },
   "docs/MISSION-CONTROL.md": {
-    "mtime": 1794090111.528698,
-    "seen": 1794090113.409318,
-    "ast_hash": "3d647c7dd987c4e9658de29ab9a48f18",
+    "mtime": 1794091145.9005039,
+    "seen": 1794091153.147595,
+    "ast_hash": "c01d488d896ff6ed3a57d307ace0cad0",
+    "semantic_hash": ""
+  },
+  "scripts/test-mc-windows.ps1": {
+    "mtime": 1794091109.9004445,
+    "seen": 1794091153.1475196,
+    "ast_hash": "c86cc0ce3c36f137b4054d58bf6336ec",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/mc.rs": {
+    "mtime": 1794091024.214726,
+    "seen": 1794091153.1475515,
+    "ast_hash": "ef6312e887fba0a265f681a9784c91cf",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/mclayout.rs": {
+    "mtime": 1794091070.1530583,
+    "seen": 1794091153.1475525,
+    "ast_hash": "f9b2518b03c6b4ee25406d52c0ccda75",
     "semantic_hash": ""
   },
   "package-lock.json": {

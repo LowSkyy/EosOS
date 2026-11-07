@@ -512,6 +512,29 @@ pub fn may_inherit(child: &Path, ancestor: &Path) -> bool {
     !rest.components().any(|c| c.as_os_str() == "steamapps")
 }
 
+/// Tutte le finestre "da app" (visibili o minimizzate, senza proprietario, non di tipo strumento,
+/// con titolo, non nascoste: quindi del desktop virtuale corrente) con processo e identità
+/// (eseguibile o identificatore dell'app dello Store), nell'ordine Z dall'alto. Mai EosOS stessa.
+/// Chi chiama deve avere COM inizializzato (`ComScope`). Usata dal Dock e da Mission Control.
+pub(crate) fn raw_app_windows() -> Vec<(HWND, u32, PathBuf)> {
+    let mut raw: Vec<(HWND, u32, PathBuf)> = Vec::new();
+    unsafe {
+        let _ = EnumWindows(Some(collect_window), LPARAM(&mut raw as *mut _ as isize));
+    }
+    raw
+}
+
+/// Nome da mostrare per un'app data la sua identità (eseguibile o `shell:AppsFolder\...`): quello
+/// della shell per le app dello Store, altrimenti la descrizione dell'eseguibile.
+pub fn app_display_name(identity: &Path) -> String {
+    let text = identity.to_string_lossy();
+    if parse_aumid(&text).is_some() {
+        cached_shell_name(&text).unwrap_or_else(|| "App".to_string())
+    } else {
+        display_name(cached_description(identity).as_deref(), &stem(identity), "", "")
+    }
+}
+
 /// Tutte le finestre "da app" con il loro eseguibile, nell'ordine Z (dall'alto), dato l'elenco
 /// delle fissate già letto (chi ne ha uno non rilegge il file).
 ///
@@ -520,10 +543,7 @@ pub fn may_inherit(child: &Path, ancestor: &Path) -> bool {
 pub fn app_windows_for(pinned: &[Pinned]) -> Vec<(HWND, PathBuf)> {
     // Un solo avvio di COM per tutta l'enumerazione, non uno per finestra.
     let _com = ComScope::new();
-    let mut raw: Vec<(HWND, u32, PathBuf)> = Vec::new();
-    unsafe {
-        let _ = EnumWindows(Some(collect_window), LPARAM(&mut raw as *mut _ as isize));
-    }
+    let raw = raw_app_windows();
     let pinned: Vec<PathBuf> = pinned.iter().map(|p| p.path.clone()).collect();
     // Nomi delle app madri possibili: le fissate, tranne i lanciatori (Esplora risorse, terminali).
     let names: Vec<String> = pinned
