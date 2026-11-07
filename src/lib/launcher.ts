@@ -132,7 +132,8 @@ export function glyphFor(item: Pick<LauncherItem, "id" | "kind" | "name">): stri
 }
 
 /** Etichetta a destra della riga. Pura, testata. */
-export function kindLabel(item: Pick<LauncherItem, "kind">, confirming: boolean): string {
+export function kindLabel(item: Pick<LauncherItem, "kind">, confirming: boolean, failed = false): string {
+  if (failed) return "Non riuscita: già in uso";
   if (confirming) return "Invio per confermare";
   if (item.kind === "calc") return "Invio per copiare";
   if (item.kind === "clip") return "Appunti";

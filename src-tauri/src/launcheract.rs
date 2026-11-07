@@ -94,6 +94,30 @@ pub const ACTIONS: &[Action] = &[
         run: Run::Internal("clip-off"),
     },
     Action {
+        id: "action:hotkey-alt-space",
+        name: "Scorciatoia del Launcher: Alt+Spazio",
+        keywords: &["hotkey", "scorciatoia", "shortcut", "tasti"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("hotkey:Alt+Space"),
+    },
+    Action {
+        id: "action:hotkey-ctrl-alt-space",
+        name: "Scorciatoia del Launcher: Ctrl+Alt+Spazio",
+        keywords: &["hotkey", "scorciatoia", "shortcut", "tasti"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("hotkey:Ctrl+Alt+Space"),
+    },
+    Action {
+        id: "action:hotkey-ctrl-shift-space",
+        name: "Scorciatoia del Launcher: Ctrl+Maiusc+Spazio",
+        keywords: &["hotkey", "scorciatoia", "shortcut", "tasti"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("hotkey:Ctrl+Shift+Space"),
+    },
+    Action {
         id: "action:settings",
         name: "Impostazioni",
         keywords: &["settings", "preferenze", "opzioni"],
@@ -213,6 +237,18 @@ fn execute(action: &Action) -> bool {
             crate::launcher::set_clipboard(false);
             true
         }
+        Run::Internal(name) if name.starts_with("hotkey:") => {
+            // Cambia subito la scorciatoia; si salva solo se la nuova combinazione è libera.
+            let text = &name["hotkey:".len()..];
+            match crate::launcherwin::parse_hotkey(text) {
+                Some(h) if crate::launcherwin::change_hotkey(h) => {
+                    let default = h == crate::launcherwin::DEFAULT_HOTKEY;
+                    crate::launcherstore::set_hotkey((!default).then(|| crate::launcherwin::format_hotkey(h)));
+                    true
+                }
+                _ => false,
+            }
+        }
         Run::Internal(_) => false,
         Run::Exec(prog, args) => {
             use std::os::windows::process::CommandExt;
@@ -266,6 +302,22 @@ mod tests {
             let looks_power = matches!(a.run, Run::Exec(p, _) if p == "shutdown.exe" || p == "rundll32.exe");
             assert_eq!(a.power, looks_power, "{}", a.id);
         }
+    }
+
+    #[test]
+    fn hotkey_presets_are_valid_and_distinct() {
+        let mut seen = Vec::new();
+        for a in ACTIONS {
+            if let Run::Internal(n) = a.run
+                && let Some(text) = n.strip_prefix("hotkey:")
+            {
+                let h = crate::launcherwin::parse_hotkey(text).unwrap_or_else(|| panic!("{text} non valida"));
+                assert!(!seen.contains(&h), "preset duplicato");
+                seen.push(h);
+            }
+        }
+        assert_eq!(seen.len(), 3);
+        assert!(seen.contains(&crate::launcherwin::DEFAULT_HOTKEY), "c'e' il ritorno alla predefinita");
     }
 
     #[test]

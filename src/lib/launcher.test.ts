@@ -123,6 +123,8 @@ describe("glyphFor and kindLabel", () => {
     expect(kindLabel({ kind: "action" }, false)).toBe("Azione");
     expect(kindLabel({ kind: "calc" }, false)).toBe("Invio per copiare");
     expect(kindLabel({ kind: "action" }, true)).toBe("Invio per confermare");
+    expect(kindLabel({ kind: "action" }, false, true)).toBe("Non riuscita: già in uso");
+    expect(kindLabel({ kind: "action" }, true, true)).toBe("Non riuscita: già in uso");
     expect(kindLabel({ kind: "file" }, false)).toBe("File");
     expect(kindLabel({ kind: "clip" }, false)).toBe("Appunti");
     expect(kindLabel({ kind: "setting" }, false)).toBe("Invio per attivare");

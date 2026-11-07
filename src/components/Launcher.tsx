@@ -38,7 +38,13 @@ export default function Launcher() {
   const items = combine(fast, fileItems, filter);
   const [sel, setSel] = useState(0);
   // Azione che aspetta la conferma (Riavvia, Spegni): la conferma vera la gestisce Rust.
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirming, setConfirmingRaw] = useState<string | null>(null);
+  // Azione che non è riuscita (per esempio una scorciatoia già occupata da un altro programma).
+  const [failed, setFailed] = useState<string | null>(null);
+  const setConfirming = (id: string | null) => {
+    setConfirmingRaw(id);
+    setFailed(null);
+  };
   const input = useRef<HTMLInputElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const blurCanvas = useRef<HTMLCanvasElement>(null);
@@ -140,6 +146,7 @@ export default function Launcher() {
     } else if (item.kind === "action") {
       const r = await invoke<string>("launcher_action", { id: item.id });
       if (r === "confirm") setConfirming(item.id);
+      else if (r === "failed") setFailed(item.id);
       else hide();
     } else {
       hide();
@@ -230,7 +237,7 @@ export default function Launcher() {
               className="launcher-item"
               data-selected={i === sel}
               data-kind={it.kind}
-              data-confirming={confirming === it.id}
+              data-confirming={confirming === it.id || failed === it.id}
               onMouseMove={(e) => {
                 const next = { x: e.screenX, y: e.screenY };
                 const moved = pointerMoved(pointer.current, next);
@@ -249,7 +256,7 @@ export default function Launcher() {
               )}
               <span className="launcher-name">{it.name}</span>
               {it.detail && <span className="launcher-detail">{it.detail}</span>}
-              <span className="launcher-kind">{kindLabel(it, confirming === it.id)}</span>
+              <span className="launcher-kind">{kindLabel(it, confirming === it.id, failed === it.id)}</span>
             </li>
           ))}
         </ul>

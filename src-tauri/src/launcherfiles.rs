@@ -153,7 +153,7 @@ pub fn bounded_walk(root: &Path, query: &str, depth: usize, max_entries: usize, 
 static KNOWN: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 
 fn key(path: &Path) -> String {
-    path.to_string_lossy().to_lowercase()
+    path.to_string_lossy().replace('/', "\\").to_lowercase()
 }
 
 /// Ricorda i percorsi mostrati, perché solo quelli si possano aprire. Tiene gli ultimi `KNOWN_CAP`.
@@ -186,13 +186,30 @@ fn known_folder(id: &GUID) -> Option<PathBuf> {
     }
 }
 
-/// Cartelle dell'utente dove si cerca (percorsi veri, anche se spostate su OneDrive).
+/// Cartelle personali dove si cerca (percorsi veri, anche se spostate su OneDrive), più quelle
+/// aggiunte dall'utente in `launcher.json` (`searchFolders`) che esistono davvero. Senza doppioni.
 pub fn search_roots() -> Vec<PathBuf> {
-    [&FOLDERID_Documents, &FOLDERID_Desktop, &FOLDERID_Downloads, &FOLDERID_Pictures, &FOLDERID_Music, &FOLDERID_Videos]
+    let known = [&FOLDERID_Documents, &FOLDERID_Desktop, &FOLDERID_Downloads, &FOLDERID_Pictures, &FOLDERID_Music, &FOLDERID_Videos]
         .into_iter()
-        .filter_map(known_folder)
-        .filter(|p| p.is_dir())
-        .collect()
+        .filter_map(known_folder);
+    let extra = crate::launcherstore::settings().search_folders.into_iter().map(PathBuf::from);
+    merge_roots(known.chain(extra).collect())
+}
+
+/// Tiene le cartelle che esistono, senza doppioni (maiuscole ignorate) e senza cartelle già
+/// contenute in un'altra della lista (si cercherebbero due volte). Pura sui percorsi, testata.
+pub fn merge_roots(candidates: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = Vec::new();
+    for c in candidates.into_iter().filter(|p| p.is_dir()) {
+        let k = key(&c);
+        let inside = |a: &str, b: &str| a != b && a.starts_with(&format!("{}\\", b.trim_end_matches('\\')));
+        if out.iter().any(|o| key(o) == k || inside(&k, &key(o))) {
+            continue;
+        }
+        out.retain(|o| !inside(&key(o), &k));
+        out.push(c);
+    }
+    out
 }
 
 struct MtaScope(bool);
@@ -423,6 +440,26 @@ mod tests {
         // Noto ma inesistente: non si apre.
         assert!(!open(&unique, false));
         assert!(!open(r"C:\Windows\System32\cmd.exe", false), "un percorso arbitrario non e' apribile");
+    }
+
+    #[test]
+    fn merge_roots_drops_missing_duplicates_and_nested_folders() {
+        let base = std::env::temp_dir().join(format!("eosos-roots-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(base.join("a/b")).unwrap();
+        std::fs::create_dir_all(base.join("c")).unwrap();
+        let upper = PathBuf::from(base.join("A").to_string_lossy().to_uppercase());
+        let r = merge_roots(vec![
+            base.join("a/b"),         // dentro "a": va tolta
+            base.join("a"),
+            upper,                    // stessa cartella con altre maiuscole
+            base.join("non-esiste"),  // inesistente
+            base.join("c"),
+        ]);
+        let names: Vec<_> = r.iter().map(|p| p.file_name().unwrap().to_string_lossy().to_string()).collect();
+        assert_eq!(names, vec!["a", "c"], "{names:?}");
+        assert!(merge_roots(Vec::new()).is_empty());
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

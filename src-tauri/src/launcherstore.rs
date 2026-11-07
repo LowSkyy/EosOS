@@ -27,6 +27,12 @@ struct File {
     /// Consenso alla cronologia degli appunti: assente = mai chiesto.
     #[serde(default)]
     clipboard: Option<bool>,
+    /// Scorciatoia globale (per esempio "Alt+Space"); assente = predefinita.
+    #[serde(default)]
+    hotkey: Option<String>,
+    /// Cartelle in più dove cercare i file (oltre a quelle personali).
+    #[serde(default, rename = "searchFolders")]
+    search_folders: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -38,10 +44,14 @@ struct Entry {
 type UsageMap = HashMap<String, Usage>;
 
 /// Impostazioni del Launcher.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Settings {
     /// `None`: non ancora chiesto. `Some(true)`/`Some(false)`: scelta dell'utente.
     pub clipboard: Option<bool>,
+    /// Scorciatoia scelta; `None` = predefinita (Alt+Spazio).
+    pub hotkey: Option<String>,
+    /// Cartelle di ricerca dei file in più.
+    pub search_folders: Vec<String>,
 }
 
 /// Tutto ciò che sta nel file.
@@ -60,7 +70,7 @@ pub fn parse(text: &str) -> Option<State> {
     let f: File = serde_json::from_str(strip_bom(text)).ok()?;
     Some(State {
         usage: f.usage.into_iter().map(|(k, e)| (k, Usage { count: e.count, last: e.last })).collect(),
-        settings: Settings { clipboard: f.clipboard },
+        settings: Settings { clipboard: f.clipboard, hotkey: f.hotkey, search_folders: f.search_folders },
     })
 }
 
@@ -69,6 +79,8 @@ fn serialize(st: &State) -> String {
         version: 1,
         usage: st.usage.iter().map(|(k, u)| (k.clone(), Entry { count: u.count, last: u.last })).collect(),
         clipboard: st.settings.clipboard,
+        hotkey: st.settings.hotkey.clone(),
+        search_folders: st.settings.search_folders.clone(),
     };
     serde_json::to_string_pretty(&f).unwrap_or_default()
 }
@@ -237,6 +249,15 @@ pub fn record_launch(id: &str, now: u64) {
     });
 }
 
+/// Salva la scorciatoia scelta (`None` = torna alla predefinita).
+pub fn set_hotkey(h: Option<String>) {
+    modify(|st| {
+        let changed = st.settings.hotkey != h;
+        st.settings.hotkey = h;
+        changed
+    });
+}
+
 /// Salva la scelta dell'utente sulla cronologia degli appunti.
 pub fn set_clipboard_consent(on: bool) {
     modify(|st| st.settings.clipboard.replace(on) != Some(on));
@@ -250,7 +271,7 @@ mod tests {
         items.iter().map(|(k, c, l)| (k.to_string(), Usage { count: *c, last: *l })).collect()
     }
     fn state(items: &[(&str, u32, u64)], clip: Option<bool>) -> State {
-        State { usage: map(items), settings: Settings { clipboard: clip } }
+        State { usage: map(items), settings: Settings { clipboard: clip, ..Default::default() } }
     }
 
     #[test]
@@ -280,7 +301,20 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(&serialize(&state(&[("a", 1, 1)], Some(true)))).unwrap();
         let mut keys: Vec<_> = v.as_object().unwrap().keys().cloned().collect();
         keys.sort();
-        assert_eq!(keys, ["clipboard", "usage", "version"]);
+        // Solo uso e impostazioni (mai testo copiato): i nomi dei campi sono questi e nessun altro.
+        assert_eq!(keys, ["clipboard", "hotkey", "searchFolders", "usage", "version"]);
+    }
+
+    #[test]
+    fn hotkey_and_search_folders_roundtrip_and_default() {
+        let old = parse(r#"{"version":1,"usage":{}}"#).unwrap();
+        assert_eq!(old.settings.hotkey, None);
+        assert!(old.settings.search_folders.is_empty());
+        let json = r#"{"version":1,"hotkey":"Ctrl+Alt+Space","searchFolders":["D:\\Progetti","E:\\Dati"]}"#;
+        let st = parse(json).unwrap();
+        assert_eq!(st.settings.hotkey.as_deref(), Some("Ctrl+Alt+Space"));
+        assert_eq!(st.settings.search_folders, vec![r"D:\Progetti".to_string(), r"E:\Dati".to_string()]);
+        assert_eq!(parse(&serialize(&st)).unwrap(), st);
     }
 
     #[test]

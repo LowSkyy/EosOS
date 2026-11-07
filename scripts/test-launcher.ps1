@@ -27,6 +27,7 @@ public static class LT {
   public static IntPtr FindLike(string part) { IntPtr f = IntPtr.Zero; EnumWindows((h, l) => { var sb = new StringBuilder(512); GetWindowText(h, sb, 512); if (IsWindowVisible(h) && sb.ToString().IndexOf(part, StringComparison.OrdinalIgnoreCase) >= 0) { f = h; return false; } return true; }, IntPtr.Zero); return f; }
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern bool GetWindowDisplayAffinity(IntPtr h, out uint a);
+  public static void CtrlAltSpace() { keybd_event(0x11, 0, 0, UIntPtr.Zero); keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x20, 0, 0, UIntPtr.Zero); keybd_event(0x20, 0, 2, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); keybd_event(0x11, 0, 2, UIntPtr.Zero); }
   public static void Key(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
   public static void Ctrl(byte vk) { keybd_event(0x11, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); keybd_event(0x11, 0, 2, UIntPtr.Zero); }
   public static void AltSpace() { keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x20, 0, 0, UIntPtr.Zero); keybd_event(0x20, 0, 2, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); }
@@ -337,9 +338,92 @@ try {
   if ($env:LAUNCHER_SHOT) { $env:CDP_VIEW = 'launcher'; node (Join-Path $PSScriptRoot 'cdp-dock.mjs') shot $env:LAUNCHER_SHOT | Out-Null }
   [LT]::Key(0x1B); Start-Sleep -Milliseconds 500
   Check 'chiuso' (-not (IsOpen))
+
+  Write-Host 'P. voci di servizio, scorciatoia cambiabile, conflitto, cartella extra'
+  [void][LT]::SetCursorPos($pw.X + 50, $pw.Y + 50)   # lontano dal pannello
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  PressCtrl 0x31; Start-Sleep -Milliseconds 300       # solo app
+  TypeText 'sito'; Start-Sleep -Milliseconds 800
+  Check 'collegamenti web non compaiono tra le app (Sito web ISLC, Revo)' (-not ((ClipRows) -like '*Sito web*'))
+  foreach ($i in 1..4) { Press 0x08 }
+  TypeText 'uninstall'; Start-Sleep -Milliseconds 800
+  Check 'disinstallatori non compaiono (Uninstall Node.js)' (-not ((ClipRows) -like '*Uninstall Node*'))
+  [LT]::Key(0x1B); Start-Sleep -Milliseconds 500
+
+  # P2: cambio di scorciatoia con l'azione, poi ritorno
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  PressCtrl 0x33; Start-Sleep -Milliseconds 300       # azioni
+  TypeText 'scorciatoia'; Start-Sleep -Milliseconds 900
+  $names = Js "Array.from(document.querySelectorAll('.launcher-name')).map(function(e){return e.textContent}).join('~')"
+  Check 'tre preset di scorciatoia' (($names -split '~').Count -eq 3) $names
+  Press 0x28; Start-Sleep -Milliseconds 200            # seconda riga: Ctrl+Alt+Spazio
+  Check 'riga scelta = Ctrl+Alt+Spazio' ((Js "document.querySelector('.launcher-item[data-selected=true] .launcher-name').textContent") -like '*Ctrl+Alt+Spazio')
+  Press 0x0D; Start-Sleep -Milliseconds 1200
+  Check 'Launcher chiuso dopo il cambio' (-not (IsOpen))
+  Check 'scorciatoia salvata' ((Get-Content $lj -Raw) -match '"hotkey":\s*"Ctrl\+Alt\+Space"')
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  Check 'la vecchia Alt+Spazio non apre piu' (-not (IsOpen))
+  [LT]::CtrlAltSpace(); Start-Sleep -Milliseconds 900
+  Check 'la nuova Ctrl+Alt+Spazio apre' (IsOpen)
+  [LT]::Key(0x1B); Start-Sleep -Milliseconds 500
+
+  # P3: conflitto: un altro programma occupa Alt+Spazio, si prova a tornare e fallisce con un messaggio
+  $holderFile = Join-Path $env:TEMP 'eosos-holder.ps1'
+  Set-Content -Path $holderFile -Encoding ASCII -Value @'
+Add-Type @"
+using System; using System.Runtime.InteropServices;
+public static class HH {
+  [StructLayout(LayoutKind.Sequential)] public struct M { public IntPtr h; public uint m; public UIntPtr w; public IntPtr l; public uint t; public int x, y; }
+  [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint vk);
+  [DllImport("user32.dll")] public static extern int GetMessage(out M m, IntPtr h, uint a, uint b);
+  public static void Run() { M m; RegisterHotKey(IntPtr.Zero, 1, 0x4001, 0x20); while (GetMessage(out m, IntPtr.Zero, 0, 0) > 0) {} }
+}
+"@
+[HH]::Run()
+'@
+  $holderProc = Start-Process powershell -ArgumentList '-NoProfile', '-File', $holderFile -PassThru -WindowStyle Hidden
+  Start-Sleep -Seconds 2
+  [LT]::CtrlAltSpace(); Start-Sleep -Milliseconds 900
+  PressCtrl 0x33; Start-Sleep -Milliseconds 300
+  TypeText 'scorciatoia'; Start-Sleep -Milliseconds 900
+  Press 0x0D; Start-Sleep -Milliseconds 1500          # prima riga = Alt+Spazio (occupata dall'altro programma)
+  Check 'combinazione occupata: il Launcher resta aperto e lo dice' ((IsOpen) -and ((Js "document.querySelector('.launcher-item').innerText") -like '*Non riuscita*'))
+  Check 'la scorciatoia salvata non e cambiata' ((Get-Content $lj -Raw) -match '"hotkey":\s*"Ctrl\+Alt\+Space"')
+  [LT]::Key(0x1B); Start-Sleep -Milliseconds 400
+  Stop-Process -Id $holderProc.Id -Force -ErrorAction SilentlyContinue
+  Start-Sleep -Seconds 1
+  # ora che Alt+Spazio e libera si torna alla predefinita
+  [LT]::CtrlAltSpace(); Start-Sleep -Milliseconds 900
+  PressCtrl 0x33; Start-Sleep -Milliseconds 300
+  TypeText 'scorciatoia'; Start-Sleep -Milliseconds 900
+  Press 0x0D; Start-Sleep -Milliseconds 1200
+  Check 'ritorno alla predefinita (campo hotkey azzerato)' ((Get-Content $lj -Raw) -match '"hotkey":\s*null')
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  Check 'Alt+Spazio apre di nuovo' (IsOpen)
+  [LT]::Key(0x1B); Start-Sleep -Milliseconds 500
+  Remove-Item $holderFile -ErrorAction SilentlyContinue
+
+  # P4: cartella di ricerca extra (in launcher.json), non indicizzata: la trova il ripiego
+  $extra = Join-Path $env:TEMP ('eosos-extra-' + (Get-Random -Maximum 99999))
+  New-Item -ItemType Directory -Path $extra | Out-Null
+  $extraName = 'zzextra' + (Get-Random -Maximum 99999) + '.txt'
+  Set-Content -Path (Join-Path $extra $extraName) -Value 'x' -Encoding ASCII
+  $cfg = Get-Content $lj -Raw | ConvertFrom-Json
+  $cfg | Add-Member -NotePropertyName searchFolders -NotePropertyValue @($extra) -Force
+  [System.IO.File]::WriteAllText($lj, ($cfg | ConvertTo-Json -Depth 5), (New-Object System.Text.UTF8Encoding($false)))
+  Start-Sleep -Milliseconds 300
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  PressCtrl 0x32; Start-Sleep -Milliseconds 300
+  TypeText $extraName.Substring(0, 8); Start-Sleep -Milliseconds 300
+  $foundExtra = $false
+  for ($i = 0; $i -lt 30 -and -not $foundExtra; $i++) { Start-Sleep -Milliseconds 300; $foundExtra = (Js "Array.from(document.querySelectorAll('.launcher-name')).some(function(e){return e.textContent === '$extraName'})") -eq $true }
+  Check 'file nella cartella extra trovato' $foundExtra
+  [LT]::Key(0x1B); Start-Sleep -Milliseconds 400
+  Remove-Item $extra -Recurse -Force -ErrorAction SilentlyContinue
 }
 finally {
   Cleanup
+  if ($holderProc) { Stop-Process -Id $holderProc.Id -Force -ErrorAction SilentlyContinue }
   if ($testFile) { Remove-Item $testFile -ErrorAction SilentlyContinue }
   if ($savedClip) { SetClip $savedClip }
   Remove-Item $actionLog -ErrorAction SilentlyContinue

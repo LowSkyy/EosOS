@@ -9,22 +9,21 @@
 //! combinazione è già presa da un altro programma lo si dice (una finestra di avviso, una sola
 //! volta) e si riprova ogni 30 secondi, invece di non aprirsi in silenzio.
 
-use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
-use windows::core::w;
-use windows::Win32::Foundation::{HWND, RECT, WPARAM};
+use windows::core::{w, HSTRING};
+use windows::Win32::Foundation::{HWND, LPARAM, RECT, WPARAM};
+use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
-use windows::Win32::UI::Input::KeyboardAndMouse::{
-    RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_NOREPEAT, VK_SPACE,
-};
+use windows::Win32::UI::Input::KeyboardAndMouse::{RegisterHotKey, UnregisterHotKey, HOT_KEY_MODIFIERS, MOD_NOREPEAT};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetMessageW, GetWindowLongPtrW, GetWindowRect, MessageBoxW, SetWindowDisplayAffinity,
-    SetWindowLongPtrW, SetWindowPos, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, GWL_EXSTYLE,
-    MB_ICONINFORMATION, MB_OK, MSG, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-    WM_HOTKEY, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    GetForegroundWindow, GetMessageW, GetWindowLongPtrW, GetWindowRect, MessageBoxW, PostThreadMessageW, SetTimer,
+    SetWindowDisplayAffinity, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, MB_ICONINFORMATION, MB_OK, MSG,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
+    WM_APP, WM_HOTKEY, WM_TIMER, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
 
 use crate::dockgeom::{capture_margin, capture_rect, Rect};
@@ -279,37 +278,168 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) -> bo
 
 // ------------------------------------------------------------------ scorciatoia
 
-/// Thread della scorciatoia: registra Alt+Spazio, ascolta WM_HOTKEY e, se la combinazione è
-/// occupata, avvisa una volta e riprova.
-fn hotkey_thread(app: AppHandle) {
-    let mut warned = false;
-    loop {
-        let ok = unsafe { RegisterHotKey(None, HOTKEY_ID, MOD_ALT | MOD_NOREPEAT, u32::from(VK_SPACE.0)) }.is_ok();
-        if ok {
-            if warned {
-                eprintln!("launcher: Alt+Spazio registrata dopo un conflitto");
+/// Una scorciatoia globale: modificatori (`MOD_*`) e codice di tasto virtuale.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Hotkey {
+    pub mods: u32,
+    pub vk: u32,
+}
+
+const MOD_ALT_BIT: u32 = 0x1;
+const MOD_CTRL_BIT: u32 = 0x2;
+const MOD_SHIFT_BIT: u32 = 0x4;
+const MOD_WIN_BIT: u32 = 0x8;
+const VK_SPACE_CODE: u32 = 0x20;
+
+/// Alt+Spazio.
+pub const DEFAULT_HOTKEY: Hotkey = Hotkey { mods: MOD_ALT_BIT, vk: VK_SPACE_CODE };
+
+/// Legge una scorciatoia scritta come "Ctrl+Alt+Space" (maiuscole libere; accetta anche i nomi
+/// italiani Maiusc e Spazio). Serve almeno un modificatore oltre a Maiusc: il solo Maiusc o un
+/// tasto nudo dirotterebbero la digitazione normale. Un solo tasto, senza ripetizioni; tasti
+/// ammessi: Spazio, lettere, cifre, F1-F12; Alt+F4 è rifiutata. Pura, testata.
+pub fn parse_hotkey(text: &str) -> Option<Hotkey> {
+    let (mut mods, mut key): (u32, Option<u32>) = (0, None);
+    for raw in text.split('+') {
+        let t = raw.trim().to_lowercase();
+        let bit = match t.as_str() {
+            "ctrl" | "control" | "ctl" => MOD_CTRL_BIT,
+            "alt" => MOD_ALT_BIT,
+            "shift" | "maiusc" => MOD_SHIFT_BIT,
+            "win" | "windows" | "super" | "meta" | "cmd" => MOD_WIN_BIT,
+            _ => 0,
+        };
+        if bit != 0 {
+            if mods & bit != 0 {
+                return None;
             }
-            break;
+            mods |= bit;
+            continue;
         }
-        if !warned {
-            warned = true;
-            eprintln!("launcher: Alt+Spazio è già usata da un altro programma");
-            std::thread::spawn(|| unsafe {
-                MessageBoxW(
-                    None,
-                    w!("La scorciatoia Alt+Spazio del Launcher è già usata da un altro programma (per esempio PowerToys Run). Chiudi quel programma: EosOS riproverà da solo ogni 30 secondi."),
-                    w!("EosOS"),
-                    MB_OK | MB_ICONINFORMATION,
-                );
-            });
+        let vk = match t.as_str() {
+            "space" | "spazio" => VK_SPACE_CODE,
+            s if s.len() == 1 && s.as_bytes()[0].is_ascii_alphabetic() => u32::from(s.as_bytes()[0].to_ascii_uppercase()),
+            s if s.len() == 1 && s.as_bytes()[0].is_ascii_digit() => u32::from(s.as_bytes()[0]),
+            s if s.starts_with('f') && s[1..].parse::<u32>().is_ok_and(|n| (1..=12).contains(&n)) => {
+                0x70 + s[1..].parse::<u32>().unwrap_or(1) - 1
+            }
+            _ => return None,
+        };
+        if key.replace(vk).is_some() {
+            return None;
         }
-        std::thread::sleep(RETRY_EVERY);
     }
+    let vk = key?;
+    if mods & !MOD_SHIFT_BIT == 0 || (mods == MOD_ALT_BIT && vk == 0x73) {
+        return None;
+    }
+    Some(Hotkey { mods, vk })
+}
+
+/// La scorciatoia come testo canonico ("Ctrl+Alt+Space"), che `parse_hotkey` rilegge uguale.
+/// Pura, testata.
+pub fn format_hotkey(h: Hotkey) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    for (bit, name) in [(MOD_CTRL_BIT, "Ctrl"), (MOD_ALT_BIT, "Alt"), (MOD_SHIFT_BIT, "Shift"), (MOD_WIN_BIT, "Win")] {
+        if h.mods & bit != 0 {
+            parts.push(name.into());
+        }
+    }
+    parts.push(match h.vk {
+        VK_SPACE_CODE => "Space".into(),
+        0x70..=0x7B => format!("F{}", h.vk - 0x70 + 1),
+        v => char::from_u32(v).map(|c| c.to_string()).unwrap_or_default(),
+    });
+    parts.join("+")
+}
+
+/// Come si mostra all'utente ("Ctrl+Alt+Spazio").
+pub fn display_hotkey(h: Hotkey) -> String {
+    format_hotkey(h).replace("Space", "Spazio").replace("Shift", "Maiusc")
+}
+
+/// La scorciatoia salvata, o quella predefinita se manca o non si legge.
+fn configured_hotkey() -> Hotkey {
+    crate::launcherstore::settings().hotkey.as_deref().and_then(parse_hotkey).unwrap_or(DEFAULT_HOTKEY)
+}
+
+/// Messaggio privato per il thread della scorciatoia: "cambia combinazione".
+const WM_CHANGE_HOTKEY: u32 = WM_APP + 1;
+static HOTKEY_THREAD: AtomicU32 = AtomicU32::new(0);
+type Change = (Hotkey, std::sync::mpsc::Sender<bool>);
+static PENDING_CHANGE: Mutex<Option<Change>> = Mutex::new(None);
+
+fn try_register(h: Hotkey) -> bool {
+    unsafe { RegisterHotKey(None, HOTKEY_ID, HOT_KEY_MODIFIERS(h.mods) | MOD_NOREPEAT, h.vk) }.is_ok()
+}
+
+/// Cambia la scorciatoia subito, senza riavviare. `true` se la nuova combinazione è stata
+/// registrata (e salvata); `false` se è occupata da un altro programma o il thread non risponde:
+/// in quel caso resta quella di prima.
+pub fn change_hotkey(h: Hotkey) -> bool {
+    let tid = HOTKEY_THREAD.load(Ordering::Relaxed);
+    if tid == 0 {
+        return false;
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    *PENDING_CHANGE.lock().unwrap_or_else(|e| e.into_inner()) = Some((h, tx));
+    if unsafe { PostThreadMessageW(tid, WM_CHANGE_HOTKEY, WPARAM(0), LPARAM(0)) }.is_err() {
+        return false;
+    }
+    rx.recv_timeout(Duration::from_secs(2)).unwrap_or(false)
+}
+
+/// Thread della scorciatoia: registra la combinazione, ascolta WM_HOTKEY e accetta cambi a caldo.
+/// Se la combinazione è occupata avvisa una volta e riprova ogni 30 secondi (timer del thread).
+fn hotkey_thread(app: AppHandle) {
+    HOTKEY_THREAD.store(unsafe { GetCurrentThreadId() }, Ordering::Relaxed);
+    let mut current = configured_hotkey();
+    let mut registered = try_register(current);
+    let mut warned = false;
+    let warn = |h: Hotkey| {
+        eprintln!("launcher: {} è già usata da un altro programma", display_hotkey(h));
+        let text = HSTRING::from(format!(
+            "La scorciatoia {} del Launcher è già usata da un altro programma (per esempio PowerToys Run). Chiudi quel programma: EosOS riproverà da solo ogni 30 secondi.",
+            display_hotkey(h)
+        ));
+        std::thread::spawn(move || unsafe {
+            MessageBoxW(None, &text, w!("EosOS"), MB_OK | MB_ICONINFORMATION);
+        });
+    };
+    if !registered {
+        warned = true;
+        warn(current);
+    }
+    unsafe { SetTimer(None, 1, RETRY_EVERY.as_millis() as u32, None) };
     let mut msg = MSG::default();
     unsafe {
         while GetMessageW(&mut msg, None, 0, 0).as_bool() {
-            if msg.message == WM_HOTKEY && msg.wParam == WPARAM(HOTKEY_ID as usize) {
-                toggle(&app);
+            match msg.message {
+                WM_HOTKEY if msg.wParam == WPARAM(HOTKEY_ID as usize) => toggle(&app),
+                WM_TIMER if !registered => {
+                    registered = try_register(current);
+                    if registered && warned {
+                        eprintln!("launcher: {} registrata dopo un conflitto", display_hotkey(current));
+                    }
+                }
+                WM_CHANGE_HOTKEY => {
+                    let change = PENDING_CHANGE.lock().unwrap_or_else(|e| e.into_inner()).take();
+                    if let Some((new, tx)) = change {
+                        if registered {
+                            let _ = UnregisterHotKey(None, HOTKEY_ID);
+                        }
+                        if try_register(new) {
+                            current = new;
+                            registered = true;
+                            warned = false;
+                            let _ = tx.send(true);
+                        } else {
+                            registered = try_register(current); // si torna a quella di prima
+                            let _ = tx.send(false);
+                        }
+                    }
+                }
+                _ => {}
             }
         }
         let _ = UnregisterHotKey(None, HOTKEY_ID);
@@ -372,6 +502,34 @@ mod tests {
         // Scala assurda: ripiego su 1.
         assert_eq!(place(MON, f64::NAN, 72.0).w, 680);
         assert_eq!(place(MON, 0.0, 72.0).w, 680);
+    }
+
+    #[test]
+    fn hotkeys_parse_in_english_and_italian_and_roundtrip() {
+        assert_eq!(parse_hotkey("Alt+Space"), Some(DEFAULT_HOTKEY));
+        assert_eq!(parse_hotkey(" alt + spazio "), Some(DEFAULT_HOTKEY));
+        let h = parse_hotkey("Ctrl+Alt+Space").unwrap();
+        assert_eq!(h, Hotkey { mods: 0x3, vk: 0x20 });
+        assert_eq!(parse_hotkey("Ctrl+Maiusc+K"), Some(Hotkey { mods: 0x6, vk: u32::from(b'K') }));
+        assert_eq!(parse_hotkey("Win+F9"), Some(Hotkey { mods: 0x8, vk: 0x78 }));
+        assert_eq!(parse_hotkey("ctrl+7"), Some(Hotkey { mods: 0x2, vk: u32::from(b'7') }));
+        for text in ["Alt+Space", "Ctrl+Alt+Space", "Ctrl+Shift+K", "Win+F9", "Ctrl+Alt+Shift+Win+F12", "Ctrl+7"] {
+            let h = parse_hotkey(text).unwrap();
+            assert_eq!(format_hotkey(h), text);
+            assert_eq!(parse_hotkey(&format_hotkey(h)), Some(h));
+        }
+        assert_eq!(display_hotkey(parse_hotkey("Ctrl+Shift+Space").unwrap()), "Ctrl+Maiusc+Spazio");
+    }
+
+    #[test]
+    fn dangerous_or_malformed_hotkeys_are_rejected() {
+        for bad in [
+            "", "Space", "K", "Shift+K", "Shift+Space", "Alt", "Ctrl+Alt", "Alt+Alt+K", "Ctrl+K+L", "Ctrl+Esc",
+            "Ctrl+F13", "Ctrl+F0", "Ctrl++K", "+", "Alt+F4", "Ctrl+ctrl+K", "Ctrl+é",
+        ] {
+            assert_eq!(parse_hotkey(bad), None, "{bad:?} non deve essere accettata");
+        }
+        assert!(parse_hotkey("Ctrl+F4").is_some(), "solo Alt+F4 e' vietata");
     }
 
     #[test]
