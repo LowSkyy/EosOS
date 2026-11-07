@@ -4,10 +4,10 @@
 //! necessario a ricevere gli eventi. Ad ogni cambio emette l'evento Tauri
 //! `foreground-changed` verso il frontend.
 
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
@@ -27,7 +27,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WINEVENT_SKIPOWNPROCESS,
 };
 
-use crate::util::image_path;
+use crate::util::{image_path, is_fresh, TimedCache};
 
 pub const EVENT_NAME: &str = "foreground-changed";
 
@@ -42,7 +42,7 @@ static LAST: Mutex<Option<ActiveApp>> = Mutex::new(None);
 /// Ultima finestra attivata dall'utente che non sia di EosOS (l'hook salta già i
 /// propri eventi). Serve al Dock: cliccandolo, il primo piano passa a EosOS.
 static LAST_HWND: AtomicIsize = AtomicIsize::new(0);
-static DESCRIPTIONS: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+static DESCRIPTIONS: OnceLock<TimedCache> = OnceLock::new();
 
 /// Classi delle finestre della shell: quando una di queste è in primo piano
 /// l'utente sta guardando il desktop.
@@ -136,11 +136,16 @@ fn file_description(path: &Path) -> Option<String> {
 pub(crate) fn cached_description(path: &Path) -> Option<String> {
     let cache = DESCRIPTIONS.get_or_init(Default::default);
     let key = path.to_string_lossy().to_lowercase();
-    if let Some(v) = cache.lock().ok()?.get(&key) {
-        return v.clone();
-    }
-    let d = file_description(path);
-    cache.lock().ok()?.insert(key, d.clone());
+    let old = {
+        let guard = cache.lock().ok()?;
+        match guard.get(&key) {
+            Some((at, v)) if is_fresh(at.elapsed(), v.is_some()) => return v.clone(),
+            other => other.and_then(|(_, v)| v.clone()),
+        }
+    };
+    // Se si rinfresca e non si trova più nulla si tiene il valore di prima.
+    let d = file_description(path).or(old);
+    cache.lock().ok()?.insert(key, (Instant::now(), d.clone()));
     d
 }
 

@@ -7,20 +7,21 @@
 //! Il Dock non nasconde né modifica nulla del sistema: un errore qui non tocca
 //! mai la logica di ripristino della taskbar.
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 use base64::Engine;
 use serde::Serialize;
-use windows::core::{Interface, BOOL, GUID, HSTRING};
-use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, PROPERTYKEY, SIZE};
+use windows::core::{Interface, BOOL, GUID, HSTRING, PWSTR};
+use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, PROPERTYKEY, SIZE, WIN32_ERROR};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
 use windows::Win32::Graphics::Gdi::{
     DeleteObject, GetDC, GetDIBits, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO, BITMAPINFOHEADER,
     BI_RGB, DIB_RGB_COLORS, HGDIOBJ,
 };
 use windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW;
+use windows::Win32::Storage::Packaging::Appx::GetApplicationUserModelId;
 use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVariantToStringAlloc};
 use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
@@ -41,7 +42,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::foreground::{cached_description, display_name};
-use crate::util::image_path;
+use crate::util::{image_path, is_fresh, TimedCache};
 
 /// Lato (px) dell'icona richiesta: abbastanza grande per l'ingrandimento del Dock.
 const ICON_SIZE: i32 = 128;
@@ -130,7 +131,28 @@ pub fn same_app(a: &Path, b: &Path) -> bool {
     }
     let dir = |p: &Path| PathBuf::from(key(p.parent().unwrap_or(p)));
     let (da, db) = (dir(a), dir(b));
-    da.starts_with(&db) || db.starts_with(&da)
+    // Una è nella cartella dell'altra più UNA cartella di versione (`app-1.0.9267`).
+    // Senza questo limite `C:\Python\python.exe` e `C:\Python\venv\Scripts\python.exe`, o
+    // `C:\Windows\explorer.exe` e `C:\Windows\SysWOW64\explorer.exe`, sarebbero la stessa app.
+    let nested = |child: &Path, parent: &Path| {
+        child.parent() == Some(parent)
+            && child.file_name().is_some_and(|n| is_version_dir(&n.to_string_lossy()))
+    };
+    da == db || nested(&da, &db) || nested(&db, &da)
+}
+
+/// Il nome di cartella sembra una versione? `app-1.0.9267` (Squirrel: Discord, Medal...),
+/// `1.2.3`, `v1.2`. Pura, testata.
+pub fn is_version_dir(name: &str) -> bool {
+    let n = name.to_lowercase();
+    let digits_dots = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit() || c == '.');
+    if let Some(rest) = n.strip_prefix("app-") {
+        return !rest.is_empty()
+            && rest.chars().next().is_some_and(|c| c.is_ascii_digit())
+            && rest.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '-');
+    }
+    digits_dots(n.strip_prefix('v').unwrap_or(&n))
+        && n.trim_start_matches('v').chars().next().is_some_and(|c| c.is_ascii_digit())
 }
 
 /// Unisce fissate e aperte: prima le fissate (nell'ordine dato), poi le aperte
@@ -211,6 +233,31 @@ pub fn window_aumid(hwnd: HWND) -> Option<String> {
     let _com = ComScope::new();
     let store: IPropertyStore = unsafe { SHGetPropertyStoreForWindow(hwnd) }.ok()?;
     aumid_from_store(&store)
+}
+
+/// Identificatore di un'app impacchettata dal suo processo (`GetApplicationUserModelId`).
+pub fn process_aumid(pid: u32) -> Option<String> {
+    let h = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?;
+    let mut buf = [0u16; 256];
+    let mut len = buf.len() as u32;
+    let r = unsafe { GetApplicationUserModelId(h, &mut len, Some(PWSTR(buf.as_mut_ptr()))) };
+    unsafe {
+        let _ = CloseHandle(h);
+    }
+    // `len` include il terminatore.
+    (r == WIN32_ERROR(0) && len > 1).then(|| String::from_utf16_lossy(&buf[..(len - 1) as usize]))
+}
+
+/// Identificatore di un'app impacchettata (non guscio UWP) a partire dalla sua finestra e dal
+/// suo processo. Molte finestre di app impacchettate (Blocco note, per esempio) non espongono
+/// l'identificatore: senza il ripiego sul processo, un'app fissata dalla taskbar (che ha
+/// l'identificatore) e la stessa app aperta (che avrebbe solo il percorso, con il numero di
+/// versione nella cartella) sarebbero due voci diverse. Si usa l'identificatore del processo
+/// solo se la shell sa darne nome e icona, altrimenti resta l'eseguibile.
+fn packaged_aumid(hwnd: HWND, pid: u32) -> Option<String> {
+    window_aumid(hwnd).or_else(|| {
+        process_aumid(pid).filter(|a| cached_shell_name(&aumid_path(a).to_string_lossy()).is_some())
+    })
 }
 
 /// Nome visualizzato dalla shell per un elemento (anche `shell:AppsFolder\...`).
@@ -345,7 +392,13 @@ unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
         // l'identificatore non si saprebbe a quale app appartiene la finestra.
         let frame_host = stem(&exe).eq_ignore_ascii_case("ApplicationFrameHost");
         let packaged = is_packaged_path(&exe);
-        let aumid = if frame_host || packaged { window_aumid(hwnd) } else { None };
+        let aumid = if frame_host {
+            window_aumid(hwnd)
+        } else if packaged {
+            packaged_aumid(hwnd, pid)
+        } else {
+            None
+        };
         let Some(path) = identity(frame_host, packaged, aumid, exe) else { return };
         out.push((hwnd, pid, path));
     }));
@@ -376,10 +429,18 @@ pub fn window_identity(hwnd: HWND) -> Option<PathBuf> {
     if !root.0.is_null() && root != hwnd {
         return window_identity(root);
     }
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
     let exe = window_exe(hwnd)?;
     let frame_host = stem(&exe).eq_ignore_ascii_case("ApplicationFrameHost");
     let packaged = is_packaged_path(&exe);
-    let aumid = if frame_host || packaged { window_aumid(hwnd) } else { None };
+    let aumid = if frame_host {
+        window_aumid(hwnd)
+    } else if packaged {
+        packaged_aumid(hwnd, pid)
+    } else {
+        None
+    };
     identity(frame_host, packaged, aumid, exe)
 }
 
@@ -426,11 +487,18 @@ pub fn find_ancestor(table: &[(u32, u32, String)], pid: u32, names: &[String]) -
 /// Se l'eseguibile di una finestra non è tra le app fissate ma un suo antenato
 /// sì, la finestra è attribuita a quell'app (vedi `find_ancestor`).
 pub fn app_windows() -> Vec<(HWND, PathBuf)> {
+    app_windows_for(&crate::dockstore::load())
+}
+
+/// Come `app_windows`, con l'elenco delle fissate già letto: chi ne ha uno non rilegge il file.
+pub fn app_windows_for(pinned: &[Pinned]) -> Vec<(HWND, PathBuf)> {
+    // Un solo avvio di COM per tutta l'enumerazione, non uno per finestra.
+    let _com = ComScope::new();
     let mut raw: Vec<(HWND, u32, PathBuf)> = Vec::new();
     unsafe {
         let _ = EnumWindows(Some(collect_window), LPARAM(&mut raw as *mut _ as isize));
     }
-    let pinned: Vec<PathBuf> = crate::dockstore::load().into_iter().map(|p| p.path).collect();
+    let pinned: Vec<PathBuf> = pinned.iter().map(|p| p.path.clone()).collect();
     let names: Vec<String> = pinned
         .iter()
         .filter_map(|p| p.file_name())
@@ -460,9 +528,9 @@ pub fn app_windows() -> Vec<(HWND, PathBuf)> {
 }
 
 /// Eseguibili con almeno una finestra aperta, nell'ordine Z (dall'alto).
-pub fn read_running() -> Vec<Running> {
+pub fn read_running_for(pinned: &[Pinned]) -> Vec<Running> {
     let mut out: Vec<Running> = Vec::new();
-    for (_, path) in app_windows() {
+    for (_, path) in app_windows_for(pinned) {
         if !out.iter().any(|r| key(&r.path) == key(&path)) {
             out.push(Running { path });
         }
@@ -564,17 +632,43 @@ pub fn icon_data_url(path: &Path) -> Option<String> {
     }
 }
 
-static ICONS: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
+static ICONS: OnceLock<TimedCache> = OnceLock::new();
 
+/// Icona con cache a scadenza: un fallimento (shell non pronta, per esempio subito dopo il
+/// riavvio di Explorer) si ritenta dopo pochi secondi invece di restare per sempre, e un
+/// successo si rinfresca ogni tanto (l'app può aggiornare la sua icona).
 fn cached_icon(path: &Path) -> Option<String> {
     let cache = ICONS.get_or_init(Default::default);
     let k = key(path);
-    if let Some(v) = cache.lock().ok()?.get(&k) {
-        return v.clone();
-    }
-    let icon = icon_data_url(path);
-    cache.lock().ok()?.insert(k, icon.clone());
+    let old = {
+        let guard = cache.lock().ok()?;
+        match guard.get(&k) {
+            Some((at, v)) if is_fresh(at.elapsed(), v.is_some()) => return v.clone(),
+            other => other.and_then(|(_, v)| v.clone()),
+        }
+    };
+    let icon = icon_data_url(path).or(old);
+    cache.lock().ok()?.insert(k, (Instant::now(), icon.clone()));
     icon
+}
+
+static SHELL_NAMES: OnceLock<TimedCache> = OnceLock::new();
+
+/// Nome dalla shell con cache a scadenza (stessa logica delle icone): le app dello Store non
+/// fissate richiederebbero altrimenti una chiamata COM per ciascuna a ogni sondaggio.
+fn cached_shell_name(parsing_name: &str) -> Option<String> {
+    let cache = SHELL_NAMES.get_or_init(Default::default);
+    let k = parsing_name.to_lowercase();
+    let old = {
+        let guard = cache.lock().ok()?;
+        match guard.get(&k) {
+            Some((at, v)) if is_fresh(at.elapsed(), v.is_some()) => return v.clone(),
+            other => other.and_then(|(_, v)| v.clone()),
+        }
+    };
+    let name = shell_display_name(parsing_name).or(old);
+    cache.lock().ok()?.insert(k, (Instant::now(), name.clone()));
+    name
 }
 
 // ------------------------------------------------------------- insieme
@@ -647,12 +741,13 @@ fn apply_run_order(items: &mut [DockItem]) {
 
 /// Voci senza icone, con i nomi risolti. Serve a ritrovare una voce dall'`id`.
 pub fn items_basic() -> Vec<DockItem> {
-    let mut items = merge(&crate::dockstore::load(), &read_running());
+    let pinned = crate::dockstore::load(); // una sola lettura del file per sondaggio
+    let mut items = merge(&pinned, &read_running_for(&pinned));
     for it in &mut items {
         if it.name.is_empty() {
             let path = PathBuf::from(&it.path);
             it.name = if parse_aumid(&it.path).is_some() {
-                shell_display_name(&it.path).unwrap_or_else(|| "App".to_string())
+                cached_shell_name(&it.path).unwrap_or_else(|| "App".to_string())
             } else {
                 let desc = cached_description(&path);
                 display_name(desc.as_deref(), &stem(&path), "", "")
@@ -833,6 +928,30 @@ mod tests {
         assert!(same_app(&a, &a));
         assert!(same_app(&a, &PathBuf::from(r"SHELL:appsfolder\a.pkg!app")), "maiuscole ignorate");
         assert!(!same_app(&a, &b));
+    }
+
+    #[test]
+    fn only_a_single_version_folder_counts_as_the_same_app() {
+        // Squirrel: Discord, Medal.
+        assert!(same_app(Path::new(r"C:\U\Discord\Discord.exe"), Path::new(r"C:\U\Discord\app-1.0.9267\Discord.exe")));
+        assert!(same_app(Path::new(r"C:\M\Medal.exe"), Path::new(r"c:\m\app-2619.164.1\MEDAL.exe")));
+        assert!(same_app(Path::new(r"C:\A\app.exe"), Path::new(r"C:\A\1.2.3\app.exe")));
+        assert!(same_app(Path::new(r"C:\A\app.exe"), Path::new(r"C:\A\v2.0\app.exe")));
+        // Un virtualenv e una cartella di sistema non sono "versioni": altre app.
+        assert!(!same_app(Path::new(r"C:\Python\python.exe"), Path::new(r"C:\Python\venv\Scripts\python.exe")));
+        assert!(!same_app(Path::new(r"C:\Windows\explorer.exe"), Path::new(r"C:\Windows\SysWOW64\explorer.exe")));
+        // Due livelli sotto, anche se il nome sembra una versione.
+        assert!(!same_app(Path::new(r"C:\A\app.exe"), Path::new(r"C:\A\x\1.2.3\app.exe")));
+    }
+
+    #[test]
+    fn version_folder_names() {
+        for ok in ["app-1.0.9267", "APP-2619.164.1", "1.2.3", "v1.2", "V10", "app-1-2"] {
+            assert!(is_version_dir(ok), "{ok}");
+        }
+        for no in ["app-", "app-beta", "venv", "SysWOW64", "Scripts", "v", "", "x86", "app"] {
+            assert!(!is_version_dir(no), "{no}");
+        }
     }
 
     #[test]

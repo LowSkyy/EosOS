@@ -5,6 +5,8 @@
 //! un'app dal Dock non tocca la taskbar.
 
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -141,73 +143,188 @@ pub fn dedup(list: Vec<Pinned>) -> Vec<Pinned> {
     out
 }
 
-fn save(pinned: &[Pinned]) {
-    save_with(pinned, settings());
+/// Un solo scrittore alla volta: ogni modifica legge il file, cambia e lo riscrive, e due
+/// modifiche simultanee (menu, trascinamento, ciclo di controllo) si perderebbero a vicenda.
+static STORE_LOCK: Mutex<()> = Mutex::new(());
+
+/// Elenco e impostazioni dell'ultima lettura o scrittura riuscita.
+type Snapshot = (Vec<Pinned>, Settings);
+static LAST_GOOD: Mutex<Option<Snapshot>> = Mutex::new(None);
+
+fn lock_store() -> MutexGuard<'static, ()> {
+    STORE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Impostazioni salvate (quelle di default se il file manca o è illeggibile).
+fn last_good() -> Option<Snapshot> {
+    LAST_GOOD.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+fn remember(list: &[Pinned], st: Settings) {
+    *LAST_GOOD.lock().unwrap_or_else(|e| e.into_inner()) = Some((list.to_vec(), st));
+}
+
+/// Esito della lettura del file.
+#[derive(Debug, PartialEq)]
+pub enum Read {
+    Text(String),
+    /// Il file non esiste (primo avvio).
+    Missing,
+    /// Il file non si è potuto leggere (accesso negato, condivisione violata...).
+    Failed,
+}
+
+/// Legge il file, riprovando brevemente se è inaccessibile: mentre un altro thread lo
+/// sostituisce (rinomina) o un antivirus lo scandisce, la lettura può fallire per un attimo.
+fn read_store() -> Read {
+    let Some(path) = store_path() else { return Read::Missing };
+    for attempt in 0..4u64 {
+        match std::fs::read_to_string(&path) {
+            Ok(t) => return Read::Text(t),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Read::Missing,
+            Err(_) => std::thread::sleep(Duration::from_millis(15 * (attempt + 1))),
+        }
+    }
+    Read::Failed
+}
+
+/// Cosa fare dopo aver letto il file.
+#[derive(Debug, PartialEq)]
+pub enum Decision {
+    /// Il file è valido: si usa questo elenco.
+    Use(Vec<Pinned>),
+    /// Il file manca: si riparte dalle app fissate sulla taskbar.
+    Seed,
+    /// Il file esiste ma non è JSON valido: si conserva come `dock.json.bad` e si riparte.
+    BackupAndSeed,
+    /// Il file non si legge in questo momento: NON si tocca e si usa l'ultimo elenco buono.
+    KeepLast(Vec<Pinned>),
+}
+
+/// Decide come usare il risultato della lettura. Un errore di accesso non è un file
+/// mancante: trattarlo così riscriverebbe `dock.json` con l'elenco della taskbar e
+/// butterebbe via le app fissate e il loro ordine. Pura, testata.
+pub fn decide(read: Read, last_good: Option<&[Pinned]>) -> Decision {
+    match read {
+        Read::Text(t) => match parse(&t) {
+            Some(list) => Decision::Use(list),
+            None => Decision::BackupAndSeed,
+        },
+        Read::Missing => Decision::Seed,
+        Read::Failed => Decision::KeepLast(last_good.map(<[Pinned]>::to_vec).unwrap_or_default()),
+    }
+}
+
+fn default_settings() -> Settings {
+    Settings { autohide: false, glass: GLASS_STANDARD, blur: true, reserve: true }
+}
+
+fn settings_of(f: &File) -> Settings {
+    Settings { autohide: f.autohide, glass: clamp_glass(f.glass), blur: f.blur, reserve: f.reserve }
+}
+
+/// Impostazioni salvate. Se il file manca o è illeggibile, quelle dell'ultima lettura
+/// riuscita o, in mancanza, quelle di default.
 pub fn settings() -> Settings {
-    store_path()
-        .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str::<File>(strip_bom(&t)).ok())
-        .map_or(Settings { autohide: false, glass: GLASS_STANDARD, blur: true, reserve: true }, |f| Settings {
-            autohide: f.autohide,
-            glass: clamp_glass(f.glass),
-            blur: f.blur,
-            reserve: f.reserve,
-        })
+    match read_store() {
+        Read::Text(t) => serde_json::from_str::<File>(strip_bom(&t))
+            .ok()
+            .map_or_else(default_settings, |f| settings_of(&f)),
+        Read::Missing => default_settings(),
+        Read::Failed => last_good().map_or_else(default_settings, |(_, st)| st),
+    }
 }
 
-pub fn set_autohide(on: bool) {
-    save_with(&load(), Settings { autohide: on, ..settings() });
-}
-
-pub fn set_reserve(on: bool) {
-    save_with(&load(), Settings { reserve: on, ..settings() });
-}
-
-pub fn set_blur(on: bool) {
-    save_with(&load(), Settings { blur: on, ..settings() });
-}
-
-pub fn set_glass(v: f64) {
-    save_with(&load(), Settings { glass: clamp_glass(v), ..settings() });
-}
-
-fn save_with(pinned: &[Pinned], st: Settings) {
+/// Scrive il file in modo atomico. Chi chiama tiene `STORE_LOCK`. Il file temporaneo ha un
+/// nome proprio del processo: due istanze di EosOS non si pestano i piedi.
+fn write_file(pinned: &[Pinned], st: Settings) {
     let Some(path) = store_path() else { return };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    // Scrittura atomica: un crollo a metà non lascia un file troncato.
-    let tmp = path.with_extension("json.tmp");
+    let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
     if std::fs::write(&tmp, serialize(pinned, st)).is_ok() {
-        let _ = std::fs::rename(&tmp, &path);
+        if std::fs::rename(&tmp, &path).is_ok() {
+            remember(pinned, st);
+        } else {
+            let _ = std::fs::remove_file(&tmp);
+        }
     }
 }
 
-/// App fissate. Se il file manca si riparte dalla taskbar. Se esiste ma non si
-/// legge (per esempio un errore di battitura dopo una modifica a mano) lo si
-/// mette da parte come `dock.json.bad` prima di ripartire, invece di perderlo.
+/// App fissate. Se il file manca si riparte dalla taskbar. Se esiste ma non è JSON
+/// valido lo si conserva come `dock.json.bad` prima di ripartire. Se non si riesce a
+/// leggerlo si usa l'ultimo elenco buono senza toccare nulla (vedi `decide`).
 pub fn load() -> Vec<Pinned> {
-    let text = store_path().and_then(|p| std::fs::read_to_string(p).ok());
-    if let Some(text) = &text
-        && let Some(list) = parse(text)
-    {
-        let clean = dedup(list.clone());
-        if clean.len() != list.len() {
-            save(&clean); // ripulisce i file scritti prima che i doppioni fossero esclusi
+    load_impl(false)
+}
+
+/// `locked`: chi chiama tiene già `STORE_LOCK` (le modifiche, che leggono e riscrivono).
+fn load_impl(locked: bool) -> Vec<Pinned> {
+    let last = last_good();
+    let last_list = last.as_ref().map(|(l, _)| l.as_slice());
+    match decide(read_store(), last_list) {
+        Decision::Use(list) => {
+            let clean = dedup(list.clone());
+            if clean.len() != list.len() {
+                // Ripulisce i file scritti prima che i doppioni fossero esclusi.
+                let _g = (!locked).then(lock_store);
+                write_file(&clean, settings());
+            } else {
+                remember(&clean, settings_hint(last.as_ref()));
+            }
+            clean
         }
-        return clean;
+        Decision::KeepLast(list) => list,
+        Decision::Seed | Decision::BackupAndSeed => {
+            let _g = (!locked).then(lock_store);
+            // Un altro thread può aver creato il file mentre si aspettava il lock.
+            match decide(read_store(), last_list) {
+                Decision::Use(list) => dedup(list),
+                Decision::KeepLast(list) => list,
+                other => {
+                    if other == Decision::BackupAndSeed
+                        && let Some(path) = store_path()
+                    {
+                        let _ = std::fs::copy(&path, path.with_extension("json.bad"));
+                    }
+                    let seeded = dedup(crate::dock::read_pinned());
+                    write_file(&seeded, settings());
+                    seeded
+                }
+            }
+        }
     }
-    if text.is_some()
-        && let Some(path) = store_path()
-    {
-        let _ = std::fs::copy(&path, path.with_extension("json.bad"));
+}
+
+fn settings_hint(last: Option<&Snapshot>) -> Settings {
+    last.map_or_else(default_settings, |(_, st)| *st)
+}
+
+/// Legge, modifica e riscrive il file sotto il lock. `f` dice se qualcosa è cambiato.
+fn modify(f: impl FnOnce(&mut Vec<Pinned>, &mut Settings) -> bool) {
+    let _g = lock_store();
+    let mut list = load_impl(true);
+    let mut st = settings();
+    if f(&mut list, &mut st) {
+        write_file(&list, st);
     }
-    let seeded = dedup(crate::dock::read_pinned());
-    save(&seeded);
-    seeded
+}
+
+pub fn set_autohide(on: bool) {
+    modify(|_, st| std::mem::replace(&mut st.autohide, on) != on);
+}
+
+pub fn set_reserve(on: bool) {
+    modify(|_, st| std::mem::replace(&mut st.reserve, on) != on);
+}
+
+pub fn set_blur(on: bool) {
+    modify(|_, st| std::mem::replace(&mut st.blur, on) != on);
+}
+
+pub fn set_glass(v: f64) {
+    let v = clamp_glass(v);
+    modify(|_, st| std::mem::replace(&mut st.glass, v) != v);
 }
 
 /// Mette `path` nella posizione `to` tra le fissate (contata senza di essa). Se
@@ -229,24 +346,15 @@ pub fn place(list: &mut Vec<Pinned>, path: &Path, fallback: Option<Pinned>, to: 
 
 /// Sposta o fissa in `to` la voce con questo percorso, e salva.
 pub fn move_to(path: &Path, fallback: Option<Pinned>, to: usize) {
-    let mut list = load();
-    if place(&mut list, path, fallback, to) {
-        save(&list);
-    }
+    modify(|list, _| place(list, path, fallback, to));
 }
 
 pub fn pin(p: Pinned) {
-    let mut list = load();
-    if add(&mut list, p) {
-        save(&list);
-    }
+    modify(|list, _| add(list, p));
 }
 
 pub fn unpin(path: &Path) {
-    let mut list = load();
-    if remove(&mut list, path) {
-        save(&list);
-    }
+    modify(|list, _| remove(list, path));
 }
 
 #[cfg(test)]
@@ -313,6 +421,23 @@ mod tests {
         assert_eq!(parse(&text).expect("json con BOM").len(), 1);
         assert_eq!(strip_bom("\u{feff}abc"), "abc");
         assert_eq!(strip_bom("abc"), "abc");
+    }
+
+    #[test]
+    fn a_read_error_never_reseeds_or_overwrites_the_file() {
+        let last = [pin("A", "C:/x/a.exe"), pin("B", "C:/y/b.exe")];
+        // Errore di accesso (rinomina in corso, antivirus): si tiene l'ultimo elenco buono.
+        assert_eq!(decide(Read::Failed, Some(&last)), Decision::KeepLast(last.to_vec()));
+        // Senza un ultimo elenco buono: vuoto, ma comunque nessuna riscrittura dalla taskbar.
+        assert_eq!(decide(Read::Failed, None), Decision::KeepLast(vec![]));
+        // File mancante: primo avvio, si riparte dalla taskbar.
+        assert_eq!(decide(Read::Missing, Some(&last)), Decision::Seed);
+        // File presente ma non valido: si conserva come .bad e si riparte.
+        assert_eq!(decide(Read::Text("{ rotto".into()), Some(&last)), Decision::BackupAndSeed);
+        // File valido, anche con il BOM.
+        let good = serialize(&last, Settings { autohide: false, glass: 0.7, blur: true, reserve: true });
+        assert_eq!(decide(Read::Text(good.clone()), None), Decision::Use(last.to_vec()));
+        assert_eq!(decide(Read::Text(format!("\u{feff}{good}")), None), Decision::Use(last.to_vec()));
     }
 
     #[test]

@@ -36,6 +36,11 @@ $dockJson = Join-Path $env:LOCALAPPDATA 'EosOS\dock.json'
 $backup = $null
 if (Test-Path $dockJson) { $backup = Get-Content $dockJson -Raw }
 function Cleanup { Get-CimInstance Win32_Process -Filter "Name='eosos.exe'" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }
+# Chiude solo i Blocco note nati dopo quelli gia' presenti all'avvio del test.
+$script:notepadBefore = @()
+function Stop-NewNotepad {
+  Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $script:notepadBefore -notcontains $_.Id } | Stop-Process -Force -ErrorAction SilentlyContinue
+}
 function Restore-Json { if ($null -ne $backup) { [IO.File]::WriteAllText($dockJson, $backup, (New-Object Text.UTF8Encoding($false))) } }
 function Set-Autohide($on) {
   $j = Get-Content $dockJson -Raw | ConvertFrom-Json
@@ -73,17 +78,24 @@ try {
   $capTop = $dr.T + 90
   Check "il Dock sta appoggiato in basso e non si sposta verso l'alto (fondo finestra = fondo schermo - margine)" ([Math]::Abs($dr.B - ($before.B - 8)) -le 2)
   # Blocco note massimizzato (nessun clic: lo si massimizza via API)
-  # Il nuovo Blocco note parte tramite un lanciatore che termina subito: lo si cerca per nome.
+  # Il nuovo Blocco note parte tramite un lanciatore che termina subito: lo si cerca per nome, ma
+  # SOLO tra i processi nati dopo l'avvio. Un Blocco note gia' aperto dall'utente (magari con testo
+  # non salvato) non va ne' massimizzato ne' chiuso.
+  $notepadBefore = @(Get-Process notepad -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+  $script:notepadBefore = $notepadBefore
   Start-Process notepad.exe; Start-Sleep 4
-  $h = (Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1).MainWindowHandle
-  Check "Blocco note di prova trovato" ($h -ne [IntPtr]::Zero)
-  [void][DR]::ShowWindow($h, 3); Start-Sleep 1.5
-  $nr = New-Object DR+R; [void][DR]::GetWindowRect($h, [ref]$nr)
-  Write-Host "Blocco note massimizzato: $($nr.T)..$($nr.B)   capsula del Dock: da $capTop"
-  # Una finestra massimizzata ha ~8 px di cornice invisibile oltre l'area di lavoro.
-  Check "il Blocco note massimizzato finisce sopra la capsula (fondo <= $($capTop + 8 + 2))" ($nr.B -le ($capTop + 8 + 2))
-  Check "e arriva comunque fin dove consentito (fondo >= area di lavoro)" ($nr.B -ge $a.B)
-  Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force
+  $mine = @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $notepadBefore -notcontains $_.Id -and $_.MainWindowHandle -ne [IntPtr]::Zero })
+  $h = if ($mine.Count -gt 0) { $mine[0].MainWindowHandle } else { [IntPtr]::Zero }
+  if ($h -eq [IntPtr]::Zero) { Write-Host "[SALTATO] nessun Blocco note nuovo trovato: non tocco quelli gia' aperti" -ForegroundColor Yellow }
+  if ($h -ne [IntPtr]::Zero) {
+    [void][DR]::ShowWindow($h, 3); Start-Sleep 1.5
+    $nr = New-Object DR+R; [void][DR]::GetWindowRect($h, [ref]$nr)
+    Write-Host "Blocco note massimizzato: $($nr.T)..$($nr.B)   capsula del Dock: da $capTop"
+    # Una finestra massimizzata ha ~8 px di cornice invisibile oltre l'area di lavoro.
+    Check "il Blocco note massimizzato finisce sopra la capsula (fondo <= $($capTop + 8 + 2))" ($nr.B -le ($capTop + 8 + 2))
+    Check "e arriva comunque fin dove consentito (fondo >= area di lavoro)" ($nr.B -ge $a.B)
+  }
+  Stop-NewNotepad
 
   Write-Host "`n=== D. uscita normale ==="
   [void]$p.CloseMainWindow(); Start-Sleep 1
@@ -116,7 +128,7 @@ try {
 }
 finally {
   Cleanup
-  Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $_.StartTime -gt (Get-Date).AddMinutes(-3) } | Stop-Process -Force -ErrorAction SilentlyContinue
+  Stop-NewNotepad
   Restore-Json
   Start-Sleep 2
   $end = [DR]::Work(); Write-Host "`narea di lavoro finale: $($end.T)..$($end.B)"

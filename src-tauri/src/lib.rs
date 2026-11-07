@@ -39,7 +39,7 @@ fn dock_activate(id: String) {
 }
 
 /// Clic destro su un'icona: menu nativo con Apri / Esci / Fissa o Rimuovi.
-#[tauri::command]
+#[tauri::command(async)]
 fn dock_menu(app: tauri::AppHandle, window: tauri::Window, id: String) -> tauri::Result<()> {
     use dockact::{menu_id, MenuAction};
     use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -87,7 +87,7 @@ fn dock_reorder(id: String, index: usize) {
 }
 
 /// Clic destro sullo sfondo della capsula: impostazioni del Dock.
-#[tauri::command]
+#[tauri::command(async)]
 fn dock_settings_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Result<()> {
     use dockact::{menu_id, MenuAction};
     use tauri::menu::{CheckMenuItem, Menu};

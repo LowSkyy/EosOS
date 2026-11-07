@@ -136,6 +136,17 @@ pub fn reserve_height(scale: f64, cap_h: f64) -> i32 {
     ((cap_h + BOTTOM_MARGIN + RESERVE_GAP) * scale).round().max(0.0) as i32
 }
 
+/// Contorno di sfondo (px CSS) che la pagina disegna oltre la capsula per la sfocatura:
+/// deve coincidere con `BLUR_MARGIN` in `Dock.tsx` e `--dock-blur-margin` in `tokens.css`.
+pub const BLUR_MARGIN_CSS: f64 = 28.0;
+
+/// Contorno (px fisici) da catturare attorno alla finestra del Dock. Cresce con la scala: a
+/// 175% la pagina vuole 49 px di sfondo oltre la capsula e a 200% ne vuole 56, e un margine
+/// fisso lascerebbe il bordo inferiore della sfocatura più chiaro. Pura, testata.
+pub fn capture_margin(scale: f64) -> i32 {
+    (((BLUR_MARGIN_CSS * scale).ceil() as i32) + 20).max(48)
+}
+
 /// Rettangolo da catturare per la sfocatura: la finestra allargata di `margin` px
 /// per lato (la sfocatura ha bisogno di contorno), ritagliata al monitor. `None`
 /// se non resta nulla. Pura, testata.
@@ -267,6 +278,20 @@ mod tests {
         let capsule_top = win.y + cap.y;
         let reserved_top = base_bottom - reserve_height(1.0, fit.cap_h);
         assert_eq!(capsule_top - reserved_top, RESERVE_GAP as i32);
+    }
+
+    #[test]
+    fn capture_margin_grows_with_the_scale() {
+        assert_eq!(capture_margin(1.0), 48);
+        assert_eq!(capture_margin(1.25), 55);
+        assert_eq!(capture_margin(1.5), 62);
+        assert_eq!(capture_margin(1.75), 69);
+        assert_eq!(capture_margin(2.0), 76);
+        // Sempre almeno quanto serve alla pagina: contorno CSS x scala.
+        for s in [1.0, 1.25, 1.5, 1.75, 2.0, 3.0] {
+            assert!(capture_margin(s) as f64 >= BLUR_MARGIN_CSS * s, "scala {s}");
+        }
+        assert_eq!(capture_margin(0.0), 48, "scala assurda: resta il minimo");
     }
 
     #[test]

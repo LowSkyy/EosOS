@@ -41,7 +41,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::dockgeom::{
-    at_bottom_edge, capsule_rect, capture_rect, is_active, reserve_height, slide_y, step_visibility,
+    at_bottom_edge, capsule_rect, capture_margin, capture_rect, is_active, reserve_height, slide_y, step_visibility,
     visible_height,
     window_rect, Fit, Rect, HIDE_DELAY_SECONDS, SHRINK_GRACE_SECONDS,
 };
@@ -53,8 +53,6 @@ const NO_ACTIVATE_STYLES: isize = (WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0) as i
 /// Stili di una finestra con cornice: il Dock non ne deve avere.
 const CHROME_STYLES: isize =
     (WS_CAPTION.0 | WS_SYSMENU.0 | WS_MINIMIZEBOX.0 | WS_MAXIMIZEBOX.0) as isize;
-/// Contorno (px fisici) catturato attorno al Dock: la sfocatura ne ha bisogno.
-const CAPTURE_MARGIN: i32 = 48;
 const TICK: Duration = Duration::from_millis(16);
 /// Ogni quanto si ricontrollano monitor, scala e area di lavoro.
 const RECONCILE_EVERY: Duration = Duration::from_secs(1);
@@ -121,7 +119,7 @@ pub fn capture_info() -> Option<(Rect, Rect)> {
     if st.p < 0.02 {
         return None;
     }
-    capture_rect(win, geo.monitor, CAPTURE_MARGIN).map(|c| (win, c))
+    capture_rect(win, geo.monitor, capture_margin(geo.scale)).map(|c| (win, c))
 }
 
 /// Monitor primario, come serve al ciclo (si ricontrolla ogni secondo).

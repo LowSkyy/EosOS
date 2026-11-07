@@ -107,18 +107,23 @@ export default function Dock() {
   const frame = useRef<Frame | null>(null);
   const [blur, setBlur] = useState(false);
 
+  // Generazione dell'elenco: sale a ogni modifica fatta qui (riordino). Un sondaggio partito
+  // prima non deve poter sovrascrivere con dati vecchi il risultato appena mostrato.
+  const epoch = useRef(0);
   const load = useCallback(
-    () =>
-      invoke<DockItem[]>("dock_items")
+    () => {
+      const started = epoch.current;
+      return invoke<DockItem[]>("dock_items")
         .then((next) => {
-          if (!alive.current) return;
+          if (!alive.current || started !== epoch.current) return;
           setItems((cur) => (sameItems(cur, next) ? cur : next));
           setBouncing((cur) => {
             const pruned = pruneBouncing(cur, next);
             return pruned.size === cur.size ? cur : pruned;
           });
         })
-        .catch(() => {}),
+        .catch(() => {});
+    },
     [],
   );
 
@@ -344,6 +349,7 @@ export default function Dock() {
       zone.current?.releasePointerCapture(p.pointerId);
       const target = commit ? targetFor(p, e.clientX) : null;
       if (target !== null) {
+        epoch.current += 1; // i sondaggi già partiti non valgono più
         setItems((cur) => applyMove(cur, p.id, target)); // subito, senza aspettare Rust
         void invoke("dock_reorder", { id: p.id, index: target }).finally(refreshSoon);
       }
@@ -360,8 +366,11 @@ export default function Dock() {
     const cells = pill.current?.querySelectorAll<HTMLElement>(".dock-item");
     if (!cells || cells.length === 0) return;
     const pitch = cssPx("--dock-icon") + cssPx("--dock-gap");
-    cells.forEach((c) => {
-      const r = c.getBoundingClientRect();
+    // Prima tutte le letture del layout, poi tutte le scritture: alternarle costringerebbe il
+    // browser a ricalcolare il layout una volta per icona a ogni movimento del mouse.
+    const rects = Array.from(cells, (c) => c.getBoundingClientRect());
+    cells.forEach((c, i) => {
+      const r = rects[i];
       c.style.setProperty("--s", String(magnifyScale(e.clientX - (r.left + r.width / 2), pitch)));
     });
   }, []);

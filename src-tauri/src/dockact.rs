@@ -11,7 +11,7 @@ use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::UI::Input::KeyboardAndMouse::{keybd_event, KEYEVENTF_KEYUP, VK_MENU};
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, IsIconic, PostMessageW, SetForegroundWindow, ShowWindow, SW_MINIMIZE,
+    IsIconic, PostMessageW, SetForegroundWindow, ShowWindow, SW_MINIMIZE,
     SW_RESTORE, SW_SHOWNORMAL, WM_CLOSE,
 };
 
@@ -109,7 +109,10 @@ fn focus(hwnd: HWND) {
         if IsIconic(hwnd).as_bool() {
             let _ = ShowWindow(hwnd, SW_RESTORE);
         }
-        if !SetForegroundWindow(hwnd).as_bool() || GetForegroundWindow() != hwnd {
+        // Il trucco dell'Alt solo se Windows NEGA il primo piano. Non basta che il primo piano
+        // finisca altrove: se l'app ha una finestra di dialogo aperta il primo piano va a lei
+        // anche quando la richiesta riesce, e un Alt finto attiverebbe la barra dei menu.
+        if !SetForegroundWindow(hwnd).as_bool() {
             // Windows nega il primo piano a chi non ha ricevuto input: premere
             // Alt un istante lo sblocca (trucco classico).
             keybd_event(VK_MENU.0 as u8, 0, Default::default(), 0);
