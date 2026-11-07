@@ -7,6 +7,7 @@ mod watchdog;
 #[cfg(test)]
 mod tests;
 
+use tauri::Manager;
 use windows::core::BOOL;
 use windows::Win32::System::Console::SetConsoleCtrlHandler;
 
@@ -92,9 +93,16 @@ pub fn run() {
 
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![get_active_app])
+        // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
+        // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
+        // passa di qui.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                window.app_handle().exit(0);
+            }
+        })
         .setup(|app| {
-            let window = appbar::main_window(app).ok_or("finestra principale mancante")?;
-            appbar::setup(&window)?;
+            appbar::start(app.handle());
             foreground::start(app.handle().clone());
             Ok(())
         })
