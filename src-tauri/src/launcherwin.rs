@@ -9,23 +9,25 @@
 //! combinazione è già presa da un altro programma lo si dice (una finestra di avviso, una sola
 //! volta) e si riprova ogni 30 secondi, invece di non aprirsi in silenzio.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
 use windows::core::w;
-use windows::Win32::Foundation::{HWND, WPARAM};
+use windows::Win32::Foundation::{HWND, RECT, WPARAM};
+use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     RegisterHotKey, UnregisterHotKey, MOD_ALT, MOD_NOREPEAT, VK_SPACE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetForegroundWindow, GetMessageW, GetWindowLongPtrW, MessageBoxW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
+    GetForegroundWindow, GetMessageW, GetWindowLongPtrW, GetWindowRect, MessageBoxW, SetWindowDisplayAffinity,
+    SetWindowLongPtrW, SetWindowPos, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, GWL_EXSTYLE,
     MB_ICONINFORMATION, MB_OK, MSG, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
     WM_HOTKEY, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
 
-use crate::dockgeom::Rect;
+use crate::dockgeom::{capture_margin, capture_rect, Rect};
 
 pub const LABEL: &str = "launcher";
 /// Larghezza del pannello, in px CSS.
@@ -48,6 +50,10 @@ static VISIBLE: AtomicBool = AtomicBool::new(false);
 /// l'altezza che la pagina comunica in px CSS.
 static SCALE_BITS: AtomicU64 = AtomicU64::new(0);
 static START: Mutex<Option<Instant>> = Mutex::new(None);
+/// HWND della finestra, per la cattura dello sfondo.
+static HWND_RAW: AtomicIsize = AtomicIsize::new(0);
+/// La finestra è esclusa dalla cattura (serve alla sfocatura: altrimenti si sfocherebbe da sola).
+static EXCLUDED: AtomicBool = AtomicBool::new(false);
 
 fn since_start() -> Duration {
     let mut g = START.lock().unwrap_or_else(|e| e.into_inner());
@@ -121,6 +127,7 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
         .inner_size(WIDTH, MIN_HEIGHT)
         .build()?;
     if let Ok(hwnd) = win.hwnd() {
+        HWND_RAW.store(hwnd.0 as isize, Ordering::Relaxed);
         unsafe { apply_styles(hwnd) };
     }
     Ok(())
@@ -145,6 +152,44 @@ fn target_monitor(app: &AppHandle, win: &tauri::WebviewWindow) -> Option<(Rect, 
     app.primary_monitor().ok().flatten().as_ref().map(to_rect)
 }
 
+/// Con la sfocatura attiva la finestra è esclusa dalla cattura dello schermo (come il Dock):
+/// effetto collaterale, screenshot e registrazioni non includono il Launcher. Se il sistema non
+/// lo supporta (prima della versione 2004) non c'è sfocatura e il vetro resta semplice.
+fn update_affinity() {
+    let raw = HWND_RAW.load(Ordering::Relaxed);
+    if raw == 0 {
+        return;
+    }
+    let want = crate::dockwin::blur_enabled();
+    let ok = unsafe {
+        SetWindowDisplayAffinity(HWND(raw as *mut _), if want { WDA_EXCLUDEFROMCAPTURE } else { WDA_NONE })
+    }
+    .is_ok();
+    EXCLUDED.store(want && ok, Ordering::Relaxed);
+}
+
+/// Cosa catturare per la sfocatura: (finestra, rettangolo da catturare), in pixel fisici. `None` se
+/// il Launcher è nascosto, la sfocatura è spenta o la finestra non si è potuta escludere.
+pub fn capture_info() -> Option<(Rect, Rect)> {
+    if !is_visible() || !EXCLUDED.load(Ordering::Relaxed) {
+        return None;
+    }
+    let hwnd = HWND(HWND_RAW.load(Ordering::Relaxed) as *mut _);
+    let mut r = RECT::default();
+    let mut mi = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+    let win = unsafe {
+        GetWindowRect(hwnd, &mut r).ok()?;
+        if !GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &mut mi).as_bool() {
+            return None;
+        }
+        Rect { x: r.left, y: r.top, w: r.right - r.left, h: r.bottom - r.top }
+    };
+    let m = mi.rcMonitor;
+    let monitor = Rect { x: m.left, y: m.top, w: m.right - m.left, h: m.bottom - m.top };
+    let scale = f64::from_bits(SCALE_BITS.load(Ordering::Relaxed));
+    capture_rect(win, monitor, capture_margin(if scale > 0.0 { scale } else { 1.0 })).map(|c| (win, c))
+}
+
 pub fn is_visible() -> bool {
     VISIBLE.load(Ordering::Relaxed)
 }
@@ -159,6 +204,7 @@ pub fn show(app: &AppHandle) {
     let _ = win.set_size(PhysicalSize::new(r.w as u32, r.h as u32));
     SHOWN_AT_MS.store(since_start().as_millis() as u64 + 1, Ordering::Relaxed);
     VISIBLE.store(true, Ordering::Relaxed);
+    update_affinity();
     let _ = win.show();
     if let Ok(hwnd) = win.hwnd() {
         unsafe { apply_styles(hwnd) };

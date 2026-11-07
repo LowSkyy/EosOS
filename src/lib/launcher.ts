@@ -139,3 +139,16 @@ export function kindLabel(item: Pick<LauncherItem, "kind">, confirming: boolean)
   if (item.kind === "setting") return "Invio per attivare";
   return item.kind === "action" ? "Azione" : item.kind === "file" ? "File" : "App";
 }
+
+export type Point = { x: number; y: number };
+
+/**
+ * Il mouse si è mosso davvero (almeno `threshold` px dall'ultima posizione registrata)? Quando
+ * la finestra compare o l'elenco cambia sotto un cursore fermo, il browser genera comunque un
+ * evento di movimento: senza questo controllo la riga sotto il cursore ruberebbe la selezione e
+ * Invio avvierebbe l'elemento sbagliato. Pura, testata.
+ */
+export function pointerMoved(prev: Point | null, next: Point, threshold = 3): boolean {
+  if (prev === null) return false;
+  return Math.hypot(next.x - prev.x, next.y - prev.y) >= threshold;
+}

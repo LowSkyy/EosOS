@@ -189,13 +189,40 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
+  /* Contesto proprio: sotto il contenuto stanno lo sfondo sfocato e la tinta. */
+  isolation: isolate;
   border-radius: 20px;
-  background: rgba(var(--dock-rgb), 0.86);
-  box-shadow: inset 0 0 0 1px var(--dock-border);
   color: var(--bar-fg);
   font-size: 15px;
 }
-:root[data-glass="none"] .launcher { background: var(--dock-bg-solid); }
+/* Tinta e bordo luminoso: sopra lo sfondo sfocato, sotto il contenuto. Più leggera con la sfocatura. */
+.launcher::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgba(var(--dock-rgb), 0.86);
+  box-shadow: inset 0 0 0 1px var(--dock-border);
+}
+:root[data-blur="on"] .launcher::before { background: rgba(var(--dock-rgb), 0.5); }
+:root[data-glass="none"] .launcher::before,
+:root[data-glass="none"][data-blur="on"] .launcher::before { background: var(--dock-bg-solid); }
+/* Sfondo sfocato: lo schermo dietro il pannello, disegnato da useBackdrop e sfocato qui. Il canvas
+   include un contorno (--dock-blur-margin) ritagliato via per non sbavare ai bordi. */
+.launcher-blur {
+  position: absolute;
+  z-index: -2;
+  left: calc(var(--dock-blur-margin) * -1);
+  top: calc(var(--dock-blur-margin) * -1);
+  width: calc(100% + var(--dock-blur-margin) * 2);
+  height: calc(100% + var(--dock-blur-margin) * 2);
+  pointer-events: none;
+  display: none;
+  filter: blur(var(--dock-blur-radius)) saturate(1.8);
+}
+:root[data-blur="on"] .launcher-blur { display: block; }
 
 .launcher-field {
   flex: none;

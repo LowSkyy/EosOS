@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794085156.2738311,
-    "seen": 1794085395.328142,
-    "ast_hash": "f894af6e09f35286ee5eb93096738059",
+    "mtime": 1794086087.1204755,
+    "seen": 1794086353.0276434,
+    "ast_hash": "0173de29be9ee6ed967a679a1f5fdd7d",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -414,9 +414,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/backdrop.rs": {
-    "mtime": 1794067410.2249606,
-    "seen": 1794067716.7920187,
-    "ast_hash": "a35bff15808d5aafda4d57baf58ec7e6",
+    "mtime": 1794086125.3679478,
+    "seen": 1794086353.027628,
+    "ast_hash": "1c7c90d1210fb0a9c8b66beed068a636",
     "semantic_hash": ""
   },
   "src/lib/backdrop.test.ts": {
@@ -474,9 +474,9 @@
     "semantic_hash": ""
   },
   "docs/LAUNCHER.md": {
-    "mtime": 1794085331.6386304,
-    "seen": 1794085395.3281724,
-    "ast_hash": "9901e926964ba21470b9eeacf96dfe95",
+    "mtime": 1794085891.8360982,
+    "seen": 1794085893.1915808,
+    "ast_hash": "2f3afbc855a507f014e4783b973aa602",
     "semantic_hash": ""
   },
   "src-tauri/src/launcher.rs": {
@@ -498,33 +498,33 @@
     "semantic_hash": ""
   },
   "scripts/test-launcher.ps1": {
-    "mtime": 1794085331.6386304,
-    "seen": 1794085395.3281171,
-    "ast_hash": "be319be9cb750a33c6c42f918d67d6fc",
+    "mtime": 1794086267.899552,
+    "seen": 1794086353.0276184,
+    "ast_hash": "f849fe71977d054869cb7e369023402e",
     "semantic_hash": ""
   },
   "src-tauri/src/launcherwin.rs": {
-    "mtime": 1794083538.721875,
-    "seen": 1794083856.5498886,
-    "ast_hash": "2a2e54372d8288cb96d1253e927f6419",
+    "mtime": 1794086087.1204755,
+    "seen": 1794086353.0276427,
+    "ast_hash": "ac862b6721634acfa05a8e61af3221eb",
     "semantic_hash": ""
   },
   "src/components/Launcher.tsx": {
-    "mtime": 1794085180.875818,
-    "seen": 1794085395.3281517,
-    "ast_hash": "69b60d979de94338aea1c1ca427e814e",
+    "mtime": 1794086267.899552,
+    "seen": 1794086353.027654,
+    "ast_hash": "ac17bbe837df8b6bc1c7d1c7fd760987",
     "semantic_hash": ""
   },
   "src/lib/launcher.test.ts": {
-    "mtime": 1794085180.874803,
-    "seen": 1794085395.3281596,
-    "ast_hash": "ce821d59d1af1d23183f3950fa54ab39",
+    "mtime": 1794086267.899552,
+    "seen": 1794086353.0276637,
+    "ast_hash": "e2deafea4f27c9a2de57b9a6161c7730",
     "semantic_hash": ""
   },
   "src/lib/launcher.ts": {
-    "mtime": 1794085180.874803,
-    "seen": 1794085395.3281605,
-    "ast_hash": "edbbb371f0e2f0151b8a90b762df13ee",
+    "mtime": 1794086267.8985424,
+    "seen": 1794086353.0276644,
+    "ast_hash": "75b7314a3e59deb34dc1572d94f80073",
     "semantic_hash": ""
   },
   "src-tauri/src/launcheract.rs": {
@@ -549,6 +549,12 @@
     "mtime": 1794085180.874803,
     "seen": 1794085395.3281372,
     "ast_hash": "982da413e7cf8537ce16c68434c3f680",
+    "semantic_hash": ""
+  },
+  "src/components/useBackdrop.ts": {
+    "mtime": 1794086125.36896,
+    "seen": 1794086353.0276556,
+    "ast_hash": "7e30c3fc568f9b0679236b82af24e184",
     "semantic_hash": ""
   },
   "package-lock.json": {

@@ -15,6 +15,7 @@ import {
   MAX_HEIGHT,
   mergeIcons,
   moveSelection,
+  pointerMoved,
   ROW_HEIGHT,
   windowHeight,
 } from "./launcher";
@@ -172,5 +173,19 @@ describe("wantsFiles and filterLabel", () => {
     expect(filterLabel("action")).toBe("Azioni");
     expect(filterLabel("app")).toBe("App");
     expect(filterLabel("clip")).toBe("Appunti");
+  });
+});
+
+describe("pointerMoved", () => {
+  it("ignores the first event and synthetic events at the same position", () => {
+    expect(pointerMoved(null, { x: 100, y: 100 })).toBe(false);
+    expect(pointerMoved({ x: 100, y: 100 }, { x: 100, y: 100 })).toBe(false);
+    expect(pointerMoved({ x: 100, y: 100 }, { x: 101, y: 100 })).toBe(false);
+  });
+  it("accepts a real movement in any direction", () => {
+    expect(pointerMoved({ x: 100, y: 100 }, { x: 103, y: 100 })).toBe(true);
+    expect(pointerMoved({ x: 100, y: 100 }, { x: 100, y: 96 })).toBe(true);
+    expect(pointerMoved({ x: 100, y: 100 }, { x: 102, y: 102 })).toBe(false);
+    expect(pointerMoved({ x: 100, y: 100 }, { x: 103, y: 103 })).toBe(true);
   });
 });

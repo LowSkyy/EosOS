@@ -80,7 +80,7 @@ fn dock_fit(app: tauri::AppHandle, fit: dockgeom::FitArgs) {
 /// altrimenti). Risposta binaria: intestazione + pixel RGBA, vedi `backdrop::encode`.
 #[tauri::command(async)]
 fn dock_backdrop(since: u64) -> tauri::ipc::Response {
-    tauri::ipc::Response::new(backdrop::latest(since))
+    tauri::ipc::Response::new(backdrop::latest(backdrop::Channel::Dock, since))
 }
 
 /// Ricerca del Launcher tra le app. `have`: gli id di cui il frontend ha già l'icona. Lavoro
@@ -141,6 +141,13 @@ fn launcher_action(id: String) -> &'static str {
 #[tauri::command(async)]
 fn launcher_launch(id: String) -> bool {
     launcher::launch(&id)
+}
+
+/// Ultimo fotogramma dello sfondo da sfocare dietro il Launcher (vuoto se la sfocatura è spenta,
+/// il Launcher è nascosto o non c'è nulla di nuovo). Stesso formato di `dock_backdrop`.
+#[tauri::command(async)]
+fn launcher_backdrop(since: u64) -> tauri::ipc::Response {
+    tauri::ipc::Response::new(backdrop::latest(backdrop::Channel::Launcher, since))
 }
 
 /// Nasconde il Launcher (Esc, o dopo aver avviato qualcosa).
@@ -314,7 +321,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, launcher_action, launcher_hide, launcher_fit])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

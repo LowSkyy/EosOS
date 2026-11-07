@@ -26,6 +26,7 @@ public static class LT {
   public static string ClassOf(IntPtr h) { var sb = new StringBuilder(128); GetClassName(h, sb, 128); return sb.ToString(); }
   public static IntPtr FindLike(string part) { IntPtr f = IntPtr.Zero; EnumWindows((h, l) => { var sb = new StringBuilder(512); GetWindowText(h, sb, 512); if (IsWindowVisible(h) && sb.ToString().IndexOf(part, StringComparison.OrdinalIgnoreCase) >= 0) { f = h; return false; } return true; }, IntPtr.Zero); return f; }
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern bool GetWindowDisplayAffinity(IntPtr h, out uint a);
   public static void Key(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
   public static void Ctrl(byte vk) { keybd_event(0x11, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); keybd_event(0x11, 0, 2, UIntPtr.Zero); }
   public static void AltSpace() { keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x20, 0, 0, UIntPtr.Zero); keybd_event(0x20, 0, 2, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); }
@@ -322,6 +323,20 @@ try {
   PressCtrl 0x34; Start-Sleep -Milliseconds 800
   Check 'cronologia svuotata e di nuovo da attivare' (((ClipRows) -like 'setting|*') -and -not ((ClipRows) -like "*$tag*"))
   [LT]::Key(0x1B); Start-Sleep -Milliseconds 400
+
+  Write-Host 'O. sfondo sfocato dietro il pannello'
+  [void][LT]::SetCursorPos($pw.X + [int]($pw.Width / 2), $pw.Y + [int]($pw.Height / 2))
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  TypeText 'cal'; Start-Sleep -Milliseconds 1200
+  [uint32]$aff = 0; [void][LT]::GetWindowDisplayAffinity((Launcher), [ref]$aff)
+  Check 'con il cursore fermo sotto l''elenco la selezione resta sulla prima riga' ((Js "document.querySelector('.launcher-item').dataset.selected") -eq 'true' -and (Js "document.querySelectorAll('.launcher-item').length") -ge 4)
+  Check 'finestra esclusa dalla cattura (serve alla sfocatura)' ($aff -eq 0x11) ('affinity=0x{0:X}' -f $aff)
+  Check 'sfocatura attiva nella pagina' ((Js "document.documentElement.getAttribute('data-blur')") -eq 'on')
+  $cv = Js "(function(){var c=document.querySelector('.launcher-blur');var x=c.getContext('2d').getImageData(0,0,c.width,c.height).data;var mn=255,mx=0;for(var i=0;i<x.length;i+=4){var v=x[i]+x[i+1]+x[i+2];mn=Math.min(mn,v);mx=Math.max(mx,v)}return c.width+'x'+c.height+' '+(mx-mn)})()"
+  Check 'il canvas contiene lo schermo dietro (dimensioni e contrasto)' (($cv -match '^\d+x\d+ \d+$') -and ([int]($cv.Split(' ')[1]) -gt 0) -and ([int]($cv.Split('x')[0]) -ge 300)) $cv
+  if ($env:LAUNCHER_SHOT) { $env:CDP_VIEW = 'launcher'; node (Join-Path $PSScriptRoot 'cdp-dock.mjs') shot $env:LAUNCHER_SHOT | Out-Null }
+  [LT]::Key(0x1B); Start-Sleep -Milliseconds 500
+  Check 'chiuso' (-not (IsOpen))
 }
 finally {
   Cleanup

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { useBackdrop } from "./useBackdrop";
 import {
   clampSelection,
   combine,
@@ -11,13 +12,18 @@ import {
   knownIds,
   mergeIcons,
   moveSelection,
+  pointerMoved,
   toggleFilter,
   wantsFiles,
   windowHeight,
   type Filter,
   type IconCache,
+  type Point,
   type LauncherItem,
 } from "../lib/launcher";
+
+/** Contorno catturato attorno al pannello perché lo sfocato non sbavi ai bordi (px CSS). */
+const BLUR_MARGIN = 28;
 
 /**
  * Launcher in stile Spotlight (finestra "launcher", vista ?view=launcher). Compare con la
@@ -34,6 +40,12 @@ export default function Launcher() {
   // Azione che aspetta la conferma (Riavvia, Spegni): la conferma vera la gestisce Rust.
   const [confirming, setConfirming] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const blurCanvas = useRef<HTMLCanvasElement>(null);
+  const [opens, setOpens] = useState(0);
+  // Ultima posizione del mouse registrata: vedi `pointerMoved`.
+  const pointer = useRef<Point | null>(null);
+  useBackdrop("launcher_backdrop", panel, blurCanvas, BLUR_MARGIN, opens);
   const cache = useRef<IconCache>(new Map());
   // Numero della ricerca più recente: una risposta in ritardo non deve sovrascrivere la nuova.
   const epoch = useRef(0);
@@ -88,6 +100,8 @@ export default function Launcher() {
       setSel(0);
       setFilter(null);
       setConfirming(null);
+      setOpens((n) => n + 1);
+      pointer.current = null;
       void search("", null);
       input.current?.focus();
     });
@@ -178,7 +192,8 @@ export default function Launcher() {
 
   const hasQuery = query.trim() !== "";
   return (
-    <div className="launcher" onKeyDown={onKeyDown}>
+    <div className="launcher" ref={panel} onKeyDown={onKeyDown}>
+      <canvas className="launcher-blur" ref={blurCanvas} aria-hidden />
       <div className="launcher-field">
         <svg className="launcher-glass" viewBox="0 0 20 20" aria-hidden="true">
           <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
@@ -216,8 +231,11 @@ export default function Launcher() {
               data-selected={i === sel}
               data-kind={it.kind}
               data-confirming={confirming === it.id}
-              onMouseMove={() => {
-                if (i !== sel) {
+              onMouseMove={(e) => {
+                const next = { x: e.screenX, y: e.screenY };
+                const moved = pointerMoved(pointer.current, next);
+                if (pointer.current === null || moved) pointer.current = next;
+                if (moved && i !== sel) {
                   setSel(i);
                   setConfirming(null);
                 }

@@ -46,7 +46,17 @@ struct Frame {
     rgba: Vec<u8>,
 }
 
-static FRAME: Mutex<Option<Frame>> = Mutex::new(None);
+/// Chi usa lo sfondo: il Dock e il Launcher hanno ciascuno il proprio fotogramma (sono visibili
+/// insieme, in posti diversi dello schermo).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Channel {
+    Dock = 0,
+    Launcher = 1,
+}
+
+const CHANNELS: [Channel; 2] = [Channel::Dock, Channel::Launcher];
+
+static FRAMES: [Mutex<Option<Frame>>; 2] = [const { Mutex::new(None) }; 2];
 static SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Riduce di `f` un'immagine BGRA e la converte in RGBA opaco, mediando ogni
@@ -91,10 +101,10 @@ pub fn encode(seq: u64, ox: i32, oy: i32, w: u32, h: u32, factor: u32, rgba: &[u
     v
 }
 
-/// Il fotogramma più recente, se è più nuovo di `since`; altrimenti un vettore
+/// Il fotogramma più recente del canale, se è più nuovo di `since`; altrimenti un vettore
 /// vuoto (il frontend non ridisegna).
-pub fn latest(since: u64) -> Vec<u8> {
-    let f = FRAME.lock().unwrap_or_else(|e| e.into_inner());
+pub fn latest(ch: Channel, since: u64) -> Vec<u8> {
+    let f = FRAMES[ch as usize].lock().unwrap_or_else(|e| e.into_inner());
     match f.as_ref() {
         Some(fr) if fr.seq > since => encode(fr.seq, fr.ox, fr.oy, fr.w, fr.h, FACTOR as u32, &fr.rgba),
         _ => Vec::new(),
@@ -142,21 +152,31 @@ fn grab(r: Rect) -> Option<Vec<u8>> {
     }
 }
 
-/// Avvia il thread di cattura.
+/// Avvia il thread di cattura (un giro per canale, solo se ha qualcosa da catturare).
 pub fn start() {
     std::thread::spawn(|| {
-        let mut last: Vec<u8> = Vec::new();
+        let mut last: [Vec<u8>; 2] = [Vec::new(), Vec::new()];
         loop {
             std::thread::sleep(INTERVAL);
-            // Un panic nella cattura non deve fermare il Dock.
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| step(&mut last)));
+            for ch in CHANNELS {
+                // Un panic nella cattura non deve fermare né il Dock né il Launcher.
+                let l = &mut last[ch as usize];
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| step(ch, l)));
+            }
         }
     });
 }
 
-fn step(last: &mut Vec<u8>) {
-    let Some((window, capture)) = crate::dockwin::capture_info() else {
+fn step(ch: Channel, last: &mut Vec<u8>) {
+    let info = match ch {
+        Channel::Dock => crate::dockwin::capture_info(),
+        Channel::Launcher => crate::launcherwin::capture_info(),
+    };
+    let Some((window, capture)) = info else {
         last.clear(); // al prossimo giro si ripubblica: lo sfondo può essere cambiato
+        // Niente da catturare (finestra nascosta): il fotogramma vecchio non deve ricomparire
+        // alla riapertura, magari in un altro punto dello schermo.
+        *FRAMES[ch as usize].lock().unwrap_or_else(|e| e.into_inner()) = None;
         return;
     };
     let Some(bgra) = grab(capture) else { return };
@@ -166,7 +186,7 @@ fn step(last: &mut Vec<u8>) {
     }
     last.clone_from(&rgba);
     let seq = SEQ.fetch_add(1, Ordering::Relaxed) + 1;
-    *FRAME.lock().unwrap_or_else(|e| e.into_inner()) = Some(Frame {
+    *FRAMES[ch as usize].lock().unwrap_or_else(|e| e.into_inner()) = Some(Frame {
         seq,
         ox: capture.x - window.x,
         oy: capture.y - window.y,
@@ -228,7 +248,8 @@ mod tests {
     #[test]
     fn latest_returns_nothing_until_there_is_a_newer_frame() {
         // Nessun fotogramma pubblicato in questo test: vuoto per qualunque `since`.
-        assert!(latest(u64::MAX).is_empty());
+        assert!(latest(Channel::Dock, u64::MAX).is_empty());
+        assert!(latest(Channel::Launcher, u64::MAX).is_empty());
     }
 
     #[test]
