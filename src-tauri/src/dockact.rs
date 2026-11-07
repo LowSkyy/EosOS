@@ -103,7 +103,7 @@ fn launch(item: &DockItem) {
 }
 
 /// Porta `hwnd` in primo piano, ripristinandola se è minimizzata.
-fn focus(hwnd: HWND) {
+pub(crate) fn focus(hwnd: HWND) {
     let mut ok;
     unsafe {
         if IsIconic(hwnd).as_bool() {

@@ -59,6 +59,20 @@ Verifica dal vivo: sull'indice reale (185 voci) `calc` → Calcolatrice, `note` 
 
 Limiti noti: l'indice include anche voci di servizio (Cestino, manuali, "License Agreement", cartelle degli strumenti): vanno filtrate o declassate in L6, quando si vede come appaiono nella finestra.
 
+## L2 — Finestra e scorciatoia: FATTA (7 nov 2026)
+
+- `launcherwin.rs` (5 test sulle parti pure): finestra Tauri `launcher` creata nascosta all'avvio, senza bordi, trasparente, sempre in primo piano. Stili: `WS_EX_TOOLWINDOW` (niente Alt+Tab) e **senza** `WS_EX_NOACTIVATE`, perché deve ricevere la tastiera. Si apre sul monitor dove sta il cursore, 680 px CSS di larghezza (scalati con il monitor), centrata in orizzontale e a un quinto dell'area di lavoro dall'alto, mai fuori dall'area (`place`, pura). L'altezza la comunica la pagina (`launcher_fit`, limitata da `clamp_height`, che regge NaN e infiniti) e la cima resta ferma.
+- **Scorciatoia**: `RegisterHotKey` Alt+Spazio (`MOD_NOREPEAT`) su un thread con ciclo di messaggi proprio; apre se chiuso e chiude se aperto. **Conflitto**: se la combinazione è già presa da un altro programma compare una sola volta un avviso (titolo "EosOS") e si riprova ogni 30 secondi, finché si libera; niente apertura muta.
+- **Focus**: all'apertura `dockact::focus` (con l'Alt finto solo se Windows nega il primo piano) più `set_focus`; si ignora una perdita di focus nei primi 350 ms (oscillazione dell'apertura); dopo 500 ms, se il primo piano non è arrivato, il Launcher si richiude invece di restare inutilizzabile. Perdere il focus, Esc, Invio su un risultato o Alt+F4 lo nascondono (Alt+F4 non chiude EosOS: la chiusura della finestra del Launcher è intercettata).
+- Pagina (`Launcher.tsx`, `lib/launcher.ts`, 12 test): campo di ricerca, elenco con icona, nome e tipo; frecce con giro, Invio, Esc, mouse (passaggio = selezione, clic = avvio). Ricerca a ogni tasto con numero di sequenza (una risposta in ritardo non sovrascrive la nuova), cache delle icone che solo cresce, riga "Nessun risultato", ruoli ARIA `combobox`/`listbox`. Durante la composizione IME Invio e frecce non vengono intercettati. A campo vuoto compaiono le app più usate. All'apertura il campo si azzera (evento `launcher-open`).
+- Sicurezza invariata: la pagina manda solo l'`id`; `launcher_hide` e `launcher_fit` non accettano nulla di eseguibile.
+
+**Scelta: vetro senza sfocatura reale per ora.** Il pannello usa la tinta del vetro del Dock (stessi token, tema chiaro/scuro) ma non lo sfondo sfocato catturato: `backdrop.rs` è oggi legato alla finestra del Dock (cattura intorno alla sua posizione, esclusione dalla cattura). Generalizzarlo a una seconda finestra va fatto con cura (e ha l'effetto collaterale di escludere il Launcher da screenshot e registrazioni), quindi è rimandato a L6.
+
+Verifica dal vivo (`scripts/test-launcher.ps1`, build di prova, **tasti veri** e nessun clic; i tasti partono solo se il Launcher è davvero in primo piano): finestra creata nascosta con gli stili giusti; Alt+Spazio la apre, 680 px, centrata, a 213 px dall'alto (un quinto dell'area), in primo piano con il campo a fuoco; "calc" digitato → Calcolatrice prima riga e selezionata, altezza 140 px; Esc chiude; la riapertura azzera il campo; Invio avvia la Calcolatrice (app di prova), chiude il Launcher e registra l'uso; portare un'altra finestra in primo piano nasconde il Launcher; la stessa scorciatoia lo chiude. 22 controlli OK. Conflitto: con un altro processo che occupa Alt+Spazio compare l'avviso (una volta sola); liberata, il Launcher si apre dopo il nuovo tentativo.
+
+Non provati: più monitor con scale diverse e riavvio di Explorer (previsti in L6), tastiere con editor di metodo di input, schermo con il tema scuro.
+
 ## Fuori scopo
 
 Anteprime dei file (Quick Look), Siri/IA, ricerca nel contenuto dei file, sincronizzazione degli appunti tra dispositivi, plugin di terze parti.

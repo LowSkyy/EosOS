@@ -12,9 +12,10 @@ import fs from "node:fs";
 
 const port = process.env.CDP_PORT || 9222;
 const list = await (await fetch(`http://localhost:${port}/json`)).json();
-const target = list.find((x) => x.url.includes("view=dock"));
+const view = process.env.CDP_VIEW || "dock";
+const target = list.find((x) => x.url.includes(`view=${view}`));
 if (!target) {
-  console.error("pagina del Dock non trovata");
+  console.error(`pagina ${view} non trovata`);
   process.exit(2);
 }
 const ws = new WebSocket(target.webSocketDebuggerUrl);

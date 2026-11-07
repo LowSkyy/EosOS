@@ -10,6 +10,7 @@ mod glass;
 mod launcher;
 mod launcherrank;
 mod launcherstore;
+mod launcherwin;
 mod taskbar;
 mod util;
 mod watchdog;
@@ -90,6 +91,18 @@ fn launcher_search(query: String, have: Option<Vec<String>>) -> Vec<launcher::La
 #[tauri::command(async)]
 fn launcher_launch(id: String) -> bool {
     launcher::launch(&id)
+}
+
+/// Nasconde il Launcher (Esc, o dopo aver avviato qualcosa).
+#[tauri::command]
+fn launcher_hide(app: tauri::AppHandle) {
+    launcherwin::hide(&app);
+}
+
+/// Altezza che serve al Launcher (campo + risultati), in px CSS.
+#[tauri::command]
+fn launcher_fit(app: tauri::AppHandle, height: f64) {
+    launcherwin::fit(&app, height);
 }
 
 /// Trascinamento di un'icona: la mette nella posizione `index` tra le fissate
@@ -250,11 +263,14 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_hide, launcher_fit])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
         .on_window_event(|window, event| {
+            if launcherwin::on_window_event(window, event) {
+                return;
+            }
             if let tauri::WindowEvent::CloseRequested { .. } = event {
                 window.app_handle().exit(0);
             }
@@ -264,6 +280,7 @@ pub fn run() {
             dockwin::start(app.handle());
             backdrop::start();
             launcher::warm_up();
+            launcherwin::start(app.handle());
             foreground::start(app.handle().clone());
             Ok(())
         })
