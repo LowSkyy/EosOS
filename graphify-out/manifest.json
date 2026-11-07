@@ -1,8 +1,26 @@
 {
   "PIANO.md": {
-    "mtime": 1794020960.4489985,
-    "seen": 1794021024.4120235,
-    "ast_hash": "b9655c290e2da1d5a7d61e42cbf88a93",
+    "mtime": 1794021137.4642622,
+    "seen": 1794021138.4128683,
+    "ast_hash": "493fc4ef51c500f18e5597ec6af245bb",
+    "semantic_hash": ""
+  },
+  ".claude/settings.json": {
+    "mtime": 1794021059.1767895,
+    "seen": 1794021138.4128609,
+    "ast_hash": "b95fe3cc4b79647b2f1bccd4210841f9",
+    "semantic_hash": ""
+  },
+  "scripts/check-prereqs.ps1": {
+    "mtime": 1794021130.452576,
+    "seen": 1794021138.4128647,
+    "ast_hash": "5966509effb829808886dda94eeb37c4",
+    "semantic_hash": ""
+  },
+  "CLAUDE.md": {
+    "mtime": 1794021059.16864,
+    "seen": 1794021138.4128666,
+    "ast_hash": "67d88e9d0760c3ba54c75dfd9551c1c5",
     "semantic_hash": ""
   }
 }

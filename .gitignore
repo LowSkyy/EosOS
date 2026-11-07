@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+*.local
+*.log
+.vscode/*
+!.vscode/extensions.json
+.idea
+# Graphify: cache rigenerabile
+graphify-out/cache/
+graphify-out/.rebuild.lock

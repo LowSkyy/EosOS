@@ -22,11 +22,13 @@ Check 'WebView2' {
          'HKCU:\Software\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
     $k | ForEach-Object { (Get-ItemProperty $_ -ErrorAction SilentlyContinue).pv } | Where-Object { $_ } | Select-Object -First 1
 }
-Check 'VS Build Tools (C++)' {
-    $vw = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-    if (Test-Path $vw) {
-        & $vw -all -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
-    }
+Check 'MSVC link.exe (Build Tools C++)' {
+    $l = Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft Visual Studio\*\*\VC\Tools\MSVC\*\bin\Hostx64\x64\link.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($l) { $l.FullName }
+}
+Check 'Windows SDK (kernel32.lib)' {
+    $k = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Lib\*\um\x64\kernel32.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($k) { $k.FullName }
 }
 
 if ($fail -gt 0) { Write-Host "`n$fail prerequisiti mancanti." -ForegroundColor Red; exit 1 }
