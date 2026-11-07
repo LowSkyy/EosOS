@@ -1,5 +1,17 @@
 {
   "0": "EosOS: Piano di lavoro",
   "1": "check-prereqs.ps1",
-  "2": "CLAUDE.md"
+  "2": "CLAUDE.md",
+  "3": "package.json",
+  "4": "compilerOptions",
+  "5": "tauri.conf.json",
+  "6": "main.tsx",
+  "7": "compilerOptions",
+  "8": "default.json",
+  "9": "scripts",
+  "10": "build.rs",
+  "11": "lib.rs",
+  "12": "main.rs",
+  "13": "eosos",
+  "14": "vite-env.d.ts"
 }
