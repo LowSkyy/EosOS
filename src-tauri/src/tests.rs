@@ -1,4 +1,4 @@
-//! Test del ripristino taskbar. Usano finestre finte con classi uniche: la vera
+﻿//! Test del ripristino taskbar. Usano finestre finte con classi uniche: la vera
 //! taskbar non viene mai toccata.
 
 use std::process::{Command, Stdio};
@@ -136,7 +136,7 @@ fn watchdog_restores_when_watched_process_is_killed() {
 
     let watcher = thread::spawn(move || watchdog::wait_and_restore(pid, &[class.as_str()]));
     thread::sleep(Duration::from_millis(300));
-    assert!(!win.visible(), "finché il processo vive non si ripristina");
+    assert!(!win.visible(), "finchÃ© il processo vive non si ripristina");
 
     child.kill().unwrap();
     let observed = watcher.join().unwrap();
@@ -160,7 +160,18 @@ fn explorer_restart_detection() {
     use crate::taskbar::detect_restart;
     assert_eq!(detect_restart(None, Some(1)), (Some(1), false));
     assert_eq!(detect_restart(Some(1), Some(1)), (Some(1), false));
-    // Durante il riavvio non c'è taskbar: nessun falso allarme e si ricorda il vecchio handle.
+    // Durante il riavvio non c'Ã¨ taskbar: nessun falso allarme e si ricorda il vecchio handle.
     assert_eq!(detect_restart(Some(1), None), (Some(1), false));
     assert_eq!(detect_restart(Some(1), Some(2)), (Some(2), true));
+}
+
+#[test]
+fn only_explorer_windows_are_accepted_for_hiding() {
+    // Una finestra del processo di test non Ã¨ di explorer.exe: non va nascosta.
+    let fake = FakeWindow::new();
+    assert!(!taskbar::owned_by_explorer(HWND(fake.hwnd as *mut _)));
+    // La vera taskbar (se c'Ã¨ una sessione desktop) appartiene a explorer.exe.
+    if let Some(h) = taskbar::find(&["Shell_TrayWnd"]).first() {
+        assert!(taskbar::owned_by_explorer(*h));
+    }
 }

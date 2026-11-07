@@ -25,14 +25,17 @@ struct Ctx<'a> {
 
 unsafe extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let ctx = unsafe { &mut *(lparam.0 as *mut Ctx) };
-    let mut buf = [0u16; 256];
-    let n = unsafe { GetClassNameW(hwnd, &mut buf) };
-    if n > 0 {
-        let name = String::from_utf16_lossy(&buf[..n as usize]);
-        if ctx.classes.iter().any(|c| *c == name) {
-            ctx.found.push(hwnd);
+    // Un panic non deve attraversare il confine FFI (sarebbe un abort): lo si assorbe.
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut buf = [0u16; 256];
+        let n = unsafe { GetClassNameW(hwnd, &mut buf) };
+        if n > 0 {
+            let name = String::from_utf16_lossy(&buf[..n as usize]);
+            if ctx.classes.iter().any(|c| *c == name) {
+                ctx.found.push(hwnd);
+            }
         }
-    }
+    }));
     true.into()
 }
 
@@ -45,10 +48,37 @@ pub fn find(classes: &[&str]) -> Vec<HWND> {
     ctx.found
 }
 
+/// Vero se la finestra appartiene a un processo `explorer.exe`. Evita di
+/// nascondere finestre di altri processi che usino per caso lo stesso nome di
+/// classe. Vale solo per nascondere: il ripristino non filtra mai.
+pub(crate) fn owned_by_explorer(hwnd: HWND) -> bool {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 {
+        return false;
+    }
+    let Ok(h) = (unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }) else {
+        return false;
+    };
+    let name = crate::util::image_path(h)
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase()));
+    unsafe {
+        let _ = CloseHandle(h);
+    }
+    name.as_deref() == Some("explorer.exe")
+}
+
 /// Nasconde le finestre con le classi indicate. Ritorna quante ne ha nascoste.
 pub fn hide(classes: &[&str]) -> usize {
+    hide_matching(classes, |_| true)
+}
+
+fn hide_matching(classes: &[&str], accept: impl Fn(HWND) -> bool) -> usize {
     let mut n = 0;
-    for hwnd in find(classes) {
+    for hwnd in find(classes).into_iter().filter(|h| accept(*h)) {
         unsafe {
             if IsWindowVisible(hwnd).as_bool() {
                 let _ = ShowWindow(hwnd, SW_HIDE);
@@ -173,7 +203,7 @@ pub fn hide_real() -> usize {
     let n = {
         let mut keep = KEEP_HIDDEN.lock().unwrap_or_else(|e| e.into_inner());
         *keep = true;
-        hide(&TASKBAR_CLASSES)
+        hide_matching(&TASKBAR_CLASSES, owned_by_explorer)
     };
     std::thread::spawn(|| {
         let mut last = tray_handle();
@@ -192,7 +222,7 @@ pub fn hide_real() -> usize {
             if now.is_some() {
                 last = now;
             }
-            hide(&TASKBAR_CLASSES);
+            hide_matching(&TASKBAR_CLASSES, owned_by_explorer);
         }
     });
     n
