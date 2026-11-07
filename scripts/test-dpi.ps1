@@ -5,6 +5,8 @@
 # (100%, 125%, 150%, 175%...) e confrontare i risultati. Richiede `cargo build` in src-tauri.
 # Uso: powershell -File scripts\test-dpi.ps1
 $ErrorActionPreference = 'Stop'
+# Il Dock riserva una fascia in basso (appbar): qui si misura l'area di lavoro della sola barra in alto.
+$env:EOSOS_DOCK_RESERVE = '0'
 Add-Type @'
 using System; using System.Runtime.InteropServices; using System.Collections.Generic;
 public static class D {

@@ -3,6 +3,8 @@
 # ATTENZIONE: nasconde la vera taskbar e cambia temporaneamente l'auto-nascondi. Richiede `cargo build`.
 param([string]$Exe)   # -Exe: percorso di un eosos.exe (es. release)
 $ErrorActionPreference = 'Stop'
+# Il Dock riserva una fascia in basso (appbar): qui si misura l'area di lavoro della sola barra in alto.
+$env:EOSOS_DOCK_RESERVE = '0'
 if ($Exe) { $exe = Resolve-Path $Exe } else { $exe = Join-Path $PSScriptRoot '..\src-tauri\target\debug\eosos.exe' | Resolve-Path }
 $marker = Join-Path $env:LOCALAPPDATA 'EosOS\autohide-pending'
 Add-Type @'

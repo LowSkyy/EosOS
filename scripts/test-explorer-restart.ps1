@@ -2,6 +2,8 @@
 # la nuova taskbar venga ri-nascosta e che la barra EosOS si ri-registri (area di lavoro).
 # ATTENZIONE: riavvia davvero Explorer (desktop e taskbar spariscono per qualche secondo).
 $ErrorActionPreference = 'Stop'
+# Il Dock riserva una fascia in basso (appbar): qui si misura l'area di lavoro della sola barra in alto.
+$env:EOSOS_DOCK_RESERVE = '0'
 $exe = Join-Path $PSScriptRoot '..\src-tauri\target\debug\eosos.exe' | Resolve-Path
 $marker = Join-Path $env:LOCALAPPDATA 'EosOS\autohide-pending'
 Add-Type @'

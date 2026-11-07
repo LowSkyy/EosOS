@@ -25,6 +25,14 @@ struct File {
     /// Dock ed esclude il Dock da screenshot e registrazioni.
     #[serde(default = "default_blur")]
     blur: bool,
+    /// Le finestre massimizzate si fermano sopra il Dock (appbar in basso). Non ha
+    /// effetto con l'auto-nascondi.
+    #[serde(default = "default_reserve")]
+    reserve: bool,
+}
+
+fn default_reserve() -> bool {
+    true
 }
 
 fn default_blur() -> bool {
@@ -49,6 +57,7 @@ pub struct Settings {
     pub autohide: bool,
     pub glass: f64,
     pub blur: bool,
+    pub reserve: bool,
 }
 
 /// Valore di un livello di vetro dall'id. Pura, testata.
@@ -97,6 +106,7 @@ fn serialize(pinned: &[Pinned], st: Settings) -> String {
         autohide: st.autohide,
         glass: st.glass,
         blur: st.blur,
+        reserve: st.reserve,
         pinned: pinned
             .iter()
             .map(|p| Entry { name: p.name.clone(), path: p.path.to_string_lossy().to_string() })
@@ -140,15 +150,20 @@ pub fn settings() -> Settings {
     store_path()
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|t| serde_json::from_str::<File>(strip_bom(&t)).ok())
-        .map_or(Settings { autohide: false, glass: GLASS_STANDARD, blur: true }, |f| Settings {
+        .map_or(Settings { autohide: false, glass: GLASS_STANDARD, blur: true, reserve: true }, |f| Settings {
             autohide: f.autohide,
             glass: clamp_glass(f.glass),
             blur: f.blur,
+            reserve: f.reserve,
         })
 }
 
 pub fn set_autohide(on: bool) {
     save_with(&load(), Settings { autohide: on, ..settings() });
+}
+
+pub fn set_reserve(on: bool) {
+    save_with(&load(), Settings { reserve: on, ..settings() });
 }
 
 pub fn set_blur(on: bool) {
@@ -245,7 +260,7 @@ mod tests {
     #[test]
     fn roundtrip_through_json() {
         let list = vec![pin("A", r"C:\x\a.exe"), pin("B", r"C:\y\b.exe")];
-        let back = parse(&serialize(&list, Settings { autohide: true, glass: 0.4, blur: false })).expect("json valido");
+        let back = parse(&serialize(&list, Settings { autohide: true, glass: 0.4, blur: false, reserve: true })).expect("json valido");
         assert_eq!(back, list);
     }
 
@@ -254,7 +269,7 @@ mod tests {
         // File scritti prima dell'impostazione: nessun campo `autohide`.
         let f: File = serde_json::from_str(r#"{"version":1,"pinned":[]}"#).unwrap();
         assert!(!f.autohide);
-        let f: File = serde_json::from_str(&serialize(&[], Settings { autohide: true, glass: 0.4, blur: false })).unwrap();
+        let f: File = serde_json::from_str(&serialize(&[], Settings { autohide: true, glass: 0.4, blur: false, reserve: true })).unwrap();
         assert!(f.autohide);
     }
 
@@ -262,8 +277,17 @@ mod tests {
     fn blur_is_on_by_default_and_roundtrips() {
         let f: File = serde_json::from_str(r#"{"version":1,"pinned":[]}"#).unwrap();
         assert!(f.blur, "file vecchi senza il campo: sfocatura attiva");
-        let off: File = serde_json::from_str(&serialize(&[], Settings { autohide: false, glass: 0.7, blur: false })).unwrap();
+        let off: File = serde_json::from_str(&serialize(&[], Settings { autohide: false, glass: 0.7, blur: false, reserve: true })).unwrap();
         assert!(!off.blur);
+    }
+
+    #[test]
+    fn reserve_is_on_by_default_and_roundtrips() {
+        let f: File = serde_json::from_str(r#"{"version":1,"pinned":[]}"#).unwrap();
+        assert!(f.reserve, "file vecchi senza il campo: spazio riservato");
+        let st = Settings { autohide: false, glass: 0.7, blur: true, reserve: false };
+        let off: File = serde_json::from_str(&serialize(&[], st)).unwrap();
+        assert!(!off.reserve);
     }
 
     #[test]
@@ -285,7 +309,7 @@ mod tests {
 
     #[test]
     fn a_leading_bom_is_tolerated() {
-        let text = format!("\u{feff}{}", serialize(&[pin("A", "C:/x/a.exe")], Settings { autohide: true, glass: 0.3, blur: true }));
+        let text = format!("\u{feff}{}", serialize(&[pin("A", "C:/x/a.exe")], Settings { autohide: true, glass: 0.3, blur: true, reserve: true }));
         assert_eq!(parse(&text).expect("json con BOM").len(), 1);
         assert_eq!(strip_bom("\u{feff}abc"), "abc");
         assert_eq!(strip_bom("abc"), "abc");

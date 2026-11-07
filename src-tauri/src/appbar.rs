@@ -19,7 +19,7 @@ use tauri::{
 };
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::UI::Shell::{
-    ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS, APPBARDATA, SHAppBarMessage,
+    ABE_BOTTOM, ABE_TOP, ABM_NEW, ABM_QUERYPOS, ABM_REMOVE, ABM_SETPOS, APPBARDATA, SHAppBarMessage,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WM_APP, WS_EX_NOACTIVATE,
@@ -113,14 +113,64 @@ fn registered() -> std::sync::MutexGuard<'static, Vec<isize>> {
     REGISTERED.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn new_data(hwnd: HWND) -> APPBARDATA {
+fn new_data_edge(hwnd: HWND, edge: u32) -> APPBARDATA {
     APPBARDATA {
         cbSize: size_of::<APPBARDATA>() as u32,
         hWnd: hwnd,
         uCallbackMessage: WM_APP + 0x10,
-        uEdge: ABE_TOP,
+        uEdge: edge,
         ..Default::default()
     }
+}
+
+fn new_data(hwnd: HWND) -> APPBARDATA {
+    new_data_edge(hwnd, ABE_TOP)
+}
+
+/// Ultima fascia in basso applicata (finestra, rettangolo): evita di rimandare al
+/// sistema, ogni secondo, una modifica dell'area di lavoro che non è cambiata.
+type BottomStrip = (isize, (i32, i32, i32, i32));
+static LAST_BOTTOM: Mutex<Option<BottomStrip>> = Mutex::new(None);
+
+/// Riserva una fascia alta `height_px` in basso sul monitor `mon` per `hwnd` (il
+/// Dock), registrandolo come appbar se non lo è già, e ritorna il rettangolo
+/// assegnato dal sistema. Se in basso c'è la taskbar, la fascia si ferma sopra di
+/// lei: `rc.bottom` è il bordo inferiore *disponibile* al Dock. Il sistema modifica
+/// l'area di lavoro solo quando il rettangolo cambia.
+pub fn reserve_bottom(hwnd: HWND, mon: RECT, height_px: i32) -> RECT {
+    let mut abd = new_data_edge(hwnd, ABE_BOTTOM);
+    unsafe {
+        let key = hwnd.0 as isize;
+        let is_new = {
+            let mut r = registered();
+            if r.contains(&key) {
+                false
+            } else {
+                r.push(key);
+                true
+            }
+        };
+        if is_new {
+            SHAppBarMessage(ABM_NEW, &mut abd);
+        }
+        abd.rc = RECT { left: mon.left, top: mon.bottom - height_px, right: mon.right, bottom: mon.bottom };
+        SHAppBarMessage(ABM_QUERYPOS, &mut abd);
+        // Il sistema può spostare il bordo (taskbar); l'altezza resta quella voluta.
+        abd.rc.top = abd.rc.bottom - height_px;
+        let want = (abd.rc.left, abd.rc.top, abd.rc.right, abd.rc.bottom);
+        let mut last = LAST_BOTTOM.lock().unwrap_or_else(|e| e.into_inner());
+        if *last != Some((key, want)) {
+            SHAppBarMessage(ABM_SETPOS, &mut abd);
+            *last = Some((key, want));
+        }
+    }
+    abd.rc
+}
+
+/// Rilascia la fascia in basso del Dock. Idempotente.
+pub fn release_bottom(hwnd: HWND) {
+    *LAST_BOTTOM.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    remove(hwnd);
 }
 
 /// Registra `hwnd` come appbar in alto sul monitor `mon` (se non lo è già) e
@@ -169,6 +219,7 @@ pub fn remove(hwnd: HWND) {
 
 /// Annulla la registrazione di tutte le barre. Idempotente, per i percorsi di uscita.
 pub fn remove_if_registered() {
+    *LAST_BOTTOM.lock().unwrap_or_else(|e| e.into_inner()) = None;
     let all: Vec<isize> = std::mem::take(&mut *registered());
     for h in all {
         let mut abd = new_data(HWND(h as *mut _));

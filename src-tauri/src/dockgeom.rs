@@ -8,6 +8,8 @@ use serde::Deserialize;
 
 /// Distanza (px logici) tra il Dock e il bordo inferiore dell'area di lavoro.
 pub const BOTTOM_MARGIN: f64 = 8.0;
+/// Spazio (px logici) lasciato tra le finestre massimizzate e la capsula del Dock.
+pub const RESERVE_GAP: f64 = 6.0;
 /// Durata dello scorrimento di comparsa/scomparsa.
 pub const SLIDE_SECONDS: f64 = 0.28;
 /// Quanto il cursore deve restare fuori dal Dock prima che si nasconda.
@@ -126,6 +128,14 @@ pub fn slide_y(shown_y: i32, hidden_y: i32, p: f64) -> i32 {
     hidden_y + ((shown_y - hidden_y) as f64 * eased).round() as i32
 }
 
+/// Altezza (px fisici) della fascia che il Dock riserva in basso: capsula, margine
+/// dal bordo e un piccolo respiro, così le finestre massimizzate si fermano sopra
+/// la capsula e non la coprono. Le icone ingrandite e il rimbalzo possono invece
+/// salire sopra le finestre, come in macOS. Pura, testata.
+pub fn reserve_height(scale: f64, cap_h: f64) -> i32 {
+    ((cap_h + BOTTOM_MARGIN + RESERVE_GAP) * scale).round().max(0.0) as i32
+}
+
 /// Rettangolo da catturare per la sfocatura: la finestra allargata di `margin` px
 /// per lato (la sfocatura ha bisogno di contorno), ritagliata al monitor. `None`
 /// se non resta nulla. Pura, testata.
@@ -233,6 +243,30 @@ mod tests {
         // Ease-out: a metà tempo è già oltre metà strada.
         assert!(slide_y(900, 1080, 0.5) < 990);
         assert_eq!(slide_y(900, 1080, 2.0), 900, "p fuori scala viene limitato");
+    }
+
+    #[test]
+    fn reserved_strip_covers_capsule_margin_and_gap() {
+        // Capsula 78 px + margine 8 + respiro 6 = 92 px a scala 100%.
+        assert_eq!(reserve_height(1.0, 78.0), 92);
+        assert_eq!(reserve_height(1.5, 78.0), 138);
+        assert_eq!(reserve_height(2.0, 78.0), 184);
+        assert_eq!(reserve_height(1.0, 0.0), 14, "anche senza capsula resta il margine");
+        assert_eq!(reserve_height(-1.0, 78.0), 0, "mai negativa");
+    }
+
+    #[test]
+    fn maximized_windows_stop_above_the_capsule() {
+        // La finestra massimizzata finisce al bordo superiore della fascia riservata;
+        // la capsula, appoggiata al margine, deve stare sotto con il respiro in mezzo.
+        let base_bottom = 1080;
+        let fit = Fit { zone_w: 600.0, zone_h: 168.0, cap_x: 100.0, cap_y: 90.0, cap_w: 400.0, cap_h: 78.0, radius: 26.0 };
+        let work = Rect { x: 0, y: 28, w: 1920, h: base_bottom - 28 };
+        let win = window_rect(work, 1.0, &fit);
+        let cap = capsule_rect(1.0, &fit);
+        let capsule_top = win.y + cap.y;
+        let reserved_top = base_bottom - reserve_height(1.0, fit.cap_h);
+        assert_eq!(capsule_top - reserved_top, RESERVE_GAP as i32);
     }
 
     #[test]

@@ -27,20 +27,22 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
-use windows::Win32::Foundation::{HWND, POINT};
+use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::Graphics::Gdi::{
     CombineRgn, CreateRectRgn, CreateRoundRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ, HRGN,
     RGN_AND,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, GWL_STYLE,
+    GetCursorPos, GetWindowLongPtrW, IsWindowVisible, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    GWL_EXSTYLE, GWL_STYLE, SW_SHOWNOACTIVATE,
     SetWindowDisplayAffinity, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
     WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WS_CAPTION,
     WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU,
 };
 
 use crate::dockgeom::{
-    at_bottom_edge, capsule_rect, capture_rect, is_active, slide_y, step_visibility, visible_height,
+    at_bottom_edge, capsule_rect, capture_rect, is_active, reserve_height, slide_y, step_visibility,
+    visible_height,
     window_rect, Fit, Rect, HIDE_DELAY_SECONDS, SHRINK_GRACE_SECONDS,
 };
 use crate::glass;
@@ -61,6 +63,7 @@ const RECONCILE_EVERY: u32 = 60;
 static MENU_OPEN: AtomicBool = AtomicBool::new(false);
 static AUTOHIDE: AtomicBool = AtomicBool::new(false);
 static BLUR: AtomicBool = AtomicBool::new(true);
+static RESERVE: AtomicBool = AtomicBool::new(true);
 
 pub fn set_menu_open(open: bool) {
     MENU_OPEN.store(open, Ordering::Relaxed);
@@ -75,6 +78,25 @@ pub fn toggle_autohide() {
     let on = !autohide();
     AUTOHIDE.store(on, Ordering::Relaxed);
     crate::dockstore::set_autohide(on);
+}
+
+/// Impostazione "riserva spazio alle finestre".
+pub fn reserve_enabled() -> bool {
+    RESERVE.load(Ordering::Relaxed)
+}
+
+/// Inverte la riserva di spazio e la salva. Il resto lo fa il ciclo di controllo.
+pub fn toggle_reserve() {
+    let on = !reserve_enabled();
+    RESERVE.store(on, Ordering::Relaxed);
+    crate::dockstore::set_reserve(on);
+}
+
+/// `EOSOS_DOCK_RESERVE=0` spegne la riserva qualunque sia l'impostazione: serve agli
+/// script di prova che misurano l'area di lavoro della sola barra in alto.
+fn reserve_allowed() -> bool {
+    static ALLOWED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ALLOWED.get_or_init(|| std::env::var("EOSOS_DOCK_RESERVE").map_or(true, |v| v != "0"))
 }
 
 pub fn blur_enabled() -> bool {
@@ -126,6 +148,8 @@ struct State {
     cur_win: Option<Rect>,
     /// L'esclusione dalla cattura è già applicata (per la sfocatura).
     affinity: bool,
+    /// Il Dock tiene riservata una fascia in basso (appbar).
+    reserved: bool,
     /// Visibilità: 0 = nascosto, 1 = mostrato.
     p: f64,
     last_tick: Option<Instant>,
@@ -144,6 +168,7 @@ static STATE: Mutex<State> = Mutex::new(State {
     idle_since: None,
     cur_win: None,
     affinity: false,
+    reserved: false,
     p: 1.0,
     last_tick: None,
     applied_pos: None,
@@ -200,7 +225,11 @@ unsafe fn enforce_styles(hwnd: HWND) {
         if style & CHROME_STYLES == 0 && ex == want_ex {
             return;
         }
-        SetWindowLongPtrW(hwnd, GWL_STYLE, style & !CHROME_STYLES);
+        // Si rilegge subito prima di scrivere: `show()` (altro thread) può aver aggiunto
+        // WS_VISIBLE dopo la prima lettura, e scrivere il valore vecchio lo cancellerebbe
+        // lasciando il Dock nascosto.
+        let fresh = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        SetWindowLongPtrW(hwnd, GWL_STYLE, fresh & !CHROME_STYLES);
         SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want_ex);
         let _ = SetWindowPos(
             hwnd,
@@ -251,7 +280,14 @@ fn tick() {
     if !st.shown || st.hwnd == 0 {
         return;
     }
-    unsafe { enforce_styles(hwnd_of(st.hwnd)) };
+    unsafe {
+        enforce_styles(hwnd_of(st.hwnd));
+        // Dopo la prima visualizzazione il Dock è sempre visibile (l'auto-nascondi lo
+        // sposta fuori schermo, non lo nasconde): se qualcosa lo ha nascosto, si rimostra.
+        if !IsWindowVisible(hwnd_of(st.hwnd)).as_bool() {
+            let _ = ShowWindow(hwnd_of(st.hwnd), SW_SHOWNOACTIVATE);
+        }
+    }
     let now = Instant::now();
     let dt = st.last_tick.map_or(0.0, |t| now.duration_since(t).as_secs_f64()).min(0.1);
     st.last_tick = Some(now);
@@ -359,6 +395,26 @@ pub fn reconcile(app: &AppHandle) {
     let (mp, ms) = (mon.position(), mon.size());
     let monitor = Rect { x: mp.x, y: mp.y, w: ms.width as i32, h: ms.height as i32 };
     let scale = mon.scale_factor();
+    // Con la riserva di spazio il Dock è un appbar in basso: le finestre massimizzate
+    // si fermano sopra di lui. Il bordo da cui si appoggia è però quello *disponibile*
+    // (sopra la taskbar, se c'è), non l'area di lavoro, che già lo esclude: altrimenti
+    // si sposterebbe verso l'alto a ogni aggiornamento.
+    let hwnd = lock().hwnd;
+    let want_reserve = reserve_enabled() && reserve_allowed() && !AUTOHIDE.load(Ordering::Relaxed);
+    let mut work = work;
+    if hwnd != 0 && want_reserve {
+        let strip = reserve_height(scale, fit.cap_h);
+        let rc = crate::appbar::reserve_bottom(
+            hwnd_of(hwnd),
+            RECT { left: monitor.x, top: monitor.y, right: monitor.x + monitor.w, bottom: monitor.y + monitor.h },
+            strip,
+        );
+        work.h = (rc.bottom - work.y).max(1);
+        lock().reserved = true;
+    } else if lock().reserved {
+        crate::appbar::release_bottom(hwnd_of(hwnd));
+        lock().reserved = false;
+    }
     let rect = window_rect(work, scale, &fit);
 
     let (size_changed, first) = {
@@ -406,6 +462,7 @@ pub fn fit(app: &AppHandle, fit: Fit) {
 pub fn start(app: &AppHandle) {
     let saved = crate::dockstore::settings();
     AUTOHIDE.store(saved.autohide, Ordering::Relaxed);
+    RESERVE.store(saved.reserve, Ordering::Relaxed);
     BLUR.store(saved.blur, Ordering::Relaxed);
     if let Err(e) = create(app) {
         eprintln!("EosOS: creazione del Dock fallita: {e}");

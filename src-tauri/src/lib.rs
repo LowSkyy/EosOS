@@ -115,7 +115,15 @@ fn dock_settings_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Re
         dockwin::blur_enabled(),
         None::<&str>,
     )?;
-    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&hide, &blur, &sep];
+    let reserve = CheckMenuItem::with_id(
+        &app,
+        menu_id(MenuAction::ToggleReserve, "-"),
+        "Riserva spazio alle finestre",
+        true,
+        dockwin::reserve_enabled(),
+        None::<&str>,
+    )?;
+    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&hide, &reserve, &blur, &sep];
     items.extend(levels.iter().map(|l| l as &dyn tauri::menu::IsMenuItem<tauri::Wry>));
     let menu = Menu::with_items(&app, &items)?;
     dockwin::set_menu_open(true);

@@ -7,6 +7,8 @@
 # Uso: powershell -File scripts\test-multimonitor.ps1 [-Hotplug]   (richiede `cargo build`)
 param([switch]$Hotplug)
 $ErrorActionPreference = 'Stop'
+# Il Dock riserva una fascia in basso (appbar): qui si misura l'area di lavoro della sola barra in alto.
+$env:EOSOS_DOCK_RESERVE = '0'
 $exe = Join-Path $PSScriptRoot '..\src-tauri\target\debug\eosos.exe' | Resolve-Path
 
 Add-Type @'

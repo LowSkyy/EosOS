@@ -2,6 +2,8 @@
 # Non nasconde la taskbar (nessuna EOSOS_HIDE_TASKBAR) tranne nello scenario "kill con taskbar".
 # Uso: powershell -File scripts\test-appbar.ps1   (richiede `cargo build` in src-tauri)
 $ErrorActionPreference = 'Stop'
+# Il Dock riserva una fascia in basso (appbar): qui si misura l'area di lavoro della sola barra in alto.
+$env:EOSOS_DOCK_RESERVE = '0'
 $exe = Join-Path $PSScriptRoot '..\src-tauri\target\debug\eosos.exe' | Resolve-Path
 
 Add-Type @'
