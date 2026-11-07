@@ -67,8 +67,8 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 
 ## Roadmap (FUORI SCOPE per ora)
 
-- Dock
-- Launcher stile Spotlight
+- Dock: FATTO (7 nov 2026), vedi `docs/DOCK.md`
+- Launcher stile Spotlight: specifica scritta (7 nov 2026), vedi `docs/LAUNCHER.md`; implementazione non iniziata
 - Indicatori di sistema (batteria, rete, volume, ecc.)
 - Mission Control
 - Menu globale per app
