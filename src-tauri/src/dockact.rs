@@ -78,6 +78,14 @@ fn windows_of(item: &DockItem) -> Vec<HWND> {
 
 /// Avvia l'eseguibile della voce.
 fn launch(item: &DockItem) {
+    // App dello Store: la shell sa avviare `shell:AppsFolder\<identificatore>`.
+    if dock::parse_aumid(&item.path).is_some() {
+        let target = HSTRING::from(item.path.as_str());
+        unsafe {
+            let _ = ShellExecuteW(None, w!("open"), &target, None, None, SW_SHOWNORMAL);
+        }
+        return;
+    }
     let path = Path::new(&item.path);
     if !path.is_file() {
         return;
@@ -145,7 +153,7 @@ pub fn activate(item: &DockItem) {
     };
     let front = crate::foreground::last_window();
     let front_belongs = front
-        .and_then(dock::window_exe)
+        .and_then(dock::window_identity)
         .is_some_and(|p| same_app(&p, Path::new(&item.path)));
     let front_minimized = front.is_some_and(|h| unsafe { IsIconic(h).as_bool() });
     let state: Vec<(isize, bool)> =

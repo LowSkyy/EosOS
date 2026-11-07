@@ -30,7 +30,7 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
 
 1. **D1 – Dati (Rust)** — FATTA (7 nov 2026): `src-tauri/src/dock.rs`, comando Tauri `dock_items`. Verificata sui dati reali (12 app fissate, app aperte, icone PNG 128 px con colori e trasparenza corretti). Note:
    - Le app che si aggiornano in una sottocartella versionata (Discord) sono abbinate per nome di file e cartella antenata, così non compaiono due volte.
-   - Non ancora gestite: app dello Store/UWP (fissate senza percorso, e finestre dentro `ApplicationFrameHost`) e ordine reale delle fissate (registro `Taskband`): ora sono ordinate per nome.
+   - Ordine reale delle fissate (registro `Taskband`): non letto, al primo avvio sono ordinate per nome (ora si possono riordinare trascinando).
    - `cargo test dump_dock -- --ignored --nocapture` stampa le voci reali e salva le icone in `%TEMP%\eosos-dock`.
 2. **D2 – Finestra e vetro** — FATTA (7 nov 2026): `src-tauri/src/dockwin.rs` + `src/components/Dock.tsx`. Finestra "dock" (trasparente, sempre in primo piano, senza focus, fuori da Alt+Tab) centrata in basso sull'area di lavoro del monitor primario. Le misure le decide il CSS: il frontend misura la pillola e chiama `dock_fit`; la finestra nativa si adatta ed è ritagliata (`SetWindowRgn`) alla capsula, quindi i clic fuori dalla pillola passano alle app sotto. Verificata dal vivo con screenshot (icone, separatore, puntini) e con `test-taskbar` (4 scenari) e `test-workarea`. Note:
    - **Niente sfocatura dello sfondo.** Acrilico, blur (accent), `DwmEnableBlurBehindWindow` e lo sfondo di sistema di Windows 11 (`DWMSBT_TRANSIENTWINDOW`) riempiono tutti l'intero rettangolo della finestra e ignorano `SetWindowRgn`: gli angoli restavano quadrati (grigi o neri). Il vetro è quindi una tinta traslucida con bordo luminoso in una capsula con angoli perfetti. Risolto più tardi con la sfocatura catturata (vedi "Sfocatura vera" sotto).
@@ -56,7 +56,7 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
    - **`dock.json` robusto**: tollera il BOM UTF-8 (Blocco note e PowerShell 5 lo aggiungono) e, se il file esiste ma non si legge, lo conserva come `dock.json.bad` invece di sovrascriverlo con l'elenco della taskbar. Trovato durante la prova: una mia modifica con PowerShell 5 cancellava le impostazioni.
    Non fatte (decisione presa insieme alla specifica, con il motivo):
    - ~~Sfocatura vera dello sfondo~~: fatta, vedi "Sfocatura vera" sotto.
-   - **App dello Store (UWP)**: i collegamenti fissati puntano a un AppUserModelID, non a un percorso; servono lettura dell'ID, avvio da `shell:AppsFolder`, icone e abbinamento delle finestre per ID.
+   - ~~App dello Store (UWP)~~: fatte, vedi "App dello Store" sotto.
    - **Ordine reale delle fissate**: è nel registro (`Taskband`) in un formato binario non documentato. Ora sono in ordine alfabetico al primo avvio; trascinare per riordinare sarebbe la strada più sensata.
    - **Riavvio di Explorer dal vivo con il Dock**: lo script esistente riavvia davvero Explorer sul PC (chiude anche le finestre di Esplora risorse) e non l'ho lanciato senza consenso. Il Dock non dipende da Explorer (processo e finestra propri, monitor e area di lavoro riletti ogni secondo).
    - **DPI misti / scala diversa**: la geometria è testata a 100%, 125%, 150% e con origine negativa, ma non ho cambiato la scala del tuo schermo.
@@ -73,6 +73,15 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
    - **Tinta**: con la sfocatura la tinta è molto più leggera (`--dock-blur-alpha-lo/hi`).
    - **Verificato dal vivo** con una finestra di prova a strisce e testo dietro il Dock: la capsula mostra lo sfondo sfocato con gli angoli perfetti. Allineamento misurato pixel per pixel contro lo schermo vero dietro di lei (sfocatura e tinta azzerate): 95% di concordanza, contro 68%, 44% e 4% spostando di 10, 20 e 40 px. Costo: 0,3% della CPU totale (circa l'8% di un core) con la sfocatura, 0,03% senza.
    - **Per provarla** senza vedere il Dock nelle catture: lo screenshot della pagina via porta di debug di WebView2 (`Page.captureScreenshot`) mostra il contenuto del Dock.
+
+8. **App dello Store** — FATTE (7 nov 2026): `dock.rs` (`aumid_path`, `parse_aumid`, `identity`, `window_aumid`, `shell_display_name`, `window_identity`), `dockact.rs`. Le app dello Store (UWP) non hanno un eseguibile proprio: le finestre sono gusci `ApplicationFrameHost` e i collegamenti fissati puntano a un identificatore (AppUserModelID). Ora un'app dello Store è identificata dal "percorso" `shell:AppsFolder\<AUMID>`, che la shell sa avviare e da cui ricava nome e icona.
+   - **Finestre**: dell'identificatore si leggono con `SHGetPropertyStoreForWindow`, solo per i gusci UWP e per gli eseguibili in `\WindowsApps\` (le app normali, anche se impostano un identificatore, restano per eseguibile). Un guscio senza identificatore non si attribuisce a nessuna app, come prima.
+   - **Fissate**: se un collegamento della taskbar non ha percorso si legge l'identificatore dal suo archivio di proprietà. Anche per un'app impacchettata con percorso si preferisce l'identificatore (il percorso cambia a ogni versione).
+   - **Avvio, nome, icona**: `ShellExecute` su `shell:AppsFolder\<AUMID>`; nome da `IShellItem::GetDisplayName`; icona con lo stesso `IShellItemImageFactory` delle app normali.
+   - **Clic**: la finestra "davanti" segnalata dall'hook di primo piano può essere la finestra interna (`CoreWindow`, figlia del guscio): `window_identity` risale alla finestra principale prima di calcolare l'identità. Senza questo un'app dello Store non si minimizzava mai.
+   - **Verificato dal vivo** con la Calcolatrice (`Microsoft.WindowsCalculator_8wekyb3d8bbwe!App`): nome "Calcolatrice" e icona corretti, nessun doppione tra fissata e aperta, clic con il mouse vero che minimizza e ripristina per 4 volte su 4, "Esci" che la chiude (resta il processo sospeso, normale per le app UWP), clic su un'icona fissata e chiusa che la riavvia.
+   - **Non coperto dal vivo**: la lettura di un collegamento fissato della taskbar che punta a un'app dello Store (sul PC di prova non ce ne sono: le 12 fissate sono tutte programmi normali). Il codice c'è ma l'ho provato solo con una voce scritta a mano in `dock.json`.
+   - Il puntino grigio (app in background) non vale per le app dello Store.
 
 ## Fuori scopo
 

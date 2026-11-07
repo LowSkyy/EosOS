@@ -13,28 +13,30 @@ use std::sync::{Mutex, OnceLock};
 
 use base64::Engine;
 use serde::Serialize;
-use windows::core::{Interface, BOOL, HSTRING};
-use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, SIZE};
+use windows::core::{Interface, BOOL, GUID, HSTRING};
+use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, PROPERTYKEY, SIZE};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
 use windows::Win32::Graphics::Gdi::{
     DeleteObject, GetDC, GetDIBits, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO, BITMAPINFOHEADER,
     BI_RGB, DIB_RGB_COLORS, HGDIOBJ,
 };
 use windows::Win32::Storage::FileSystem::WIN32_FIND_DATAW;
+use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVariantToStringAlloc};
 use windows::Win32::System::Com::{
-    CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
+    CoCreateInstance, CoInitializeEx, CoTaskMemFree, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
     COINIT_APARTMENTTHREADED, STGM_READ,
 };
+use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, SHGetPropertyStoreForWindow};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 use windows::Win32::UI::Shell::{
-    IShellItemImageFactory, IShellLinkW, SHCreateItemFromParsingName, ShellLink,
-    SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
+    IShellItem, IShellItemImageFactory, IShellLinkW, SHCreateItemFromParsingName, ShellLink,
+    SIGDN_NORMALDISPLAY, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumWindows, GetClassNameW, GetWindow, GetWindowLongW, GetWindowTextW,
+    EnumWindows, GetAncestor, GetClassNameW, GetWindow, GA_ROOT, GetWindowLongW, GetWindowTextW,
     GetWindowThreadProcessId, IsWindowVisible, GWL_EXSTYLE, GW_OWNER, WS_EX_TOOLWINDOW,
 };
 
@@ -79,6 +81,39 @@ pub(crate) fn key(path: &Path) -> String {
 
 fn stem(path: &Path) -> String {
     path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default()
+}
+
+/// Prefisso con cui la shell indica un'app per identificatore (AppUserModelID).
+const APPS_FOLDER: &str = r"shell:AppsFolder\";
+
+/// "Percorso" di un'app dello Store: non è un file ma un identificatore che la shell
+/// sa avviare, e da cui sa ricavare nome e icona. Pura, testata.
+pub fn aumid_path(aumid: &str) -> PathBuf {
+    PathBuf::from(format!("{APPS_FOLDER}{aumid}"))
+}
+
+/// Inverso di `aumid_path`: l'identificatore, se `path` ne è uno. Pura, testata.
+pub fn parse_aumid(path: &str) -> Option<&str> {
+    let (head, rest) = path.split_at_checked(APPS_FOLDER.len())?;
+    (head.eq_ignore_ascii_case(APPS_FOLDER) && !rest.is_empty()).then_some(rest)
+}
+
+/// L'eseguibile sta in un pacchetto dello Store? Pura, testata.
+pub fn is_packaged_path(path: &Path) -> bool {
+    path.to_string_lossy().to_lowercase().contains(r"\windowsapps\")
+}
+
+/// Identità di una finestra: l'identificatore dell'app se è dello Store, altrimenti
+/// l'eseguibile. `frame_host`: la finestra è un guscio `ApplicationFrameHost` (app
+/// UWP); `packaged`: l'eseguibile è in un pacchetto. Senza identificatore un guscio
+/// non si può attribuire a nessuna app (`None`). Pura, testata.
+pub fn identity(frame_host: bool, packaged: bool, aumid: Option<String>, exe: PathBuf) -> Option<PathBuf> {
+    if (frame_host || packaged)
+        && let Some(a) = aumid.filter(|a| !a.is_empty())
+    {
+        return Some(aumid_path(&a));
+    }
+    (!frame_host).then_some(exe)
 }
 
 /// Stessa app? Stesso percorso, oppure stesso nome di file con una cartella che
@@ -152,6 +187,44 @@ impl Drop for ComScope {
     }
 }
 
+// ------------------------------------------------- app dello Store (AUMID)
+
+/// Chiave `System.AppUserModel.ID`.
+const PKEY_APP_USER_MODEL_ID: PROPERTYKEY =
+    PROPERTYKEY { fmtid: GUID::from_u128(0x9F4C2855_9F79_4B39_A8D0_E1D42DE1D5F3), pid: 5 };
+
+fn aumid_from_store(store: &IPropertyStore) -> Option<String> {
+    unsafe {
+        let mut pv = store.GetValue(&PKEY_APP_USER_MODEL_ID).ok()?;
+        let text = PropVariantToStringAlloc(&pv).ok().map(|p| {
+            let s = p.to_string().unwrap_or_default();
+            CoTaskMemFree(Some(p.0 as *const _));
+            s
+        });
+        let _ = PropVariantClear(&mut pv);
+        text.filter(|t| !t.is_empty())
+    }
+}
+
+/// Identificatore di un'app dello Store dalla sua finestra.
+pub fn window_aumid(hwnd: HWND) -> Option<String> {
+    let _com = ComScope::new();
+    let store: IPropertyStore = unsafe { SHGetPropertyStoreForWindow(hwnd) }.ok()?;
+    aumid_from_store(&store)
+}
+
+/// Nome visualizzato dalla shell per un elemento (anche `shell:AppsFolder\...`).
+pub fn shell_display_name(parsing_name: &str) -> Option<String> {
+    let _com = ComScope::new();
+    unsafe {
+        let item: IShellItem = SHCreateItemFromParsingName(&HSTRING::from(parsing_name), None).ok()?;
+        let p = item.GetDisplayName(SIGDN_NORMALDISPLAY).ok()?;
+        let s = p.to_string().ok();
+        CoTaskMemFree(Some(p.0 as *const _));
+        s.filter(|t| !t.is_empty())
+    }
+}
+
 // ----------------------------------------------------------- fissate
 
 /// Cartella dei collegamenti fissati sulla taskbar.
@@ -175,9 +248,17 @@ fn resolve_lnk(lnk: &Path) -> Option<PathBuf> {
         link.GetPath(&mut buf, &mut fd, 0).ok()?;
         let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
         if len == 0 {
-            return None;
+            // Le app dello Store non puntano a un file ma a un identificatore.
+            let store: IPropertyStore = link.cast().ok()?;
+            return aumid_from_store(&store).map(|a| aumid_path(&a));
         }
         let path = PathBuf::from(String::from_utf16_lossy(&buf[..len]));
+        if is_packaged_path(&path)
+            && let Ok(store) = link.cast::<IPropertyStore>()
+            && let Some(a) = aumid_from_store(&store)
+        {
+            return Some(aumid_path(&a)); // app impacchettata: l'identificatore è più stabile del percorso (cambia a ogni versione)
+        }
         path.is_file().then_some(path)
     }
 }
@@ -259,12 +340,13 @@ unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
         unsafe {
             let _ = CloseHandle(h);
         }
-        let Some(path) = path else { return };
-        // Le app dello Store girano dentro ApplicationFrameHost: finché non si
-        // risolvono i pacchetti, non vanno raggruppate sotto un'unica icona.
-        if stem(&path).eq_ignore_ascii_case("ApplicationFrameHost") {
-            return;
-        }
+        let Some(exe) = path else { return };
+        // Le app UWP girano dentro un guscio ApplicationFrameHost: senza
+        // l'identificatore non si saprebbe a quale app appartiene la finestra.
+        let frame_host = stem(&exe).eq_ignore_ascii_case("ApplicationFrameHost");
+        let packaged = is_packaged_path(&exe);
+        let aumid = if frame_host || packaged { window_aumid(hwnd) } else { None };
+        let Some(path) = identity(frame_host, packaged, aumid, exe) else { return };
         out.push((hwnd, pid, path));
     }));
     true.into()
@@ -283,6 +365,22 @@ pub fn window_exe(hwnd: HWND) -> Option<PathBuf> {
         let _ = CloseHandle(h);
     }
     path
+}
+
+/// A quale app appartiene una finestra: l'identificatore se è dello Store,
+/// altrimenti l'eseguibile. Stessa regola con cui si costruisce l'elenco delle finestre.
+pub fn window_identity(hwnd: HWND) -> Option<PathBuf> {
+    // L'hook di primo piano può segnalare la finestra interna di un'app UWP
+    // (`CoreWindow`, figlia del guscio): l'identità è quella della finestra principale.
+    let root = unsafe { GetAncestor(hwnd, GA_ROOT) };
+    if !root.0.is_null() && root != hwnd {
+        return window_identity(root);
+    }
+    let exe = window_exe(hwnd)?;
+    let frame_host = stem(&exe).eq_ignore_ascii_case("ApplicationFrameHost");
+    let packaged = is_packaged_path(&exe);
+    let aumid = if frame_host || packaged { window_aumid(hwnd) } else { None };
+    identity(frame_host, packaged, aumid, exe)
 }
 
 /// Tabella dei processi: (pid, pid del genitore, nome del file in minuscolo).
@@ -553,15 +651,19 @@ pub fn items_basic() -> Vec<DockItem> {
     for it in &mut items {
         if it.name.is_empty() {
             let path = PathBuf::from(&it.path);
-            let desc = cached_description(&path);
-            it.name = display_name(desc.as_deref(), &stem(&path), "", "");
+            it.name = if parse_aumid(&it.path).is_some() {
+                shell_display_name(&it.path).unwrap_or_else(|| "App".to_string())
+            } else {
+                let desc = cached_description(&path);
+                display_name(desc.as_deref(), &stem(&path), "", "")
+            };
         }
     }
     apply_run_order(&mut items);
     // Fissate senza finestre ma con un processo attivo: puntino grigio.
     let idle: Vec<String> = items
         .iter()
-        .filter(|i| i.pinned && !i.running)
+        .filter(|i| i.pinned && !i.running && parse_aumid(&i.path).is_none())
         .filter_map(|i| Path::new(&i.path).file_name())
         .map(|n| n.to_string_lossy().to_lowercase())
         .collect();
@@ -683,6 +785,54 @@ mod tests {
         // Un ciclo (pid riusati) non deve bloccare la ricerca.
         let cyc = vec![(1, 2, "a.exe".to_string()), (2, 1, "b.exe".to_string())];
         assert_eq!(find_ancestor(&cyc, 1, &["zzz.exe".to_string()]), None);
+    }
+
+    #[test]
+    fn store_app_identifiers_roundtrip() {
+        let p = aumid_path("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App");
+        assert_eq!(p, PathBuf::from(r"shell:AppsFolder\Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"));
+        assert_eq!(parse_aumid(&p.to_string_lossy()), Some("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"));
+        // Maiuscole del prefisso e percorsi normali.
+        assert_eq!(parse_aumid(r"SHELL:APPSFOLDER\X!App"), Some("X!App"));
+        assert_eq!(parse_aumid(r"C:\Windows\notepad.exe"), None);
+        assert_eq!(parse_aumid(r"shell:AppsFolder\"), None, "identificatore vuoto");
+        assert_eq!(parse_aumid(""), None);
+        assert_eq!(parse_aumid("shell:"), None);
+    }
+
+    #[test]
+    fn packaged_executables_are_recognized() {
+        assert!(is_packaged_path(Path::new(r"C:\Program Files\WindowsApps\Microsoft.Foo_1.0_x64__abc\app\Foo.exe")));
+        assert!(is_packaged_path(Path::new(r"c:\program files\windowsapps\x\y.exe")));
+        assert!(!is_packaged_path(Path::new(r"C:\Program Files\Google\Chrome\chrome.exe")));
+        assert!(!is_packaged_path(Path::new(r"C:\Users\x\WindowsAppsFake.exe")));
+    }
+
+    #[test]
+    fn window_identity_prefers_the_store_identifier() {
+        let exe = || PathBuf::from("C:/x/app.exe");
+        let id = |a: &str| Some(a.to_string());
+        // Guscio UWP con identificatore: l'app dello Store.
+        assert_eq!(identity(true, false, id("Pkg!App"), exe()), Some(aumid_path("Pkg!App")));
+        // Guscio UWP senza identificatore: nessuna app (come prima).
+        assert_eq!(identity(true, false, None, exe()), None);
+        assert_eq!(identity(true, false, id(""), exe()), None);
+        // Eseguibile impacchettato con identificatore: si usa l'identificatore, che è
+        // lo stesso del collegamento fissato (il percorso cambia a ogni versione).
+        assert_eq!(identity(false, true, id("Pkg!App"), exe()), Some(aumid_path("Pkg!App")));
+        // Impacchettato ma senza identificatore: resta l'eseguibile.
+        assert_eq!(identity(false, true, None, exe()), Some(exe()));
+        // App normale: sempre l'eseguibile, anche se avesse un identificatore.
+        assert_eq!(identity(false, false, id("Squirrel.Discord"), exe()), Some(exe()));
+    }
+
+    #[test]
+    fn store_ids_never_match_as_the_same_app_unless_identical() {
+        let a = aumid_path("A.Pkg!App");
+        let b = aumid_path("B.Pkg!App");
+        assert!(same_app(&a, &a));
+        assert!(same_app(&a, &PathBuf::from(r"SHELL:appsfolder\a.pkg!app")), "maiuscole ignorate");
+        assert!(!same_app(&a, &b));
     }
 
     #[test]
