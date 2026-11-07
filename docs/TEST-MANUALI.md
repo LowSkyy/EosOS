@@ -34,3 +34,15 @@ Prima: snapshot della VM o utente di prova.
 
 - [ ] Barra superiore appbar + nome app attiva + orologio.
 - [ ] Taskbar nascosta e ripristinata a uscita normale, crash e scorciatoia di emergenza.
+
+## E. Scale DPI diverse da 100% (solo su macchina o utente di prova)
+
+La scala la imposti tu in Impostazioni > Sistema > Schermo; gli script non la cambiano. Per ogni scala (125%, 150%, 175%, e scale diverse tra i due monitor):
+
+1. Imposta la scala, poi esci e rientra nella sessione se Windows lo chiede.
+2. `powershell -File scripts\test-dpi.ps1` (richiede `cargo build` in `src-tauri`): controlla per monitor altezza barra = round(28 × scala), larghezza e area di lavoro, e aggiunge una riga a `%TEMP%\eosos-dpi-report.txt`.
+3. A occhio, con `npm run tauri dev`:
+   - [ ] il testo della barra non è tagliato né sfocato;
+   - [ ] nome app e orologio hanno dimensione proporzionata alla scala;
+   - [ ] spostando una finestra tra i due monitor la barra resta a posto;
+   - [ ] cambiando la scala mentre EosOS è aperto la barra si riadatta entro ~1 s (se no, annotalo).

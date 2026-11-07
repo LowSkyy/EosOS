@@ -85,6 +85,7 @@ Script end-to-end (usano l'app reale; **nascondono la vera taskbar** e la ripris
 | `scripts\test-appbar.ps1` | area di lavoro riservata all'avvio e liberata a uscita/kill |
 | `scripts\test-workarea.ps1` | niente fascia vuota con taskbar nascosta; auto-nascondi ripristinato dopo uscita, kill e kill totale |
 | `scripts\test-explorer-restart.ps1` | riavvia Explorer con EosOS attivo: la nuova taskbar resta nascosta e la barra si ri-registra |
+| `scripts\test-dpi.ps1` | come test-multimonitor, ma segnala la scala corrente e salva un report per confrontare scale diverse (la scala la imposti tu) |
 | `scripts\test-multimonitor.ps1 [-Hotplug]` | una barra per monitor, altezza = 28 × scala DPI, simulazione di scollegamento |
 
 ## Variabili di debug
