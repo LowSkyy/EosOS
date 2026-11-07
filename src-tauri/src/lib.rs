@@ -7,6 +7,7 @@ mod dockstore;
 mod dockwin;
 mod foreground;
 mod glass;
+mod indicators;
 mod launcher;
 mod launchercalc;
 mod launcheract;
@@ -121,6 +122,13 @@ fn launcher_clip_use(id: String) -> bool {
 #[tauri::command]
 fn launcher_clip_delete(id: String) -> bool {
     launcher::clip_delete(&id)
+}
+
+/// Stato corrente di batteria, rete e volume (le pagine che si caricano dopo lo chiedono qui; i
+/// cambi successivi arrivano con l'evento `indicators-changed`).
+#[tauri::command]
+fn indicators_get() -> indicators::Indicators {
+    indicators::current()
 }
 
 /// Esegue un'azione del Launcher. Le azioni che spengono o riavviano rispondono "confirm" alla
@@ -321,7 +329,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
@@ -339,6 +347,7 @@ pub fn run() {
             backdrop::start();
             launcher::warm_up();
             launcherclip::start();
+            indicators::start(app.handle().clone());
             launcherwin::start(app.handle());
             foreground::start(app.handle().clone());
             Ok(())

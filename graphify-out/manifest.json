@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794087291.016147,
-    "seen": 1794087292.3873732,
-    "ast_hash": "2a8845d6af56eb7e9ee3e95be0243b44",
+    "mtime": 1794087992.9575968,
+    "seen": 1794087996.5484626,
+    "ast_hash": "2bb29c5556e3d33459c7682e86f1734c",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -30,9 +30,9 @@
     "semantic_hash": ""
   },
   "src-tauri/Cargo.toml": {
-    "mtime": 1794085127.233405,
-    "seen": 1794085395.3281224,
-    "ast_hash": "aab3b171eb708529d23c6740ba6b813c",
+    "mtime": 1794087616.732386,
+    "seen": 1794087996.5484123,
+    "ast_hash": "1e74349469af2e71efdaafdfa38bb505",
     "semantic_hash": ""
   },
   "src-tauri/build.rs": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794086087.1204755,
-    "seen": 1794086353.0276434,
-    "ast_hash": "0173de29be9ee6ed967a679a1f5fdd7d",
+    "mtime": 1794087704.8034225,
+    "seen": 1794087996.5484328,
+    "ast_hash": "c615abbe2abbb9b3f2c46711c8104f10",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -561,6 +561,24 @@
     "mtime": 1794086709.7662191,
     "seen": 1794087292.387317,
     "ast_hash": "4a91019f5f654ba06ff819a0ce3b20b0",
+    "semantic_hash": ""
+  },
+  "docs/INDICATORI.md": {
+    "mtime": 1794087992.9565864,
+    "seen": 1794087996.5484655,
+    "ast_hash": "5afb3fa5e6186d7fa3e856df6eb14e5e",
+    "semantic_hash": ""
+  },
+  "scripts/test-indicators.ps1": {
+    "mtime": 1794087936.5494068,
+    "seen": 1794087996.548405,
+    "ast_hash": "c5db6da01154d12a0dfbc67d2c785acc",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/indicators.rs": {
+    "mtime": 1794087799.9727397,
+    "seen": 1794087996.5484242,
+    "ast_hash": "ef0ad0974109a064647217ca0e3e19e3",
     "semantic_hash": ""
   },
   "package-lock.json": {

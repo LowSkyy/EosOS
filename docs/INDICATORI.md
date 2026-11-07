@@ -35,6 +35,22 @@ Fonti: [TWiT, "Take full control of your macOS Tahoe menu bar"](https://twit.tv/
 3. **I3 — Pannello**: finestra di vetro sotto l'indicatore con cursore del volume e silenzio, stato della rete e della batteria; chiusura al clic fuori e con Esc.
 4. **I4 — Rifiniture**: impostazioni (quali indicatori, percentuale), cambio dispositivo audio, ibernazione/riattivazione, riavvio di Explorer, prove su più monitor e scale diverse, revisione del codice.
 
+## I1 — Dati: FATTA (7 nov 2026)
+
+Solo Rust, nessuna interfaccia ancora. Modulo `indicators.rs` (14 test sulla parte pura + una lettura vera).
+
+- **Stato già pronto per la pagina**: ogni indicatore porta con sé icona e testi calcolati in Rust (la pagina non decide nulla).
+  - *Batteria* (`Battery`): `percent`, `charging`, `plugged`, `minutes_left`, `icon` (`battery-critical/low/half/high/full/charging/plugged`), `label` (**sempre la percentuale**, "85%") e `title` ("Batteria 85% · 2 h 15 min rimanenti", "in carica", "collegata alla rete"). Dai campi di `GetSystemPowerStatus` (`battery_from_status`): nessuna batteria (flag 128) o dati sconosciuti (255) → l'indicatore non c'è; il tempo residuo si dà solo a batteria.
+  - *Rete* (`Network`): tipo (`wifi`/`ethernet`/`cellular`/`none`), raggiungibilità (`internet`/`limited`/`none`), nome, barre 0-5, `icon` (`wifi-1/2/3`, `wifi-alert`, `ethernet`, `ethernet-alert`, `cellular`, `net-off`) e `title` ("Wi-Fi: Casa", "Wi-Fi: Ospiti · senza Internet", "Cavo di rete (Ethernet)", "Nessuna connessione"). Dai profili di connessione WinRT (`pick_network` sceglie il livello più alto; a pari livello cavo, poi Wi-Fi, poi rete mobile).
+  - *Volume* (`Volume`): `percent` (NaN e valori fuori scala limitati a 0-100), `muted`, `icon` (`volume-0/1/2/3`, `volume-muted`), `title` ("Volume 40%", "Audio disattivato"). Dal dispositivo di uscita predefinito di Core Audio, riacquisito a ogni giro (un cambio di cuffie si vede subito).
+- **Servizio**: un thread controlla ogni 1,5 s e confronta con lo stato di prima (`update_state`); **solo se cambia** salva lo stato e manda l'evento Tauri `indicators-changed` a tutte le finestre. Il comando `indicators_get` dà lo stato corrente alle pagine che si caricano dopo. Un panic nella lettura non ferma il servizio.
+- **Scelta rispetto alla specifica**: la specifica pensava a eventi di sistema più un controllo lento. In I1 c'è solo il controllo ogni 1,5 s con confronto: una lettura costa circa 3,5 ms (misurato a regime, build non ottimizzata), cioè circa lo 0,2% di un core, regge gli eventi mancati (sospensione, cavo staccato, cuffie) e non richiede tre meccanismi diversi. Gli eventi (`NetworkStatusChanged`, notifiche di volume, `WM_POWERBROADCAST`) restano un'ottimizzazione possibile per I4 se la latenza di 1,5 s dà fastidio.
+- **Difetto trovato e corretto**: 20 letture di fila in un thread davano `ACCESS_VIOLATION`. Causa: COM inizializzato e chiuso a ogni lettura mentre le fabbriche WinRT restano in cache e puntano a un apartment smontato. Ora il thread del servizio inizializza COM (MTA) una volta e lo tiene per tutta la sua vita (e lo stesso fa la prova); la regola è scritta nel commento di `read_real`. Tiene vivo l'apartment anche per le ricerche di file del Launcher, che usano WinRT con thread brevi.
+- **Sorgente simulata (solo build di prova)**: con `EOSOS_FAKE_INDICATORS=<file.json>` lo stato viene da un file riletto a ogni giro (file illeggibile: si tiene lo stato di prima). Così si prova senza scaricare la batteria, staccare la rete o cambiare il volume dell'utente.
+- **Verifica** (`scripts/test-indicators.ps1`, 22 controlli, dalla pagina via CDP): lo stato iniziale arriva con `indicators_get`; **nessun evento in 4 s senza cambi**; un cambio produce **un solo** evento con i dati giusti (batteria al 19% con tempo residuo, Wi-Fi senza Internet, audio disattivato); la scomparsa di batteria e audio dà campi nulli e un evento; un file illeggibile non cambia nulla; valori fuori scala (volume 250, batteria 150) sono limitati a 100. Lettura vera in sola lettura sul tuo PC: **nessuna batteria** (desktop: indicatore assente come previsto), rete **via cavo (Ethernet)**, volume **100%**. Test: 177 Rust, clippy a 0 avvisi.
+
+Non provato: batteria vera (il PC non ne ha), Wi-Fi vero (c'è solo il cavo), cambio vero del dispositivo audio, ripresa dalla sospensione.
+
 ## Fuori scopo
 
 Bluetooth, Non disturbare/Focus, luminosità, tastiera/monitor esterni, Live Activities, estensioni di terze parti per la barra, Centro di controllo completo con pagine e controlli ridimensionabili.
