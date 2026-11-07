@@ -15,6 +15,8 @@ export default function Mc() {
   const monitor = Number(new URLSearchParams(window.location.search).get("m") ?? 0);
   const [view, setView] = useState<McView | null>(null);
   const [hover, setHover] = useState<number | null>(null);
+  // In chiusura (Rust sta riportando le miniature sulle finestre): sfondo ed etichette si dissolvono.
+  const [closing, setClosing] = useState(false);
   const bg = useRef<HTMLCanvasElement>(null);
 
   // Lo scatto dello sfondo (fatto da Rust prima di mostrare la panoramica) si disegna una volta sola.
@@ -37,21 +39,24 @@ export default function Mc() {
       if (e.payload.index !== monitor) return;
       setView(e.payload);
       setHover(null);
+      setClosing(false);
       void paintBackdrop();
     });
     const update = listen<McView>("mc-update", (e) => {
       if (e.payload.index === monitor) setView(e.payload);
     });
+    const closingEv = listen("mc-closing", () => setClosing(true));
     // Alla chiusura la pagina dimentica titoli, icone e sfondo.
     const close = listen("mc-close", () => {
       setView(null);
       setHover(null);
+      setClosing(false);
       document.documentElement.removeAttribute("data-mc-bg");
       const c = bg.current;
       if (c) c.getContext("2d")?.clearRect(0, 0, c.width, c.height);
     });
     return () => {
-      for (const p of [open, update, close]) void p.then((f) => f());
+      for (const p of [open, update, closingEv, close]) void p.then((f) => f());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monitor]);
@@ -85,7 +90,7 @@ export default function Mc() {
   const activate = (w: McWindow) => void invoke("mc_activate", { id: w.id });
 
   return (
-    <div className="mc-root" data-open={view !== null} onClick={() => void invoke("mc_close")}>
+    <div className="mc-root" data-open={view !== null} data-closing={closing} onClick={() => !closing && void invoke("mc_close")}>
       <canvas className="mc-bg" ref={bg} aria-hidden />
       <div className="mc-dim" aria-hidden />
       {windows.map((w) => {

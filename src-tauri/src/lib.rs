@@ -19,6 +19,8 @@ mod launcherstore;
 mod launcherwin;
 mod mc;
 mod mclayout;
+mod mcstore;
+mod mctrigger;
 mod mcwin;
 mod panelwin;
 mod taskbar;
@@ -218,7 +220,7 @@ fn mc_open(app: tauri::AppHandle) {
 /// Chiude la panoramica (Esc, clic sullo sfondo).
 #[tauri::command(async)]
 fn mc_close(app: tauri::AppHandle) {
-    mcwin::close(&app);
+    mcwin::close_animated(&app, None);
 }
 
 /// Porta in primo piano la finestra `id` (la ripristina se è minimizzata) e chiude la panoramica. Solo id
@@ -473,6 +475,7 @@ pub fn run() {
             panelwin::start(app.handle());
             mcwin::start(app.handle());
             launcheract::set_mc_open(mcwin::open_soon);
+            launcheract::set_mc_corner(mcwin::toggle_corner);
             foreground::start(app.handle().clone());
             Ok(())
         })

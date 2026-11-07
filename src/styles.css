@@ -442,9 +442,11 @@ body {
   height: calc(100% + 80px);
   filter: blur(28px) saturate(1.2);
   opacity: 0;
+  transition: opacity 0.22s ease-out;
 }
 :root[data-mc-bg="on"] .mc-bg { opacity: 1; }
-.mc-dim { position: absolute; inset: 0; background: rgba(8, 8, 12, 0.55); }
+.mc-dim { position: absolute; inset: 0; background: rgba(8, 8, 12, 0.55); opacity: 0; transition: opacity 0.22s ease-out; }
+.mc-root[data-open="true"] .mc-dim { opacity: 1; }
 :root:not([data-mc-bg="on"]) .mc-dim { background: rgba(8, 8, 12, 0.82); }
 
 .mc-cell {
@@ -453,8 +455,14 @@ body {
   border-radius: 12px;
   cursor: default;
   outline: none;
-  transition: background 0.12s;
+  opacity: 0;
+  transition: background 0.12s, opacity 0.22s ease-out 0.08s;
 }
+.mc-root[data-open="true"] .mc-cell { opacity: 1; }
+/* In chiusura tutto si dissolve mentre le miniature tornano sulle finestre. */
+.mc-root[data-closing="true"] .mc-bg,
+.mc-root[data-closing="true"] .mc-dim,
+.mc-root[data-closing="true"] .mc-cell { opacity: 0; transition: opacity 0.16s ease-in; }
 .mc-cell[data-hover="true"],
 .mc-cell:focus-visible { background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 0 3px #0a84ff; }
 /* La miniatura viva la disegna Windows sopra questa pagina, nel rettangolo libero della cella. */

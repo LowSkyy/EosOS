@@ -126,6 +126,14 @@ pub const ACTIONS: &[Action] = &[
         run: Run::Internal("mc-open"),
     },
     Action {
+        id: "action:mc-corner",
+        name: "Mission Control: angolo attivo (accendi o spegni)",
+        keywords: &["angolo", "corner", "hot corner", "angolo attivo"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("mc-corner"),
+    },
+    Action {
         id: "action:settings",
         name: "Impostazioni",
         keywords: &["settings", "preferenze", "opzioni"],
@@ -224,6 +232,14 @@ static PENDING: Mutex<Pending> = Mutex::new(None);
 /// Funzione che apre Mission Control, registrata all'avvio dell'app.
 static MC_OPEN: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
 
+/// Funzione che accende o spegne l'angolo attivo di Mission Control, registrata all'avvio dell'app.
+static MC_CORNER: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
+
+/// Registra la funzione dell'angolo attivo (la chiama l'avvio dell'app).
+pub fn set_mc_corner(f: fn()) {
+    let _ = MC_CORNER.set(f);
+}
+
 /// Registra la funzione che apre Mission Control (la chiama l'avvio dell'app).
 pub fn set_mc_open(f: fn()) {
     let _ = MC_OPEN.set(f);
@@ -250,6 +266,9 @@ fn execute(action: &Action) -> bool {
             // nomina il codice delle finestre Tauri, altrimenti gli eseguibili di test, che non hanno il
             // manifest di comctl32 v6, non partirebbero (STATUS_ENTRYPOINT_NOT_FOUND).
             MC_OPEN.get().map(|f| f()).is_some()
+        }
+        Run::Internal("mc-corner") => {
+            MC_CORNER.get().map(|f| f()).is_some()
         }
         Run::Internal("clip-clear") => {
             crate::launcherclip::clear();

@@ -321,6 +321,10 @@ pub fn parse_hotkey(text: &str) -> Option<Hotkey> {
         }
         let vk = match t.as_str() {
             "space" | "spazio" => VK_SPACE_CODE,
+            "left" | "sinistra" => 0x25,
+            "up" | "su" => 0x26,
+            "right" | "destra" => 0x27,
+            "down" | "giu" | "giù" => 0x28,
             s if s.len() == 1 && s.as_bytes()[0].is_ascii_alphabetic() => u32::from(s.as_bytes()[0].to_ascii_uppercase()),
             s if s.len() == 1 && s.as_bytes()[0].is_ascii_digit() => u32::from(s.as_bytes()[0]),
             s if s.starts_with('f') && s[1..].parse::<u32>().is_ok_and(|n| (1..=12).contains(&n)) => {
@@ -350,6 +354,10 @@ pub fn format_hotkey(h: Hotkey) -> String {
     }
     parts.push(match h.vk {
         VK_SPACE_CODE => "Space".into(),
+        0x25 => "Left".into(),
+        0x26 => "Up".into(),
+        0x27 => "Right".into(),
+        0x28 => "Down".into(),
         0x70..=0x7B => format!("F{}", h.vk - 0x70 + 1),
         v => char::from_u32(v).map(|c| c.to_string()).unwrap_or_default(),
     });
@@ -358,7 +366,13 @@ pub fn format_hotkey(h: Hotkey) -> String {
 
 /// Come si mostra all'utente ("Ctrl+Alt+Spazio").
 pub fn display_hotkey(h: Hotkey) -> String {
-    format_hotkey(h).replace("Space", "Spazio").replace("Shift", "Maiusc")
+    format_hotkey(h)
+        .replace("Space", "Spazio")
+        .replace("Shift", "Maiusc")
+        .replace("Up", "Su")
+        .replace("Down", "Giù")
+        .replace("Left", "Sinistra")
+        .replace("Right", "Destra")
 }
 
 /// La scorciatoia salvata, o quella predefinita se manca o non si legge.
@@ -522,6 +536,21 @@ mod tests {
             assert_eq!(parse_hotkey(&format_hotkey(h)), Some(h));
         }
         assert_eq!(display_hotkey(parse_hotkey("Ctrl+Shift+Space").unwrap()), "Ctrl+Maiusc+Spazio");
+    }
+
+    #[test]
+    fn arrow_keys_work_in_hotkeys() {
+        assert_eq!(parse_hotkey("Ctrl+Alt+Up"), Some(Hotkey { mods: 0x3, vk: 0x26 }));
+        assert_eq!(parse_hotkey("ctrl+alt+su"), parse_hotkey("Ctrl+Alt+Up"));
+        assert_eq!(parse_hotkey("Ctrl+Alt+Giù"), Some(Hotkey { mods: 0x3, vk: 0x28 }));
+        assert_eq!(parse_hotkey("Win+Left"), Some(Hotkey { mods: 0x8, vk: 0x25 }));
+        for text in ["Ctrl+Alt+Up", "Ctrl+Alt+Down", "Ctrl+Left", "Alt+Right"] {
+            assert_eq!(format_hotkey(parse_hotkey(text).unwrap()), text);
+        }
+        assert_eq!(display_hotkey(parse_hotkey("Ctrl+Alt+Up").unwrap()), "Ctrl+Alt+Su");
+        assert_eq!(display_hotkey(parse_hotkey("Ctrl+Alt+Down").unwrap()), "Ctrl+Alt+Giù");
+        assert_eq!(parse_hotkey("Up"), None, "una freccia sola non e' una scorciatoia globale");
+        assert_eq!(parse_hotkey("Shift+Up"), None);
     }
 
     #[test]
