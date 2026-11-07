@@ -66,6 +66,18 @@ fn dock_fit(app: tauri::AppHandle, fit: dockgeom::FitArgs) {
     }
 }
 
+/// Trascinamento di un'icona: la mette nella posizione `index` tra le fissate
+/// (contata senza di essa). Un'app aperta non fissata viene fissata lì. Come
+/// sempre, il frontend manda solo l'`id` di una voce che il Dock sta mostrando.
+#[tauri::command(async)]
+fn dock_reorder(id: String, index: usize) {
+    if let Some(item) = dock::find(&id) {
+        let path = std::path::PathBuf::from(&item.path);
+        let fallback = dock::Pinned { name: item.name.clone(), path: path.clone() };
+        dockstore::move_to(&path, Some(fallback), index);
+    }
+}
+
 /// Clic destro sullo sfondo della capsula: impostazioni del Dock.
 #[tauri::command]
 fn dock_settings_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Result<()> {
@@ -196,7 +208,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

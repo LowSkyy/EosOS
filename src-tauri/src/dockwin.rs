@@ -33,8 +33,9 @@ use windows::Win32::Graphics::Gdi::{
     RGN_AND,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
-    SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, GWL_STYLE,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_CAPTION,
+    WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU,
 };
 
 use crate::dockgeom::{
@@ -44,6 +45,11 @@ use crate::dockgeom::{
 use crate::glass;
 
 pub const LABEL: &str = "dock";
+/// Stili di finestra che non attiva e non compare in Alt+Tab.
+const NO_ACTIVATE_STYLES: isize = (WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0) as isize;
+/// Stili di una finestra con cornice: il Dock non ne deve avere.
+const CHROME_STYLES: isize =
+    (WS_CAPTION.0 | WS_SYSMENU.0 | WS_MINIMIZEBOX.0 | WS_MAXIMIZEBOX.0) as isize;
 const TICK: Duration = Duration::from_millis(16);
 /// Ogni quanti cicli si ricontrolla monitor e area di lavoro (~1 s).
 const RECONCILE_EVERY: u32 = 60;
@@ -139,15 +145,38 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
     if let Ok(hwnd) = win.hwnd() {
         lock().hwnd = hwnd.0 as isize;
         unsafe {
-            let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            SetWindowLongPtrW(
-                hwnd,
-                GWL_EXSTYLE,
-                ex | WS_EX_NOACTIVATE.0 as isize | WS_EX_TOOLWINDOW.0 as isize,
-            );
+            enforce_styles(hwnd);
         }
     }
     Ok(())
+}
+
+/// Stili che il Dock deve avere, cioè niente cornice (barra del titolo, menu di
+/// sistema, pulsanti) e finestra che non si attiva, non ruba il focus e non sta in
+/// Alt+Tab. Tauri li riapplica dopo la creazione e a certe operazioni: si
+/// ricontrollano a ogni ciclo (due letture) e si correggono solo se serve. Senza
+/// questo cliccare sul Dock toglieva il primo piano all'app che l'utente stava
+/// usando e Windows disegnava la cornice in cima al Dock durante i trascinamenti.
+unsafe fn enforce_styles(hwnd: HWND) {
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        let want_ex = (ex | NO_ACTIVATE_STYLES) & !WS_EX_APPWINDOW.0 as isize;
+        if style & CHROME_STYLES == 0 && ex == want_ex {
+            return;
+        }
+        SetWindowLongPtrW(hwnd, GWL_STYLE, style & !CHROME_STYLES);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want_ex);
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
+    }
 }
 
 fn hwnd_of(raw: isize) -> HWND {
@@ -187,6 +216,7 @@ fn tick() {
     if !st.shown || st.hwnd == 0 {
         return;
     }
+    unsafe { enforce_styles(hwnd_of(st.hwnd)) };
     let now = Instant::now();
     let dt = st.last_tick.map_or(0.0, |t| now.duration_since(t).as_secs_f64()).min(0.1);
     st.last_tick = Some(now);

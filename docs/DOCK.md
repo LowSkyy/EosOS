@@ -62,6 +62,11 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
    - **DPI misti / scala diversa**: la geometria è testata a 100%, 125%, 150% e con origine negativa, ma non ho cambiato la scala del tuo schermo.
    - Riserva di spazio opzionale (le finestre massimizzate si fermano sopra il Dock).
 
+6. **Riordino con il trascinamento** — FATTO (7 nov 2026): `Dock.tsx` (eventi del puntatore), `dockstore::place`, comando `dock_reorder`. Si trascina un'icona fissata e la si rilascia in un'altra posizione tra le fissate; un'app aperta non fissata, rilasciata tra le fissate, viene fissata lì. Mentre si trascina le altre icone si scostano per aprire il varco, l'ingrandimento è sospeso e il clic che segue il rilascio non avvia nulla. L'ordine è subito visibile (aggiornamento ottimistico) e viene salvato in `dock.json`. Verificato dal vivo con il mouse vero e un'app di prova (Blocco note): spostata in avanti e indietro, ordine salvato, nessun avvio al rilascio. Risolve anche l'ordine delle fissate (non più solo alfabetico). Non incluso: trascinare fuori dal Dock per toglierla (si usa il menu). Durante la prova sono emersi e sono stati corretti tre difetti più grandi del trascinamento stesso:
+   - **Stili della finestra**: Tauri riapplica dopo la creazione gli stili di una finestra normale, quindi il Dock era attivabile (cliccandolo il primo piano passava a EosOS: per questo in D3 serviva la scorciatoia dell'"ultima finestra attivata") e portava cornice, titolo e pulsanti, che Windows disegnava in cima al Dock appena veniva attivato (trascinamento, menu). Ora `enforce_styles` toglie la cornice e imposta `NOACTIVATE`/`TOOLWINDOW` a ogni ciclo (due letture): il primo piano resta all'app che si sta usando.
+   - **App con processi di supporto** (Steam: le finestre sono di `steamwebhelper.exe`, figlio di `Steam.exe`): comparivano come un'app diversa e quella fissata risultava chiusa. Ora una finestra il cui eseguibile non è fissato è attribuita al suo antenato fissato (`find_ancestor`, fino a 4 livelli).
+   - Un clic fermo (premere e rilasciare senza muovere) è un clic: nelle prove si preme solo sull'icona dell'app di prova.
+
 ## Fuori scopo
 
 Cestino, cartelle (Download), stack, trascinamento per riordinare (possibile dopo D5).

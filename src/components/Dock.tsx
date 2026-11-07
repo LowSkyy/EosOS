@@ -3,9 +3,13 @@ import type React from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
+  DRAG_THRESHOLD,
+  applyMove,
   clampGlass,
   dotState,
+  dropTarget,
   magnifyScale,
+  previewOffsets,
   pruneBouncing,
   sameItems,
   splitDock,
@@ -21,11 +25,18 @@ const BOUNCE_MAX_MS = 8000;
 function Icon({
   item,
   bouncing,
+  offset,
+  dragging,
   onClick,
+  onPointerDown,
 }: {
   item: DockItem;
   bouncing: boolean;
+  /** Spostamento orizzontale durante un trascinamento (px). */
+  offset: number;
+  dragging: boolean;
   onClick: (item: DockItem) => void;
+  onPointerDown: (e: React.PointerEvent, item: DockItem) => void;
 }) {
   // Il frontend manda solo l'id: il percorso da eseguire lo ricava Rust dall'elenco del Dock.
   const menu = (e: React.MouseEvent) => {
@@ -39,7 +50,10 @@ function Icon({
       title={item.name}
       role="button"
       data-bounce={bouncing}
+      data-dragging={dragging}
+      style={{ "--dx": `${offset}px` } as React.CSSProperties}
       onClick={() => onClick(item)}
+      onPointerDown={(e) => onPointerDown(e, item)}
       onContextMenu={menu}
     >
       {item.icon ? (
@@ -181,10 +195,89 @@ export default function Dock() {
     return () => ro.disconnect();
   }, []);
 
+  // Trascinamento per riordinare. Si usano gli eventi del puntatore (non il
+  // drag-and-drop HTML, inaffidabile in una finestra trasparente e ritagliata).
+  // Le posizioni si misurano sulla copia invisibile a riposo: le icone vere
+  // possono essere ingrandite e spostate.
+  type Pending = {
+    id: string;
+    pointerId: number;
+    startX: number;
+    active: boolean;
+    /** Centri a riposo delle altre fissate, in ordine. */
+    centers: number[];
+    /** Bordo sinistro del separatore: oltre questo punto non si fissa. */
+    separatorX: number;
+    wasPinned: boolean;
+  };
+  const pending = useRef<Pending | null>(null);
+  const suppressClick = useRef(false);
+  const [drag, setDrag] = useState<{ id: string; dx: number; target: number | null } | null>(null);
+
+  const pointerDown = useCallback(
+    (e: React.PointerEvent, item: DockItem) => {
+      if (e.button !== 0 || !ghost.current) return;
+      const cells = [...ghost.current.querySelectorAll<HTMLElement>(".dock-item")];
+      const pinnedList = items.filter((i) => i.pinned);
+      const centers = pinnedList
+        .map((p, k) => ({ id: p.id, r: cells[k]?.getBoundingClientRect() }))
+        .filter((c) => c.id !== item.id && c.r)
+        .map((c) => (c.r as DOMRect).left + (c.r as DOMRect).width / 2);
+      const sep = ghost.current.querySelector<HTMLElement>(".dock-separator");
+      pending.current = {
+        id: item.id,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        active: false,
+        centers,
+        separatorX: sep ? sep.getBoundingClientRect().left : Infinity,
+        wasPinned: item.pinned,
+      };
+    },
+    [items],
+  );
+
+  const targetFor = (p: Pending, x: number): number | null => {
+    // Una app non fissata si può fissare solo rilasciandola tra le fissate.
+    if (!p.wasPinned && x >= p.separatorX) return null;
+    return dropTarget(p.centers, x);
+  };
+
+  const pointerMove = (e: React.PointerEvent) => {
+    const p = pending.current;
+    if (!p) return;
+    const dx = e.clientX - p.startX;
+    if (!p.active) {
+      if (Math.abs(dx) < DRAG_THRESHOLD) return;
+      p.active = true;
+      zone.current?.setPointerCapture(p.pointerId);
+      rest(); // niente ingrandimento mentre si trascina
+    }
+    setDrag({ id: p.id, dx, target: targetFor(p, e.clientX) });
+  };
+
+  const pointerEnd = (e: React.PointerEvent, commit: boolean) => {
+    const p = pending.current;
+    pending.current = null;
+    if (!p) return;
+    if (p.active) {
+      suppressClick.current = true; // il clic che segue il rilascio non è un avvio
+      setTimeout(() => (suppressClick.current = false), 0);
+      zone.current?.releasePointerCapture(p.pointerId);
+      const target = commit ? targetFor(p, e.clientX) : null;
+      if (target !== null) {
+        setItems((cur) => applyMove(cur, p.id, target)); // subito, senza aspettare Rust
+        void invoke("dock_reorder", { id: p.id, index: target }).finally(refreshSoon);
+      }
+    }
+    setDrag(null);
+  };
+
   // Ingrandimento "a onda": la scala di ogni icona dipende dalla distanza del
   // cursore dal suo centro attuale. Si scrive direttamente nel DOM (una variabile
   // CSS per icona): niente rendering React a ogni movimento del mouse.
   const magnify = useCallback((e: React.MouseEvent) => {
+    if (pending.current) return; // si sta trascinando
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const cells = pill.current?.querySelectorAll<HTMLElement>(".dock-item");
     if (!cells || cells.length === 0) return;
@@ -209,8 +302,30 @@ export default function Dock() {
   };
 
   const { pinned, others } = splitDock(items);
+  const onIconClick = (item: DockItem) => {
+    if (suppressClick.current) return;
+    click(item);
+  };
+  const pitch = cssPx("--dock-icon") + cssPx("--dock-gap");
+  const offsets =
+    drag && drag.target !== null
+      ? previewOffsets(
+          pinned.map((p) => p.id),
+          drag.id,
+          drag.target,
+          pitch,
+        )
+      : {};
   const icon = (i: DockItem) => (
-    <Icon key={i.id} item={i} bouncing={bouncing.has(i.id)} onClick={click} />
+    <Icon
+      key={i.id}
+      item={i}
+      bouncing={bouncing.has(i.id)}
+      offset={drag?.id === i.id ? drag.dx : (offsets[i.id] ?? 0)}
+      dragging={drag?.id === i.id}
+      onClick={onIconClick}
+      onPointerDown={pointerDown}
+    />
   );
   return (
     <div
@@ -218,6 +333,9 @@ export default function Dock() {
       ref={zone}
       onMouseMove={magnify}
       onMouseLeave={rest}
+      onPointerMove={pointerMove}
+      onPointerUp={(e) => pointerEnd(e, true)}
+      onPointerCancel={(e) => pointerEnd(e, false)}
       onContextMenu={background}
     >
       <div className="dock" ref={pill}>

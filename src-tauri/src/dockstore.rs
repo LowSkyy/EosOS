@@ -185,6 +185,31 @@ pub fn load() -> Vec<Pinned> {
     seeded
 }
 
+/// Mette `path` nella posizione `to` tra le fissate (contata senza di essa). Se
+/// non era fissata la inserisce usando `fallback`; senza `fallback` non fa nulla.
+/// Restituisce se l'elenco è cambiato. Pura, testata.
+pub fn place(list: &mut Vec<Pinned>, path: &Path, fallback: Option<Pinned>, to: usize) -> bool {
+    let before = list.clone();
+    let entry = match list.iter().position(|x| same_app(&x.path, path)) {
+        Some(i) => list.remove(i),
+        None => match fallback {
+            Some(p) => p,
+            None => return false,
+        },
+    };
+    let to = to.min(list.len());
+    list.insert(to, entry);
+    *list != before
+}
+
+/// Sposta o fissa in `to` la voce con questo percorso, e salva.
+pub fn move_to(path: &Path, fallback: Option<Pinned>, to: usize) {
+    let mut list = load();
+    if place(&mut list, path, fallback, to) {
+        save(&list);
+    }
+}
+
 pub fn pin(p: Pinned) {
     let mut list = load();
     if add(&mut list, p) {
@@ -271,6 +296,31 @@ mod tests {
             pin("Chrome (3)", r"c:\C\CHROME.exe"),
         ]);
         assert_eq!(l.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["Chrome", "Altro"]);
+    }
+
+    #[test]
+    fn place_reorders_within_the_pinned_list() {
+        let names = |l: &[Pinned]| l.iter().map(|p| p.name.clone()).collect::<Vec<_>>();
+        let mut l = vec![pin("A", "C:/a.exe"), pin("B", "C:/b.exe"), pin("C", "C:/c.exe")];
+        assert!(place(&mut l, Path::new("C:/a.exe"), None, 2));
+        assert_eq!(names(&l), ["B", "C", "A"]);
+        assert!(place(&mut l, Path::new("c:/C.EXE"), None, 0));
+        assert_eq!(names(&l), ["C", "B", "A"]);
+        // Rilasciata dov'è già: nessun cambiamento (non si riscrive il file).
+        assert!(!place(&mut l, Path::new("C:/b.exe"), None, 1));
+        // Posizione oltre la fine: va in coda.
+        assert!(place(&mut l, Path::new("C:/c.exe"), None, 99));
+        assert_eq!(names(&l), ["B", "A", "C"]);
+    }
+
+    #[test]
+    fn place_pins_an_unpinned_app_at_the_given_position() {
+        let mut l = vec![pin("A", "C:/a.exe"), pin("B", "C:/b.exe")];
+        assert!(place(&mut l, Path::new("C:/x.exe"), Some(pin("X", "C:/x.exe")), 1));
+        assert_eq!(l.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["A", "X", "B"]);
+        // Sconosciuta e senza ripiego: niente.
+        assert!(!place(&mut l, Path::new("C:/zzz.exe"), None, 0));
+        assert_eq!(l.len(), 3);
     }
 
     #[test]

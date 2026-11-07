@@ -243,7 +243,7 @@ fn is_app_window(hwnd: HWND) -> bool {
 unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
     // Un panic non deve attraversare il confine FFI: lo si assorbe.
     let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let out = unsafe { &mut *(lparam.0 as *mut Vec<(HWND, PathBuf)>) };
+        let out = unsafe { &mut *(lparam.0 as *mut Vec<(HWND, u32, PathBuf)>) };
         if !is_app_window(hwnd) {
             return;
         }
@@ -265,7 +265,7 @@ unsafe extern "system" fn collect_window(hwnd: HWND, lparam: LPARAM) -> BOOL {
         if stem(&path).eq_ignore_ascii_case("ApplicationFrameHost") {
             return;
         }
-        out.push((hwnd, path));
+        out.push((hwnd, pid, path));
     }));
     true.into()
 }
@@ -285,13 +285,80 @@ pub fn window_exe(hwnd: HWND) -> Option<PathBuf> {
     path
 }
 
-/// Tutte le finestre "da app" con il loro eseguibile, nell'ordine Z (dall'alto).
-pub fn app_windows() -> Vec<(HWND, PathBuf)> {
-    let mut out: Vec<(HWND, PathBuf)> = Vec::new();
+/// Tabella dei processi: (pid, pid del genitore, nome del file in minuscolo).
+pub fn process_table() -> Vec<(u32, u32, String)> {
+    let mut out = Vec::new();
     unsafe {
-        let _ = EnumWindows(Some(collect_window), LPARAM(&mut out as *mut _ as isize));
+        let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else { return out };
+        let mut e = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+        let mut ok = Process32FirstW(snap, &mut e).is_ok();
+        while ok {
+            let len = e.szExeFile.iter().position(|&c| c == 0).unwrap_or(e.szExeFile.len());
+            out.push((
+                e.th32ProcessID,
+                e.th32ParentProcessID,
+                String::from_utf16_lossy(&e.szExeFile[..len]).to_lowercase(),
+            ));
+            ok = Process32NextW(snap, &mut e).is_ok();
+        }
+        let _ = CloseHandle(snap);
     }
     out
+}
+
+/// L'antenato più vicino di `pid` (al massimo 4 livelli) il cui eseguibile si
+/// chiama come uno di `names`. Pura, testata.
+///
+/// Serve alle app con processi di supporto che possiedono le finestre: la
+/// finestra di Steam è di `steamwebhelper.exe`, figlio di `Steam.exe`.
+pub fn find_ancestor(table: &[(u32, u32, String)], pid: u32, names: &[String]) -> Option<u32> {
+    let mut cur = pid;
+    for _ in 0..4 {
+        let (_, parent, _) = table.iter().find(|(p, _, _)| *p == cur)?;
+        let (ppid, _, name) = table.iter().find(|(p, _, _)| p == parent)?;
+        if names.contains(name) {
+            return Some(*ppid);
+        }
+        cur = *ppid;
+    }
+    None
+}
+
+/// Tutte le finestre "da app" con il loro eseguibile, nell'ordine Z (dall'alto).
+/// Se l'eseguibile di una finestra non è tra le app fissate ma un suo antenato
+/// sì, la finestra è attribuita a quell'app (vedi `find_ancestor`).
+pub fn app_windows() -> Vec<(HWND, PathBuf)> {
+    let mut raw: Vec<(HWND, u32, PathBuf)> = Vec::new();
+    unsafe {
+        let _ = EnumWindows(Some(collect_window), LPARAM(&mut raw as *mut _ as isize));
+    }
+    let pinned: Vec<PathBuf> = crate::dockstore::load().into_iter().map(|p| p.path).collect();
+    let names: Vec<String> = pinned
+        .iter()
+        .filter_map(|p| p.file_name())
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .collect();
+    // La tabella dei processi si costruisce solo se serve.
+    let mut table: Option<Vec<(u32, u32, String)>> = None;
+    raw.into_iter()
+        .map(|(hwnd, pid, path)| {
+            if pinned.iter().any(|p| same_app(p, &path)) {
+                return (hwnd, path);
+            }
+            let t = table.get_or_insert_with(process_table);
+            let owner = find_ancestor(t, pid, &names)
+                .and_then(|apid| unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, apid).ok() })
+                .and_then(|h| {
+                    let p = image_path(h);
+                    unsafe {
+                        let _ = CloseHandle(h);
+                    }
+                    p
+                })
+                .filter(|p| pinned.iter().any(|x| same_app(x, p)));
+            (hwnd, owner.unwrap_or(path))
+        })
+        .collect()
 }
 
 /// Eseguibili con almeno una finestra aperta, nell'ordine Z (dall'alto).
@@ -582,6 +649,40 @@ mod tests {
         assert!(processes_named(&[]).is_empty());
         // Un processo che esiste sempre.
         assert!(processes_named(&["explorer.exe".to_string()]).iter().any(|p| key(p).ends_with("explorer.exe")));
+    }
+
+    #[test]
+    fn helper_windows_are_attributed_to_the_pinned_parent() {
+        // Steam.exe (10) -> steamwebhelper.exe (20) -> steamwebhelper.exe (30); chrome.exe (40) isolato.
+        let table = vec![
+            (4, 0, "system".to_string()),
+            (10, 4, "steam.exe".to_string()),
+            (20, 10, "steamwebhelper.exe".to_string()),
+            (30, 20, "steamwebhelper.exe".to_string()),
+            (40, 4, "chrome.exe".to_string()),
+        ];
+        let names = vec!["steam.exe".to_string(), "chrome.exe".to_string()];
+        assert_eq!(find_ancestor(&table, 20, &names), Some(10));
+        assert_eq!(find_ancestor(&table, 30, &names), Some(10), "anche due livelli sotto");
+        assert_eq!(find_ancestor(&table, 40, &names), None, "il genitore e' system, non fissato");
+        assert_eq!(find_ancestor(&table, 10, &names), None, "un'app non e' antenata di se stessa");
+        assert_eq!(find_ancestor(&table, 999, &names), None, "pid sconosciuto");
+        assert_eq!(find_ancestor(&table, 20, &[]), None);
+    }
+
+    #[test]
+    fn ancestor_search_stops_at_four_levels_and_survives_cycles() {
+        // Cinque livelli sotto l'antenato: oltre il limite.
+        let mut table = vec![(1, 0, "app.exe".to_string())];
+        for i in 2..=7u32 {
+            table.push((i, i - 1, "helper.exe".to_string()));
+        }
+        let names = vec!["app.exe".to_string()];
+        assert_eq!(find_ancestor(&table, 5, &names), Some(1));
+        assert_eq!(find_ancestor(&table, 7, &names), None);
+        // Un ciclo (pid riusati) non deve bloccare la ricerca.
+        let cyc = vec![(1, 2, "a.exe".to_string()), (2, 1, "b.exe".to_string())];
+        assert_eq!(find_ancestor(&cyc, 1, &["zzz.exe".to_string()]), None);
     }
 
     #[test]

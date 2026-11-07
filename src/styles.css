@@ -87,9 +87,17 @@ body {
   cursor: default;
   /* --s è la scala dell'ingrandimento, scritta dal componente. */
   width: calc(var(--dock-icon) * var(--s, 1));
-  transition: width 90ms ease-out;
+  /* --dx: spostamento durante il trascinamento per riordinare. */
+  transform: translateX(var(--dx, 0px));
+  transition: width 90ms ease-out, transform 160ms ease-out;
 }
 .dock-ghost .dock-item { transition: none; }
+.dock-item[data-dragging="true"] {
+  /* L'icona trascinata segue il cursore senza ritardo e sta sopra le altre. */
+  transition: width 90ms ease-out;
+  z-index: 10;
+  opacity: 0.92;
+}
 
 .dock-icon {
   display: block;

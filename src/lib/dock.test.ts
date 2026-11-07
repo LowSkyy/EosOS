@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   MAGNIFY_MAX,
+  applyMove,
+  dropTarget,
+  previewOffsets,
   clampGlass,
   dotState,
   MAGNIFY_REACH,
@@ -109,5 +112,59 @@ describe("clampGlass", () => {
     expect(clampGlass(Number.NaN)).toBe(0.7);
     expect(clampGlass("x")).toBe(0.7);
     expect(clampGlass(undefined)).toBe(0.7);
+  });
+});
+
+describe("dropTarget", () => {
+  it("conta le altre icone a sinistra del cursore", () => {
+    const centers = [30, 90, 150];
+    expect(dropTarget(centers, 0)).toBe(0);
+    expect(dropTarget(centers, 31)).toBe(1);
+    expect(dropTarget(centers, 100)).toBe(2);
+    expect(dropTarget(centers, 999)).toBe(3);
+    expect(dropTarget([], 50)).toBe(0);
+  });
+});
+
+describe("previewOffsets", () => {
+  const ids = ["A", "B", "C", "D"];
+  it("trascinando A in avanti, le icone scavalcate si spostano a sinistra", () => {
+    // A (posizione 0) verso la posizione 2 tra le altre [B, C, D]
+    expect(previewOffsets(ids, "A", 2, 62)).toEqual({ B: -62, C: -62, D: 0 });
+  });
+  it("trascinando D indietro, le icone scavalcate si spostano a destra", () => {
+    expect(previewOffsets(ids, "D", 1, 62)).toEqual({ A: 0, B: 62, C: 62 });
+  });
+  it("lasciandola dov'è non muove nessuno", () => {
+    expect(previewOffsets(ids, "B", 1, 62)).toEqual({ A: 0, C: 0, D: 0 });
+  });
+  it("una non fissata trascinata tra le fissate apre un varco", () => {
+    expect(previewOffsets(ids, "X", 1, 62)).toEqual({ A: 0, B: 62, C: 62, D: 62 });
+  });
+  it("limita il bersaglio fuori range", () => {
+    expect(previewOffsets(ids, "A", 99, 62)).toEqual({ B: -62, C: -62, D: -62 });
+    expect(previewOffsets(ids, "D", -5, 62)).toEqual({ A: 62, B: 62, C: 62 });
+  });
+});
+
+describe("applyMove", () => {
+  const list = [
+    item("A", { pinned: true }),
+    item("B", { pinned: true }),
+    item("C", { pinned: true }),
+    item("X", { running: true }),
+  ];
+  const ids = (l: DockItem[]) => l.map((i) => i.id);
+  it("riordina le fissate", () => {
+    expect(ids(applyMove(list, "A", 2))).toEqual(["B", "C", "A", "X"]);
+    expect(ids(applyMove(list, "C", 0))).toEqual(["C", "A", "B", "X"]);
+  });
+  it("una app aperta trascinata tra le fissate viene fissata", () => {
+    const out = applyMove(list, "X", 1);
+    expect(ids(out)).toEqual(["A", "X", "B", "C"]);
+    expect(out[1].pinned).toBe(true);
+  });
+  it("un id sconosciuto lascia l'elenco com'è", () => {
+    expect(applyMove(list, "boh", 0)).toBe(list);
   });
 });

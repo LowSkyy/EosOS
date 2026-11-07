@@ -81,3 +81,53 @@ export type DockSettings = { autohide: boolean; glass: number };
 export function clampGlass(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.7;
 }
+
+/** Soglia (px) oltre la quale un clic trascinato diventa un trascinamento. */
+export const DRAG_THRESHOLD = 5;
+
+/**
+ * Dove cadrebbe l'icona trascinata tra le fissate: quante delle altre icone
+ * (`centers`, centri a riposo, in ordine e senza quella trascinata) stanno a
+ * sinistra del cursore. Pura, testata.
+ */
+export function dropTarget(centers: number[], x: number): number {
+  return centers.filter((c) => c < x).length;
+}
+
+/**
+ * Spostamento orizzontale (px) di ogni fissata durante il trascinamento, per
+ * aprire il varco nel punto di rilascio. `ids` sono le fissate nell'ordine
+ * attuale, `dragged` l'icona trascinata (anche una non fissata) e `target` la
+ * posizione tra le altre. Pura, testata.
+ */
+export function previewOffsets(
+  ids: string[],
+  dragged: string,
+  target: number,
+  pitch: number,
+): Record<string, number> {
+  const rest = ids.filter((i) => i !== dragged);
+  const t = Math.min(Math.max(target, 0), rest.length);
+  const out: Record<string, number> = {};
+  ids.forEach((id, orig) => {
+    if (id === dragged) return;
+    const r = rest.indexOf(id);
+    out[id] = ((r >= t ? r + 1 : r) - orig) * pitch;
+  });
+  return out;
+}
+
+/**
+ * Elenco dopo lo spostamento di `id` nella posizione `target` tra le fissate (se
+ * non era fissata, lo diventa). Serve a mostrare subito il risultato, senza
+ * aspettare Rust. Pura, testata.
+ */
+export function applyMove(items: DockItem[], id: string, target: number): DockItem[] {
+  const moved = items.find((i) => i.id === id);
+  if (!moved) return items;
+  const pinned = items.filter((i) => i.pinned && i.id !== id);
+  const others = items.filter((i) => !i.pinned && i.id !== id);
+  const t = Math.min(Math.max(target, 0), pinned.length);
+  pinned.splice(t, 0, { ...moved, pinned: true });
+  return [...pinned, ...others];
+}
