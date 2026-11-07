@@ -13,7 +13,7 @@
 
 use std::io::Write;
 use std::os::windows::process::CommandExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
@@ -120,7 +120,7 @@ pub fn wait_and_restore(pid: u32, classes: &[&str]) -> bool {
     observed
 }
 
-fn same_exe(a: &PathBuf, b: &PathBuf) -> bool {
+fn same_exe(a: &Path, b: &Path) -> bool {
     a.to_string_lossy().eq_ignore_ascii_case(&b.to_string_lossy())
 }
 

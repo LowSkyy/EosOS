@@ -72,6 +72,7 @@ pub(crate) fn owned_by_explorer(hwnd: HWND) -> bool {
 }
 
 /// Nasconde le finestre con le classi indicate. Ritorna quante ne ha nascoste.
+#[cfg(test)]
 pub fn hide(classes: &[&str]) -> usize {
     hide_matching(classes, |_| true)
 }

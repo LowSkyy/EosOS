@@ -183,8 +183,8 @@ pub fn remove_if_registered() {
 // ---------------------------------------------------------------------------
 
 /// Ultimo rettangolo applicato a ciascuna barra (per saltare il lavoro inutile).
-static APPLIED: Mutex<Option<HashMap<String, (MonitorInfo, (i32, i32, i32, i32))>>> =
-    Mutex::new(None);
+type AppliedMap = HashMap<String, (MonitorInfo, (i32, i32, i32, i32))>;
+static APPLIED: Mutex<Option<AppliedMap>> = Mutex::new(None);
 
 fn debug_enabled() -> bool {
     std::env::var("EOSOS_DEBUG_APPBAR").is_ok()
@@ -343,17 +343,17 @@ pub fn reconcile(app: &AppHandle) {
         }
     }
     for label in create {
-        if let Some(info) = want.get(&label) {
-            if let Err(e) = create_window(app, &label, info) {
-                eprintln!("EosOS: creazione barra {label} fallita: {e}");
-            }
+        if let Some(info) = want.get(&label)
+            && let Err(e) = create_window(app, &label, info)
+        {
+            eprintln!("EosOS: creazione barra {label} fallita: {e}");
         }
     }
     for (label, info) in &want {
-        if let Some(w) = app.get_webview_window(label) {
-            if let Err(e) = apply(&w, info) {
-                eprintln!("EosOS: posizionamento barra {label} fallito: {e}");
-            }
+        if let Some(w) = app.get_webview_window(label)
+            && let Err(e) = apply(&w, info)
+        {
+            eprintln!("EosOS: posizionamento barra {label} fallito: {e}");
         }
     }
 }
