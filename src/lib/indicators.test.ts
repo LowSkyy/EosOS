@@ -19,7 +19,7 @@ import {
 const full: IndicatorsState = {
   battery: { percent: 85, charging: false, plugged: false, minutes_left: 135, icon: "battery-high", label: "85%", title: "Batteria 85%" },
   network: { kind: "wifi", online: "internet", name: "Casa", bars: 4, icon: "wifi-3", title: "Wi-Fi: Casa" },
-  volume: { percent: 40, muted: false, icon: "volume-2", title: "Volume 40%" },
+  volume: { percent: 40, muted: false, device: "Altoparlanti", icon: "volume-2", title: "Volume 40%" },
 };
 
 describe("indicatorItems", () => {
@@ -48,6 +48,12 @@ describe("indicatorItems", () => {
     expect(indicatorItems(limited)[1].alert).toBe(true);
     const muted = { ...full, volume: { ...full.volume!, muted: true, icon: "volume-muted" } };
     expect(indicatorItems(muted)[2].alert).toBe(false);
+  });
+  it("shows no label when the percentage is turned off, but keeps the tooltip", () => {
+    const noPct = { ...full, battery: { ...full.battery!, label: "" } };
+    const b = indicatorItems(noPct)[0];
+    expect(b.label).toBeNull();
+    expect(b.title).toBe("Batteria 85%");
   });
   it("passes the title through for the tooltip", () => {
     expect(indicatorItems(full).map((i) => i.title)).toEqual(["Batteria 85%", "Wi-Fi: Casa", "Volume 40%"]);

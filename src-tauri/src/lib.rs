@@ -8,6 +8,7 @@ mod dockwin;
 mod foreground;
 mod glass;
 mod indicators;
+mod indicatorstore;
 mod launcher;
 mod launchercalc;
 mod launcheract;
@@ -179,6 +180,23 @@ fn volume_set(percent: f64) -> bool {
 #[tauri::command(async)]
 fn volume_mute(on: bool) -> bool {
     indicators::set_volume(None, Some(on))
+}
+
+/// Menu del clic destro sulla barra: quali indicatori mostrare e se la batteria mostra la
+/// percentuale. Le scelte arrivano a `on_menu_event` (id con prefisso `ind:`).
+#[tauri::command(async)]
+fn indicators_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Result<()> {
+    use indicatorstore::{menu_id, Toggle};
+    use tauri::menu::{CheckMenuItem, Menu, PredefinedMenuItem};
+    let s = indicatorstore::load();
+    let item = |t: Toggle, label: &str, on: bool| CheckMenuItem::with_id(&app, menu_id(t), label, true, on, None::<&str>);
+    let battery = item(Toggle::Battery, "Mostra la batteria", s.battery)?;
+    let percent = item(Toggle::Percent, "Percentuale della batteria", s.percent)?;
+    let network = item(Toggle::Network, "Mostra la rete", s.network)?;
+    let volume = item(Toggle::Volume, "Mostra l'audio", s.volume)?;
+    let sep = PredefinedMenuItem::separator(&app)?;
+    let menu = Menu::with_items(&app, &[&battery, &percent, &sep, &network, &volume])?;
+    window.popup_menu(&menu)
 }
 
 /// Esegue un'azione del Launcher. Le azioni che spengono o riavviano rispondono "confirm" alla
@@ -369,7 +387,13 @@ pub fn run() {
 
     tauri::Builder::default()
         .on_menu_event(|app, event| {
-            if let Some((action, id)) = dockact::parse_menu_id(event.id().as_ref()) {
+            if let Some(t) = indicatorstore::parse_menu_id(event.id().as_ref()) {
+                // Fuori dal thread UI: scrive il file e fa rileggere lo stato.
+                std::thread::spawn(move || {
+                    indicatorstore::toggle(t);
+                    indicators::refresh_now();
+                });
+            } else if let Some((action, id)) = dockact::parse_menu_id(event.id().as_ref()) {
                 let app = app.clone();
                 // Fuori dal thread UI: le azioni enumerano finestre e avviano processi.
                 std::thread::spawn(move || {
@@ -379,7 +403,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

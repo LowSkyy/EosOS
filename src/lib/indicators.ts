@@ -19,7 +19,14 @@ export type Network = {
   title: string;
 };
 
-export type Volume = { percent: number; muted: boolean; icon: string; title: string };
+export type Volume = {
+  percent: number;
+  muted: boolean;
+  /** Nome del dispositivo di uscita predefinito, se noto. */
+  device: string | null;
+  icon: string;
+  title: string;
+};
 
 export type IndicatorsState = {
   battery: Battery | null;
@@ -52,7 +59,8 @@ export function indicatorItems(s: IndicatorsState | null): IndicatorItem[] {
     out.push({
       key: "battery",
       icon: b.icon,
-      label: b.label,
+      // Con la percentuale spenta nelle impostazioni Rust manda l'etichetta vuota: non si mostra nulla.
+      label: b.label || null,
       title: b.title,
       alert: b.icon === "battery-critical",
     });

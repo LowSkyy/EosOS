@@ -172,6 +172,13 @@ try {
   $lw = [PN]::Titled('EosOS Launcher'); if ($lw.Count -and [PN]::GetForegroundWindow() -eq $lw[0]) { [PN]::Key(0x1B) }
   Start-Sleep -Milliseconds 600
 
+  Write-Host 'E2. l indicatore sparisce mentre il pannello e aperto (per esempio si scollega la cuffia)'
+  [void](Click-Indicator $P 'volume'); Check 'pannello audio aperto' (Wait-Until { PanelOpen })
+  Write-Fake '{"battery":{"percent":85},"network":{"kind":"wifi","online":"internet","name":"Casa","bars":4}}'
+  Check 'il pannello si chiude da solo (niente finestra vuota)' (Wait-Until { -not (PanelOpen) } 5)
+  Write-Fake $state
+  Check 'tornano i tre indicatori' (Wait-Until { (PJs 'bar' $P "document.querySelectorAll('.indicator').length") -eq 3 })
+
   Write-Host 'F. senza indicatore non si apre; un secondo monitor'
   Write-Fake '{"network":{"kind":"wifi","online":"internet","name":"Casa","bars":4}}'
   Check 'senza audio resta solo la rete' (Wait-Until { (PJs 'bar' $P "document.querySelectorAll('.indicator').length") -eq 1 })

@@ -87,6 +87,12 @@ export default function Panel() {
   }, [key, opens]);
 
   const item = key ? indicatorItems(state).find((i) => i.key === key) : undefined;
+
+  // Se l'indicatore sparisce mentre il pannello è aperto (cuffie scollegate, indicatore nascosto dalle
+  // impostazioni) non resta una finestra vuota: si chiude.
+  useEffect(() => {
+    if (key && state && !item) void invoke("panel_hide");
+  }, [key, state, item]);
   const incoming: VolumeValue | null = state?.volume ? { percent: state.volume.percent, muted: state.volume.muted } : null;
   const volume = reconcileVolume(local, incoming, Date.now() - lastInput.current);
 
@@ -137,6 +143,7 @@ export default function Panel() {
               <span className="panel-percent">{volume.muted ? "—" : `${volume.percent}%`}</span>
             </div>
           )}
+          {key === "volume" && state?.volume?.device && <div className="panel-device">{state.volume.device}</div>}
 
           {key === "network" && state?.network && (
             <dl className="panel-rows">

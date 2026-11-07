@@ -228,6 +228,8 @@ pub fn pick_network(links: &[Link]) -> Network {
 pub struct Volume {
     pub percent: u8,
     pub muted: bool,
+    /// Nome del dispositivo di uscita predefinito ("Altoparlanti (Realtek)"), se noto.
+    pub device: Option<String>,
     pub icon: &'static str,
     pub title: String,
 }
@@ -248,9 +250,19 @@ pub fn volume_icon(percent: u8, muted: bool) -> &'static str {
 
 impl Volume {
     pub fn new(percent: u8, muted: bool) -> Self {
+        Self::with_device(percent, muted, None)
+    }
+
+    /// Come `new`, con il nome del dispositivo (che entra nel titolo). Pura, testata.
+    pub fn with_device(percent: u8, muted: bool, device: Option<String>) -> Self {
         let percent = percent.min(100);
-        let title = if muted { "Audio disattivato".to_string() } else { format!("Volume {percent}%") };
-        Self { percent, muted, icon: volume_icon(percent, muted), title }
+        let device = device.map(|d| d.trim().to_string()).filter(|d| !d.is_empty());
+        let base = if muted { "Audio disattivato".to_string() } else { format!("Volume {percent}%") };
+        let title = match &device {
+            Some(d) => format!("{base} · {d}"),
+            None => base,
+        };
+        Self { percent, muted, device, icon: volume_icon(percent, muted), title }
     }
 }
 
@@ -270,6 +282,22 @@ pub struct Indicators {
     pub battery: Option<Battery>,
     pub network: Option<Network>,
     pub volume: Option<Volume>,
+}
+
+/// Applica le impostazioni dell'utente: un indicatore nascosto diventa `None` (la pagina non lo
+/// mostra) e senza la percentuale la batteria perde l'etichetta (il titolo al passaggio del mouse
+/// la conserva). Pura, testata.
+pub fn apply_settings(state: &Indicators, s: &crate::indicatorstore::Settings) -> Indicators {
+    Indicators {
+        battery: state.battery.clone().filter(|_| s.battery).map(|mut b| {
+            if !s.percent {
+                b.label = String::new();
+            }
+            b
+        }),
+        network: state.network.clone().filter(|_| s.network),
+        volume: state.volume.clone().filter(|_| s.volume),
+    }
 }
 
 /// Ultimo stato letto, per `indicators_get` e per confrontare.
@@ -336,7 +364,30 @@ fn read_volume() -> Option<Volume> {
         let vol: IAudioEndpointVolume = dev.Activate(CLSCTX_ALL, None).ok()?;
         let scalar = vol.GetMasterVolumeLevelScalar().ok()?;
         let muted = vol.GetMute().ok()?.as_bool();
-        Some(volume_from_scalar(scalar, muted))
+        let mut v = volume_from_scalar(scalar, muted);
+        // Il nome serve solo a mostrare quale dispositivo è attivo: se manca, il volume si mostra lo stesso.
+        if let Some(name) = device_name(&dev) {
+            v = Volume::with_device(v.percent, v.muted, Some(name));
+        }
+        Some(v)
+    }
+}
+
+/// Nome "amichevole" del dispositivo audio (proprietà `PKEY_Device_FriendlyName`).
+fn device_name(dev: &windows::Win32::Media::Audio::IMMDevice) -> Option<String> {
+    use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
+    use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVariantToStringAlloc};
+    use windows::Win32::System::Com::{CoTaskMemFree, STGM_READ};
+    unsafe {
+        let store = dev.OpenPropertyStore(STGM_READ).ok()?;
+        let mut pv = store.GetValue(&PKEY_Device_FriendlyName).ok()?;
+        let name = PropVariantToStringAlloc(&pv).ok().and_then(|p| {
+            let s = p.to_string().ok();
+            CoTaskMemFree(Some(p.0 as *const _));
+            s
+        });
+        let _ = PropVariantClear(&mut pv);
+        name.filter(|n| !n.trim().is_empty())
     }
 }
 
@@ -382,6 +433,7 @@ struct FakeVolume {
     percent: u8,
     #[serde(default)]
     muted: bool,
+    device: Option<String>,
 }
 
 /// Legge il file finto; `None` se manca o non è JSON valido (si tiene lo stato di prima).
@@ -391,7 +443,7 @@ fn read_fake(path: &str) -> Option<Indicators> {
     Some(Indicators {
         battery: f.battery.map(|b| Battery::new(b.percent, b.charging, b.plugged, b.minutes_left)),
         network: f.network.map(|n| Network::new(n.kind, n.online, n.name, n.bars)),
-        volume: f.volume.map(|v| Volume::new(v.percent, v.muted)),
+        volume: f.volume.map(|v| Volume::with_device(v.percent, v.muted, v.device)),
     })
 }
 
@@ -510,8 +562,26 @@ pub fn open_settings(id: &str) -> bool {
 
 // ------------------------------------------------------------------ servizio
 
+/// Sveglia del servizio: una modifica alle impostazioni non aspetta il prossimo giro.
+static WAKE: (Mutex<bool>, std::sync::Condvar) = (Mutex::new(false), std::sync::Condvar::new());
+
+/// Rilegge subito lo stato e manda l'evento se è cambiato (dopo una modifica alle impostazioni).
+pub fn refresh_now() {
+    *WAKE.0.lock().unwrap_or_else(|e| e.into_inner()) = true;
+    WAKE.1.notify_all();
+}
+
+/// Aspetta fino al prossimo giro o a una sveglia.
+fn wait_next() {
+    let mut woken = WAKE.0.lock().unwrap_or_else(|e| e.into_inner());
+    if !*woken {
+        woken = WAKE.1.wait_timeout(woken, POLL).unwrap_or_else(|e| e.into_inner()).0;
+    }
+    *woken = false;
+}
+
 /// Avvia il controllo periodico: a ogni cambio salva lo stato e manda `indicators-changed` a tutte
-/// le finestre.
+/// le finestre. Lo stato mandato è già filtrato dalle impostazioni dell'utente.
 pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
         // COM inizializzato una volta sola per tutta la vita del thread (vedi `read_real`).
@@ -519,13 +589,14 @@ pub fn start(app: AppHandle) {
         loop {
             // Un panic nella lettura non deve fermare il servizio.
             let read = std::panic::catch_unwind(read_once).ok().flatten();
-            if let Some(new) = read {
+            if let Some(raw) = read {
+                let new = apply_settings(&raw, &crate::indicatorstore::load());
                 let changed = update_state(&mut STATE.lock().unwrap_or_else(|e| e.into_inner()), new.clone());
                 if changed {
                     let _ = app.emit("indicators-changed", &new);
                 }
             }
-            std::thread::sleep(POLL);
+            wait_next();
         }
     });
 }
@@ -771,6 +842,39 @@ mod tests {
     }
 
     #[test]
+    fn volume_title_names_the_device() {
+        let v = Volume::with_device(40, false, Some("Altoparlanti (Realtek)".into()));
+        assert_eq!(v.title, "Volume 40% · Altoparlanti (Realtek)");
+        assert_eq!(v.device.as_deref(), Some("Altoparlanti (Realtek)"));
+        assert_eq!(Volume::with_device(40, true, Some("Cuffie".into())).title, "Audio disattivato · Cuffie");
+        assert_eq!(Volume::with_device(40, false, Some("  ".into())).title, "Volume 40%", "nome vuoto: ignorato");
+        assert_eq!(Volume::with_device(40, false, None).device, None);
+        assert_eq!(Volume::new(40, false), Volume::with_device(40, false, None));
+    }
+
+    #[test]
+    fn settings_hide_indicators_and_the_battery_percentage() {
+        use crate::indicatorstore::Settings;
+        let all = Indicators {
+            battery: Some(Battery::new(85, false, false, None)),
+            network: Some(Network::new(NetKind::Wifi, Online::Internet, Some("Casa".into()), Some(4))),
+            volume: Some(Volume::new(40, false)),
+        };
+        assert_eq!(apply_settings(&all, &Settings::default()), all, "tutto acceso: invariato");
+        let no_net = apply_settings(&all, &Settings { network: false, ..Default::default() });
+        assert!(no_net.network.is_none() && no_net.battery.is_some() && no_net.volume.is_some());
+        let none = apply_settings(&all, &Settings { battery: false, network: false, volume: false, percent: true });
+        assert_eq!(none, Indicators::default());
+        let no_pct = apply_settings(&all, &Settings { percent: false, ..Default::default() });
+        let b = no_pct.battery.unwrap();
+        assert_eq!(b.label, "", "senza percentuale l'etichetta e' vuota");
+        assert_eq!(b.title, "Batteria 85%", "ma il titolo al passaggio del mouse la conserva");
+        assert_eq!(b.percent, 85);
+        // Un indicatore assente nell'origine resta assente.
+        assert!(apply_settings(&Indicators::default(), &Settings::default()).battery.is_none());
+    }
+
+    #[test]
     fn serialized_state_is_flat_for_the_page() {
         let st = Indicators {
             battery: Some(Battery::new(85, true, true, None)),
@@ -808,7 +912,7 @@ mod tests {
         .unwrap();
         println!("batteria: {:?}", st.battery.as_ref().map(|b| (&b.label, b.icon, &b.title)));
         println!("rete: {:?}", st.network.as_ref().map(|n| (n.icon, &n.title)));
-        println!("volume: {:?}", st.volume.as_ref().map(|v| (v.percent, v.muted, v.icon)));
+        println!("volume: {:?}", st.volume.as_ref().map(|v| (v.percent, v.muted, v.icon, &v.device)));
         println!("prima lettura {first:?}, media a regime {avg:?}");
         assert!(avg < Duration::from_millis(50), "lettura troppo costosa: {avg:?}");
         if let Some(b) = &st.battery {
