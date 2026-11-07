@@ -474,9 +474,9 @@
     "semantic_hash": ""
   },
   "docs/LAUNCHER.md": {
-    "mtime": 1794087299.4676077,
-    "seen": 1794087300.449434,
-    "ast_hash": "04b274d886eb36372d6f53043e2232f9",
+    "mtime": 1794087305.0845878,
+    "seen": 1794087306.0583508,
+    "ast_hash": "32a5e52edd7f76d36a1bb22d342b5f13",
     "semantic_hash": ""
   },
   "src-tauri/src/launcher.rs": {
