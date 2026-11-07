@@ -32,11 +32,33 @@ Stato: **FASE 1, in attesa di approvazione.**
 - **Stato salvato**: prima di nascondere, si legge la visibilità attuale di ogni taskbar. Il ripristino riporta lo stato originale, ed è idempotente (si può chiamare più volte).
 - **Watchdog**: processo separato e minimale, avviato da EosOS con il PID del genitore. Attende il termine del processo (`WaitForSingleObject`) e poi chiama il ripristino della taskbar e `ABM_REMOVE`. Copre kill dal Task Manager e crash nativi.
 - **Scorciatoia di emergenza**: registrata sia dal processo principale sia dal watchdog (così funziona anche se la UI si blocca).
-- **Ultima spiaggia manuale**: `Stop-Process explorer -Force; Start-Process explorer` oppure `scripts/restore-taskbar.ps1` (che mostra le finestre taskbar).
+- **Ultima spiaggia manuale**: `Stop-Process explorer -Force; Start-Process explorer` oppure rilanciare EosOS senza `EOSOS_HIDE_TASKBAR` (annulla un auto-nascondi rimasto attivo). Lo script `restore-taskbar.ps1` previsto in origine non è stato creato: la procedura manuale è nel README.
 
 ## Traguardo della sessione
 
 EosOS avvia una barra superiore appbar con nome dell'app attiva e orologio, nasconde la taskbar e la ripristina in modo affidabile all'uscita normale, al crash e con la scorciatoia di emergenza.
+
+## Stato finale (7 nov 2026)
+
+P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa macchina (2 monitor), sia con la build di debug sia con quella release (tranne il panic, vedi sotto).
+
+**Oltre il piano originale**
+- Hardening dalla review di sicurezza (handle unico al genitore, handshake "watchdog pronto", log con rotazione, CSP restrittivo).
+- Fascia vuota con taskbar nascosta: auto-nascondi temporaneo con marcatore (`%LOCALAPPDATA%\EosOSutohide-pending`), ripristino a ogni uscita e recupero all'avvio dopo un kill totale; un thread tiene la taskbar nascosta.
+- Riavvio di Explorer: taskbar ri-nascosta e appbar ri-registrate (`detect_restart`).
+- B3/B4: callback `EnumWindows` a prova di panic; si nasconde solo una taskbar di `explorer.exe`.
+- Nomi comprensibili per i componenti di shell di Windows; icona originale; Clippy a zero avvisi.
+- Scale DPI: verificate a 100% e 125% (anche miste e con cambio di scala a EosOS aperto).
+
+**Verifiche**: 24 test Rust, 18 vitest, `tsc`/Vite, build release (MSI + NSIS), script dal vivo `test-taskbar` (4 scenari), `test-appbar`, `test-workarea`, `test-multimonitor -Hotplug`, `test-explorer-restart`, `test-dpi`.
+
+**Non verificato / aperto**
+- Il panic sulla build release: l'hook di test esiste solo in debug.
+- Scale oltre il 125% e ritorno al 100% con EosOS aperto (rinviati su richiesta).
+- Scollegamento reale di un monitor (solo hook di debug).
+- Prova in VM Hyper-V o con un secondo utente (consigliata prima dell'uso quotidiano con taskbar nascosta).
+- Un'esecuzione isolata di `test-multimonitor -Hotplug` è risultata KO senza righe di errore e non si è più riprodotta.
+- Dopo il kill simultaneo di EosOS e watchdog l'auto-nascondi resta attivo fino al prossimo avvio di EosOS.
 
 ## Roadmap (FUORI SCOPE per ora)
 
