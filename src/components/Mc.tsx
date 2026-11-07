@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { parseFrame } from "../lib/backdrop";
-import { boxStyle, cardLetter, cellTitle, LABEL_H, neighbour, type McView, type McWindow } from "../lib/mc";
+import { boxStyle, cardLetter, cellTitle, desktopAction, desktopLabel, LABEL_H, neighbour, type McView, type McWindow } from "../lib/mc";
 
 /**
  * Panoramica di Mission Control per UN monitor (finestra "mc-N", vista ?view=mc&m=N). Rust la apre,
@@ -93,6 +93,30 @@ export default function Mc() {
     <div className="mc-root" data-open={view !== null} data-closing={closing} onClick={() => !closing && void invoke("mc_close")}>
       <canvas className="mc-bg" ref={bg} aria-hidden />
       <div className="mc-dim" aria-hidden />
+      {view && view.desktops.length > 0 && (
+        <div className="mc-spaces" role="group" aria-label="Desktop virtuali" onClick={(e) => e.stopPropagation()}>
+          {view.desktops.map((d, i) => (
+            <button
+              key={d.id || i}
+              type="button"
+              className="mc-space"
+              data-current={d.current}
+              aria-label={desktopLabel(d, i, view.desktops.length)}
+              aria-current={d.current}
+              onClick={() => {
+                const a = desktopAction(d, i);
+                void (a.kind === "close" ? invoke("mc_close") : invoke("mc_switch_desktop", { index: a.index }));
+              }}
+            >
+              <span className="mc-space-num">{i + 1}</span>
+              <span className="mc-space-name">{d.name}</span>
+            </button>
+          ))}
+          <button type="button" className="mc-space mc-space-new" aria-label="Nuovo desktop" title="Nuovo desktop" onClick={() => void invoke("mc_new_desktop")}>
+            +
+          </button>
+        </div>
+      )}
       {windows.map((w) => {
         const card = w.minimized || w.thumb === null;
         return (

@@ -173,6 +173,8 @@ pub struct View {
     pub width: f64,
     pub height: f64,
     pub windows: Vec<ViewWindow>,
+    /// I desktop virtuali per la fascia in alto (uguali su ogni monitor); li riempie chi apre la panoramica.
+    pub desktops: Vec<crate::vdesk::Desktop>,
 }
 
 /// Dove va la miniatura di una finestra nella sua cella: il riquadro libero della cella (senza
@@ -202,7 +204,7 @@ pub fn view_of(index: usize, m: &McMonitor, thumbs: &HashMap<u64, Rect>, icons: 
         })
         .collect();
     let k = if m.scale.is_finite() && m.scale > 0.0 { m.scale } else { 1.0 };
-    View { index, scale: m.scale, width: f64::from(m.w) / k, height: f64::from(m.h) / k, windows }
+    View { index, scale: m.scale, width: f64::from(m.w) / k, height: f64::from(m.h) / k, windows, desktops: Vec::new() }
 }
 
 fn title_of(hwnd: HWND) -> String {

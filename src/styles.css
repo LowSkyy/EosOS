@@ -524,3 +524,41 @@ body {
 }
 .mc-cell[data-hover="true"] .mc-close, .mc-close:focus-visible { opacity: 1; }
 .mc-close:hover { background: #ff453a; }
+
+/* Fascia dei desktop virtuali in cima alla panoramica (lo spazio e' riservato da mc.rs: TOP_RESERVED). */
+.mc-spaces {
+  position: absolute;
+  top: 28px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  opacity: 0;
+  transition: opacity 0.22s ease-out 0.05s;
+}
+.mc-root[data-open="true"] .mc-spaces { opacity: 1; }
+.mc-root[data-closing="true"] .mc-spaces { opacity: 0; transition: opacity 0.16s ease-in; }
+.mc-space {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 150px;
+  height: 72px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font: inherit;
+  cursor: default;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.mc-space:hover { background: rgba(255, 255, 255, 0.2); }
+.mc-space[data-current="true"] { box-shadow: 0 0 0 3px #0a84ff; background: rgba(255, 255, 255, 0.18); }
+.mc-space:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.mc-space-num { font-size: 22px; font-weight: var(--weight-strong); font-variant-numeric: tabular-nums; }
+.mc-space-name { font-size: 12px; opacity: 0.85; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-space-new { min-width: 72px; padding: 0; font-size: 30px; font-weight: 300; }

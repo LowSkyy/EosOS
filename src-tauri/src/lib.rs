@@ -22,6 +22,7 @@ mod mclayout;
 mod mcstore;
 mod mctrigger;
 mod mcwin;
+mod vdesk;
 mod panelwin;
 mod taskbar;
 mod util;
@@ -248,6 +249,24 @@ fn mc_state() -> mcwin::Diag {
     mcwin::diag()
 }
 
+/// I desktop virtuali (dal registro, in sola lettura) e quale è il corrente.
+#[tauri::command(async)]
+fn mc_desktops() -> Vec<vdesk::Desktop> {
+    vdesk::list()
+}
+
+/// Passa a un altro desktop virtuale (solo mentre la panoramica è aperta e solo con un indice valido).
+#[tauri::command(async)]
+fn mc_switch_desktop(app: tauri::AppHandle, index: usize) -> bool {
+    mcwin::switch_desktop(&app, index)
+}
+
+/// Crea un nuovo desktop virtuale (solo mentre la panoramica è aperta).
+#[tauri::command(async)]
+fn mc_new_desktop(app: tauri::AppHandle) -> bool {
+    mcwin::new_desktop(&app)
+}
+
 /// Esegue un'azione del Launcher. Le azioni che spengono o riavviano rispondono "confirm" alla
 /// prima richiesta ed eseguono alla seconda (stessa azione, entro 10 secondi): la conferma è di
 /// Rust, non della pagina. Risposte: "done", "confirm", "unknown", "failed".
@@ -452,7 +471,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

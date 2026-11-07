@@ -11,6 +11,9 @@ export type McWindow = {
   thumb: [number, number, number, number] | null;
 };
 
+/** Un desktop virtuale nella fascia in alto. */
+export type McDesktop = { id: string; name: string; current: boolean };
+
 /** La panoramica di un monitor. */
 export type McView = {
   index: number;
@@ -18,6 +21,7 @@ export type McView = {
   width: number;
   height: number;
   windows: McWindow[];
+  desktops: McDesktop[];
 };
 
 /** Altezza della fascia dell'etichetta in fondo alla cella (px CSS): da tenere uguale a `LABEL_H` di mc.rs. */
@@ -69,4 +73,17 @@ export function neighbour(cells: [number, number, number, number][], from: numbe
     }
   });
   return best;
+}
+
+/**
+ * Cosa fa il clic su un desktop della fascia: sul desktop corrente chiude la panoramica, su un altro ci
+ * passa (l'indice è la posizione nell'elenco). Pura, testata.
+ */
+export function desktopAction(d: McDesktop, index: number): { kind: "close" } | { kind: "switch"; index: number } {
+  return d.current ? { kind: "close" } : { kind: "switch", index };
+}
+
+/** Nome accessibile di un desktop: numero, nome e se è quello corrente. Pura, testata. */
+export function desktopLabel(d: McDesktop, index: number, total: number): string {
+  return `${d.name}, desktop ${index + 1} di ${total}${d.current ? ", corrente" : ""}`;
 }

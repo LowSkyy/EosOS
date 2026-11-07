@@ -40,9 +40,10 @@ use windows::Win32::Graphics::Dwm::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, RegisterHotKey, HOT_KEY_MODIFIERS, MOD_NOREPEAT};
 use windows::Win32::UI::Shell::SHQueryUserNotificationState;
 use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, GetCursorPos, GetForegroundWindow, GetMessageW, IsIconic, IsWindow, IsWindowVisible,
-    MessageBoxW, PostMessageW, SetTimer, ShowWindow, TranslateMessage, MB_ICONINFORMATION, MB_OK, MSG, SW_RESTORE,
-    WM_CLOSE, WM_HOTKEY, WM_TIMER,
+    DispatchMessageW, GetCursorPos, GetForegroundWindow, GetMessageW, GetWindowLongPtrW, IsIconic, IsWindow,
+    IsWindowVisible, MessageBoxW, PostMessageW, SetTimer, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    TranslateMessage, GWL_STYLE, HWND_TOPMOST, MB_ICONINFORMATION, MB_OK, MSG, SWP_FRAMECHANGED, SWP_NOACTIVATE,
+    SW_RESTORE, WM_CLOSE, WM_HOTKEY, WM_TIMER, WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU, WS_THICKFRAME,
 };
 
 use crate::dockgeom::Rect;
@@ -166,6 +167,24 @@ pub fn start(app: &AppHandle) {
     std::thread::spawn(move || corner_thread(a));
 }
 
+/// Stili di cornice che la panoramica non deve avere: con una cornice la finestra esce dal monitor e le
+/// miniature (posizionate rispetto all'area client) risultano sfalsate.
+const FRAME_STYLES: isize = (WS_CAPTION.0 | WS_SYSMENU.0 | WS_MINIMIZEBOX.0 | WS_MAXIMIZEBOX.0 | WS_THICKFRAME.0) as isize;
+
+/// Toglie gli stili di cornice e porta la finestra ESATTAMENTE sul rettangolo `r` (pixel fisici) con Win32,
+/// senza passare dalle conversioni di Tauri. Dopo un cambio di scala dal vivo Tauri riapplica la cornice (lo
+/// stesso difetto che ebbe il Dock), quindi lo si rifà a ogni apertura. Pura nel senso che dipende solo da `r`.
+unsafe fn fit_exact(hwnd: HWND, r: Rect) {
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        if style & FRAME_STYLES != 0 {
+            let fresh = GetWindowLongPtrW(hwnd, GWL_STYLE);
+            SetWindowLongPtrW(hwnd, GWL_STYLE, fresh & !FRAME_STYLES);
+        }
+        let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), r.x, r.y, r.w, r.h, SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+}
+
 fn hwnd_of(win: &tauri::WebviewWindow) -> Option<HWND> {
     win.hwnd().ok()
 }
@@ -257,7 +276,15 @@ fn icons_for(snap: &[McMonitor]) -> HashMap<PathBuf, String> {
 fn views(app: &AppHandle, snap: &[McMonitor], animate: bool) -> Vec<View> {
     let thumbs = register_thumbs(app, snap, animate);
     let icons = icons_for(snap);
-    snap.iter().enumerate().map(|(i, m)| view_of(i, m, &thumbs[i], &icons)).collect()
+    let desktops = crate::vdesk::list();
+    snap.iter()
+        .enumerate()
+        .map(|(i, m)| {
+            let mut v = view_of(i, m, &thumbs[i], &icons);
+            v.desktops = desktops.clone();
+            v
+        })
+        .collect()
 }
 
 fn remember_ids(snap: &[McMonitor]) {
@@ -295,8 +322,15 @@ fn run_anim(epoch: u64, reverse: bool, total: u64) -> u32 {
     }
 }
 
-/// Apre la panoramica su tutti i monitor. Se non è chiusa non fa nulla.
+/// Apre la panoramica su tutti i monitor. Se è ancora in chiusura (l'animazione dura 180 ms) aspetta che
+/// finisca, al massimo 600 ms, invece di ignorare la richiesta; se è già aperta o in apertura non fa nulla.
 pub fn open(app: &AppHandle) {
+    for _ in 0..40 {
+        if st().phase != Phase::Closing {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(15));
+    }
     let epoch = {
         let mut s = st();
         if s.phase != Phase::Closed {
@@ -328,9 +362,15 @@ pub fn open(app: &AppHandle) {
         let Some(win) = win_of(app, i) else { continue };
         let _ = win.set_position(PhysicalPosition::new(m.rect.x, m.rect.y));
         let _ = win.set_size(PhysicalSize::new(m.rect.w as u32, m.rect.h as u32));
+        if let Some(h) = hwnd_of(&win) {
+            unsafe { fit_exact(h, m.rect) };
+        }
         let _ = win.show();
         if let Some(h) = hwnd_of(&win) {
-            unsafe { crate::launcherwin::apply_styles(h) };
+            unsafe {
+                crate::launcherwin::apply_styles(h);
+                fit_exact(h, m.rect); // dopo show: Tauri puo' aver riapplicato qualcosa
+            }
             if i == focus {
                 crate::dockact::focus(h);
             }
@@ -477,6 +517,35 @@ pub fn refresh(app: &AppHandle) {
     for v in views(app, &snap, false) {
         let _ = app.emit_to(label(v.index), "mc-update", &v);
     }
+}
+
+/// Passa al desktop virtuale `index` (indice nell'elenco). La panoramica si chiude subito (le finestre
+/// cambiano) e i tasti di Windows partono dopo un attimo, a panoramica nascosta. `false` se l'indice non
+/// è valido o è già il desktop corrente.
+pub fn switch_desktop(app: &AppHandle, index: usize) -> bool {
+    let list = crate::vdesk::list();
+    if crate::vdesk::plan_switch(crate::vdesk::current_index(&list), index, list.len()).is_none() {
+        return false;
+    }
+    close(app);
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = crate::vdesk::switch_to(index);
+    });
+    true
+}
+
+/// Crea un nuovo desktop virtuale (e Windows ci passa) dopo aver chiuso la panoramica.
+pub fn new_desktop(app: &AppHandle) -> bool {
+    if st().phase == Phase::Closed {
+        return false;
+    }
+    close(app);
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = crate::vdesk::create();
+    });
+    true
 }
 
 /// Apre o chiude la panoramica (la scorciatoia).

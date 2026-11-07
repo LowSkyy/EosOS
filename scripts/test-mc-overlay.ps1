@@ -234,6 +234,35 @@ try {
     Check 'Invio su "Mission Control" apre la panoramica' (Wait-Until { IsOpen } 6)
     Esc-If-Open
   }
+
+  Write-Host 'K. fascia dei desktop virtuali (sola lettura: nessun desktop viene creato o cambiato)'
+  $reg = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VirtualDesktops'
+  $regIds = $null; try { $regIds = (Get-ItemProperty $reg -ErrorAction Stop).VirtualDesktopIDs } catch {}
+  $regCount = if ($regIds) { [int]($regIds.Length / 16) } else { 1 }
+  $dl = @(Inv 'mc_desktops')
+  Check 'mc_desktops coincide con il registro' ($dl.Count -eq $regCount) ("desktop " + $dl.Count)
+  Check 'un solo desktop e quello corrente' (@($dl | Where-Object { $_.current }).Count -eq 1)
+  Check 'si apre' (Open-Mc)
+  $mm = 0; if ((McIdx 0) -lt 0) { $mm = 1 }
+  $nChips = [int](Mc $mm "document.querySelectorAll('.mc-space').length")
+  Check 'la fascia ha un riquadro per desktop piu il +' ($nChips -eq ($dl.Count + 1)) "riquadri $nChips"
+  Check 'esattamente uno e il corrente' ([int](Mc $mm "document.querySelectorAll('.mc-space[data-current=true]').length") -eq 1)
+  Check 'il riquadro corrente ha nome e numero' ((Mc $mm "document.querySelector('.mc-space[data-current=true] .mc-space-name').textContent").Length -gt 0)
+  $barBottom = [double](Mc $mm "document.querySelector('.mc-spaces').getBoundingClientRect().bottom")
+  $cellsTop = [double](Mc $mm "(function(){var t=1e9;document.querySelectorAll('.mc-cell').forEach(function(e){t=Math.min(t,e.getBoundingClientRect().top)});return t})()")
+  Check 'la fascia sta sopra le celle, senza sovrapporsi' ($barBottom -le $cellsTop) ("fascia fino a $barBottom, celle da $cellsTop")
+  # Clic vero sul riquadro del desktop corrente: chiude la panoramica (non cambia nulla).
+  $i = McIdx $mm; $sx = [int](Js 'mc' $i 'window.screenX'); $sy = [int](Js 'mc' $i 'window.screenY')
+  $chip = Mc $mm "(function(){var r=document.querySelector('.mc-space[data-current=true]').getBoundingClientRect();return [r.left+r.width/2, r.top+r.height/2]})()"
+  $chx = [int]($sx + $chip[0]); $chy = [int]($sy + $chip[1])
+  [void][MO]::SetCursorPos($chx, $chy); Start-Sleep -Milliseconds 400
+  $isChip = Mc $mm "(function(){var e=document.elementFromPoint($($chx - $sx), $($chy - $sy));var c=e&&e.closest('.mc-space');return c&&c.dataset.current==='true'?'si':'no'})()"
+  Check 'sotto il cursore c e il riquadro del desktop corrente (si clicca solo se e vero)' ($isChip -eq 'si')
+  if ($isChip -eq 'si') { [MO]::Click() }
+  Check 'cliccare il desktop corrente chiude la panoramica' (Wait-Until { -not (IsOpen) } 4)
+  Check 'indice non valido: rifiutato' ((Inv 'mc_switch_desktop' ', {index: 99}') -eq $false)
+  Check 'desktop gia corrente: rifiutato (nessun tasto parte)' ((Inv 'mc_switch_desktop' ', {index: 0}') -eq $false)
+  Check 'nuovo desktop con la panoramica chiusa: rifiutato (nessun tasto parte)' ((Inv 'mc_new_desktop') -eq $false)
 }
 catch { Write-Host "ERRORE: $_" -ForegroundColor Red; $script:fail++ }
 finally {

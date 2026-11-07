@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boxStyle, cardLetter, cellTitle, neighbour } from "./mc";
+import { boxStyle, cardLetter, cellTitle, desktopAction, desktopLabel, neighbour } from "./mc";
 
 describe("boxStyle", () => {
   it("turns a rectangle into absolute positioning", () => {
@@ -49,5 +49,18 @@ describe("neighbour", () => {
     expect(neighbour([], 0, "right")).toBeNull();
     expect(neighbour(cells, 9, "right")).toBeNull();
     expect(neighbour([[0, 0, 10, 10]], 0, "right")).toBeNull();
+  });
+});
+
+describe("desktops bar", () => {
+  const cur = { id: "{A}", name: "Desktop 1", current: true };
+  const other = { id: "{B}", name: "Lavoro", current: false };
+  it("closes on the current desktop and switches on the others", () => {
+    expect(desktopAction(cur, 0)).toEqual({ kind: "close" });
+    expect(desktopAction(other, 1)).toEqual({ kind: "switch", index: 1 });
+  });
+  it("names each desktop for screen readers", () => {
+    expect(desktopLabel(cur, 0, 2)).toBe("Desktop 1, desktop 1 di 2, corrente");
+    expect(desktopLabel(other, 1, 2)).toBe("Lavoro, desktop 2 di 2");
   });
 });
