@@ -36,3 +36,60 @@ body {
   white-space: pre;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- Dock (finestra "dock", vista ?view=dock) ---- */
+.dock {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--dock-gap);
+  padding: var(--dock-pad) var(--dock-pad) calc(var(--dock-pad) - 2px);
+  width: max-content;
+  background: var(--dock-bg);
+  border-radius: var(--dock-radius);
+  /* Bordo interno: la finestra nativa è ritagliata alla pillola, quindi niente ombra esterna.
+     Nessuna sfocatura dello sfondo (vedi dockwin.rs): la tinta è il vetro. */
+  box-shadow: inset 0 0 0 1px var(--dock-border);
+}
+:root[data-glass="none"] .dock { background: var(--dock-bg-solid); }
+
+.dock-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: var(--dock-icon);
+}
+.dock-icon {
+  display: block;
+  width: var(--dock-icon);
+  height: var(--dock-icon);
+  object-fit: contain;
+  pointer-events: none;
+}
+.dock-icon-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 22%;
+  background: var(--dock-border);
+  color: var(--bar-fg);
+  font-size: 26px;
+  font-weight: var(--weight-strong);
+}
+.dock-dot {
+  width: 4px;
+  height: 4px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: var(--dock-dot);
+  opacity: 0;
+}
+.dock-dot[data-running="true"] { opacity: 1; }
+
+.dock-separator {
+  align-self: stretch;
+  width: 1px;
+  margin: 4px 2px 8px;
+  background: var(--dock-border);
+}

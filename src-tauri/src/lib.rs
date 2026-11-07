@@ -1,5 +1,6 @@
 mod appbar;
 mod dock;
+mod dockwin;
 mod foreground;
 mod glass;
 mod taskbar;
@@ -22,6 +23,14 @@ fn get_active_app() -> Option<foreground::ActiveApp> {
 #[tauri::command(async)]
 fn dock_items() -> Vec<dock::DockItem> {
     dock::items()
+}
+
+/// Il frontend del Dock comunica le misure della pillola (px CSS).
+#[tauri::command(async)]
+fn dock_fit(app: tauri::AppHandle, width: f64, height: f64, radius: f64) {
+    if let Some(fit) = dockwin::sanitize(width, height, radius) {
+        dockwin::fit(&app, fit);
+    }
 }
 
 #[tauri::command]
@@ -107,7 +116,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
@@ -118,6 +127,7 @@ pub fn run() {
         })
         .setup(|app| {
             appbar::start(app.handle());
+            dockwin::start(app.handle());
             foreground::start(app.handle().clone());
             Ok(())
         })

@@ -56,7 +56,7 @@ where
 }
 
 /// Applica angoli squadrati e nessun bordo.
-fn square_borderless(window: &WebviewWindow) {
+pub(crate) fn square_borderless(window: &WebviewWindow) {
     let Ok(hwnd) = window.hwnd() else { return };
     unsafe {
         let corner = DWMWCP_DONOTROUND;

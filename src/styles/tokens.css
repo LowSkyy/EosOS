@@ -10,6 +10,12 @@
   --bar-bg-solid: #f6f6f8;
   --bar-fg: #1c1c1e;
   --bar-fg-muted: #3a3a3c;
+
+  /* Dock: vetro chiaro, bordo interno luminoso, puntino delle app aperte. */
+  --dock-bg: rgba(255, 255, 255, 0.72);
+  --dock-bg-solid: #e4e4e8;
+  --dock-border: rgba(255, 255, 255, 0.55);
+  --dock-dot: rgba(0, 0, 0, 0.62);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,6 +26,11 @@
     --bar-bg-solid: #1e1e20;
     --bar-fg: #f5f5f7;
     --bar-fg-muted: #c7c7cc;
+
+    --dock-bg: rgba(38, 38, 42, 0.8);
+    --dock-bg-solid: #2a2a2e;
+    --dock-border: rgba(255, 255, 255, 0.18);
+    --dock-dot: rgba(255, 255, 255, 0.85);
   }
 }
 
@@ -30,6 +41,11 @@
   --bar-bg-solid: #1e1e20;
   --bar-fg: #f5f5f7;
   --bar-fg-muted: #c7c7cc;
+
+  --dock-bg: rgba(38, 38, 42, 0.8);
+  --dock-bg-solid: #2a2a2e;
+  --dock-border: rgba(255, 255, 255, 0.18);
+  --dock-dot: rgba(255, 255, 255, 0.85);
 }
 
 /* Valori indipendenti dal tema. */
@@ -40,4 +56,10 @@
   --weight-strong: 600;
   --space-bar-x: 12px;
   --space-gap: 8px;
+
+  /* Dock (px logici). */
+  --dock-icon: 56px;
+  --dock-pad: 9px;
+  --dock-gap: 6px;
+  --dock-radius: 26px;
 }

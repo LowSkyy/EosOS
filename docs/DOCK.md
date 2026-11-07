@@ -18,7 +18,7 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
 ## Scelte tecniche
 
 - **Finestra**: nuova finestra Tauri "dock", trasparente, sempre in primo piano, senza decorazioni, `skipTaskbar`. Non è un appbar (non riserva spazio): in macOS il Dock fisso riserva spazio, ma qui con l'auto-nascondi è flottante; la riserva di spazio sarà un'opzione successiva.
-- **Vetro**: stesso materiale della barra in alto (`glass.rs`: Acrylic con ripiego opaco).
+- **Vetro**: tinta traslucida con bordo luminoso (niente sfocatura, vedi D2).
 - **Hit-testing**: la finestra copre una fascia più alta della pillola per far crescere le icone; le zone trasparenti devono lasciar passare i clic (region della finestra o `WS_EX_TRANSPARENT` dinamico), altrimenti blocca le app sotto.
 - **App fissate**: lette all'avvio dai collegamenti di Windows in `%APPDATA%\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar` (`.lnk`), poi salvate in `%LOCALAPPDATA%\EosOS\dock.json` così l'elenco del Dock è indipendente dalla taskbar.
 - **App aperte**: `EnumWindows` filtrando finestre di primo livello visibili, non `WS_EX_TOOLWINDOW`, con titolo; raggruppate per eseguibile. Aggiornamento tramite gli eventi già usati in `foreground.rs`.
@@ -32,7 +32,10 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
    - Le app che si aggiornano in una sottocartella versionata (Discord) sono abbinate per nome di file e cartella antenata, così non compaiono due volte.
    - Non ancora gestite: app dello Store/UWP (fissate senza percorso, e finestre dentro `ApplicationFrameHost`) e ordine reale delle fissate (registro `Taskband`): ora sono ordinate per nome.
    - `cargo test dump_dock -- --ignored --nocapture` stampa le voci reali e salva le icone in `%TEMP%\eosos-dock`.
-2. **D2 – Finestra e vetro**: finestra Dock in basso al centro, pillola di vetro con icone statiche, hit-testing corretto, più monitor (Dock sul monitor primario).
+2. **D2 – Finestra e vetro** — FATTA (7 nov 2026): `src-tauri/src/dockwin.rs` + `src/components/Dock.tsx`. Finestra "dock" (trasparente, sempre in primo piano, senza focus, fuori da Alt+Tab) centrata in basso sull'area di lavoro del monitor primario. Le misure le decide il CSS: il frontend misura la pillola e chiama `dock_fit`; la finestra nativa si adatta ed è ritagliata (`SetWindowRgn`) alla capsula, quindi i clic fuori dalla pillola passano alle app sotto. Verificata dal vivo con screenshot (icone, separatore, puntini) e con `test-taskbar` (4 scenari) e `test-workarea`. Note:
+   - **Niente sfocatura dello sfondo.** Acrilico, blur (accent), `DwmEnableBlurBehindWindow` e lo sfondo di sistema di Windows 11 (`DWMSBT_TRANSIENTWINDOW`) riempiono tutti l'intero rettangolo della finestra e ignorano `SetWindowRgn`: gli angoli restavano quadrati (grigi o neri). Il vetro è quindi una tinta traslucida con bordo luminoso in una capsula con angoli perfetti. Una vera sfocatura in forma di capsula richiede la Composition API di Windows (rinviata a D5).
+   - Solo il monitor primario (un Dock per monitor non è previsto).
+   - Il Dock oggi si sovrappone alle finestre massimizzate (non riserva spazio); l'auto-nascondi di D4 lo renderà meno invasivo.
 3. **D3 – Interazione**: clic per avviare/portare in primo piano/minimizzare, puntini di stato, menu contestuale, fissa/rimuovi.
 4. **D4 – Effetti**: ingrandimento a onda, rimbalzo all'avvio, auto-nascondi con scorrimento.
 5. **D5 – Rifiniture**: puntino grigio per app senza finestre, DPI misti, riavvio di Explorer, cursore Liquid Glass, riserva di spazio opzionale.
