@@ -1,10 +1,18 @@
-//! Finestra del Dock (fase D2): una finestra Tauri trasparente, sempre in primo
-//! piano, centrata in basso sul monitor primario.
+//! Finestra del Dock: una finestra Tauri trasparente, sempre in primo piano,
+//! centrata in basso sul monitor primario.
 //!
-//! Le misure le decide il CSS: il frontend misura la pillola e le comunica con
-//! il comando `dock_fit`; qui la finestra nativa si adatta e viene ritagliata
-//! (SetWindowRgn) alla pillola arrotondata. Il ritaglio serve due volte: dà gli
-//! angoli arrotondati al vetro e fa passare i clic nelle zone fuori dalla pillola.
+//! La finestra è fissa e più grande della capsula (margine sopra e ai lati per le
+//! icone ingrandite e il rimbalzo): non cambia mai dimensione durante l'uso, così
+//! non sfarfalla. Un ciclo a ~60 Hz legge il cursore e decide tre cose:
+//!
+//! - **zona cliccabile** (`SetWindowRgn`): finché il mouse è fuori è solo la
+//!   capsula a riposo, quindi i clic sopra e ai lati arrivano alle app sotto;
+//!   quando entra nella capsula diventa tutta la finestra, perché le icone
+//!   ingrandite devono vedersi e poter essere cliccate;
+//! - **auto-nascondi**: la finestra scorre sotto il bordo inferiore e riappare
+//!   toccandolo; la parte fuori schermo è ritagliata, per non comparire su un
+//!   monitor posto sotto;
+//! - il resto (posizione e dimensione) segue monitor, scala e area di lavoro.
 //!
 //! Niente sfocatura dello sfondo: tutti gli effetti di Windows (acrilico, blur,
 //! sfondo di sistema) riempiono l'intero rettangolo della finestra e ignorano il
@@ -14,60 +22,95 @@
 //!
 //! Il Dock non è un appbar: non riserva spazio e non tocca la taskbar.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use crate::glass;
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
-use windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, SetWindowRgn};
+use windows::Win32::Foundation::{HWND, POINT};
+use windows::Win32::Graphics::Gdi::{
+    CombineRgn, CreateRectRgn, CreateRoundRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ, HRGN,
+    RGN_AND,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
+    SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
 
+use crate::dockgeom::{
+    at_bottom_edge, capsule_rect, is_active, slide_y, step_visibility, visible_height,
+    window_rect, Fit, Rect, HIDE_DELAY_SECONDS, SHRINK_GRACE_SECONDS,
+};
+use crate::glass;
+
 pub const LABEL: &str = "dock";
-/// Distanza (px logici) tra il Dock e il bordo inferiore dell'area di lavoro.
-const BOTTOM_MARGIN: f64 = 8.0;
-const POLL_INTERVAL: Duration = Duration::from_millis(1000);
+const TICK: Duration = Duration::from_millis(16);
+/// Ogni quanti cicli si ricontrolla monitor e area di lavoro (~1 s).
+const RECONCILE_EVERY: u32 = 60;
 
-/// Misure della pillola in pixel CSS (logici), come le vede il frontend.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Fit {
-    pub width: f64,
-    pub height: f64,
-    pub radius: f64,
+/// Un menu contestuale è aperto: il Dock non deve nascondersi sotto di esso.
+static MENU_OPEN: AtomicBool = AtomicBool::new(false);
+static AUTOHIDE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_menu_open(open: bool) {
+    MENU_OPEN.store(open, Ordering::Relaxed);
 }
 
-/// Rettangolo in pixel fisici.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Rect {
-    pub x: i32,
-    pub y: i32,
-    pub w: i32,
-    pub h: i32,
+pub fn autohide() -> bool {
+    AUTOHIDE.load(Ordering::Relaxed)
 }
 
-static FIT: Mutex<Option<Fit>> = Mutex::new(None);
-/// Ultimo stato applicato (rettangolo, raggio fisico): evita lavoro inutile a ogni sondaggio.
-static APPLIED: Mutex<Option<(Rect, i32)>> = Mutex::new(None);
-
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(|e| e.into_inner())
+/// Inverte "nascondi automaticamente" e lo salva.
+pub fn toggle_autohide() {
+    let on = !autohide();
+    AUTOHIDE.store(on, Ordering::Relaxed);
+    crate::dockstore::set_autohide(on);
 }
 
-/// Posizione e dimensione fisiche del Dock: centrato in orizzontale nell'area di
-/// lavoro, appoggiato in basso con un piccolo margine. Funzione pura, testata.
-pub fn dock_rect(work: Rect, scale: f64, fit: &Fit) -> Rect {
-    let w = ((fit.width * scale).ceil() as i32).clamp(1, work.w.max(1));
-    let h = ((fit.height * scale).ceil() as i32).clamp(1, work.h.max(1));
-    let margin = (BOTTOM_MARGIN * scale).round() as i32;
-    Rect { x: work.x + (work.w - w) / 2, y: work.y + work.h - h - margin, w, h }
+/// Monitor primario, come serve al ciclo (si ricontrolla ogni secondo).
+#[derive(Clone, Copy)]
+struct Geometry {
+    work: Rect,
+    monitor: Rect,
+    scale: f64,
 }
 
-/// I valori che arrivano dal frontend si controllano: niente NaN o misure assurde.
-pub fn sanitize(width: f64, height: f64, radius: f64) -> Option<Fit> {
-    let ok = |v: f64, max: f64| v.is_finite() && v > 0.0 && v <= max;
-    (ok(width, 8000.0) && ok(height, 1000.0) && radius.is_finite() && (0.0..=500.0).contains(&radius))
-        .then_some(Fit { width, height, radius })
+struct State {
+    fit: Option<Fit>,
+    geo: Option<Geometry>,
+    hwnd: isize,
+    /// La finestra è stata mostrata almeno una volta.
+    shown: bool,
+    /// Dimensione fisica già applicata alla finestra.
+    size: (i32, i32),
+    /// Il cursore è sul Dock (con isteresi).
+    active: bool,
+    left_at: Option<Instant>,
+    idle_since: Option<Instant>,
+    /// Visibilità: 0 = nascosto, 1 = mostrato.
+    p: f64,
+    last_tick: Option<Instant>,
+    applied_pos: Option<(i32, i32)>,
+    applied_region: Option<[i32; 9]>,
+}
+
+static STATE: Mutex<State> = Mutex::new(State {
+    fit: None,
+    geo: None,
+    hwnd: 0,
+    shown: false,
+    size: (0, 0),
+    active: false,
+    left_at: None,
+    idle_since: None,
+    p: 1.0,
+    last_tick: None,
+    applied_pos: None,
+    applied_region: None,
+});
+
+fn lock() -> std::sync::MutexGuard<'static, State> {
+    STATE.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 fn create(app: &AppHandle) -> tauri::Result<()> {
@@ -89,11 +132,12 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
         .focused(false)
         .visible(false)
         .position(pos.x, pos.y)
-        // Dimensione provvisoria: la finestra è nascosta finché il frontend non misura la pillola.
-        .inner_size(900.0 / scale, 200.0 / scale)
+        // Dimensione provvisoria: la finestra è nascosta finché il frontend non misura.
+        .inner_size(1000.0 / scale, 260.0 / scale)
         .build()?;
     // Il Dock non deve mai rubare il focus né comparire in Alt+Tab.
     if let Ok(hwnd) = win.hwnd() {
+        lock().hwnd = hwnd.0 as isize;
         unsafe {
             let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             SetWindowLongPtrW(
@@ -106,20 +150,119 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Ritaglia la finestra a un rettangolo arrotondato (anche zona dei clic).
-fn clip_to_pill(win: &tauri::WebviewWindow, w: i32, h: i32, radius_px: i32) {
-    let Ok(hwnd) = win.hwnd() else { return };
+fn hwnd_of(raw: isize) -> HWND {
+    HWND(raw as *mut _)
+}
+
+fn cursor() -> Option<(i32, i32)> {
+    let mut p = POINT::default();
+    unsafe { GetCursorPos(&mut p).ok()? };
+    Some((p.x, p.y))
+}
+
+/// Regione cliccabile e visibile della finestra, in coordinate della finestra:
+/// la capsula a riposo (cursore fuori) oppure tutta la finestra (cursore dentro),
+/// sempre ritagliata alla parte che sta dentro lo schermo.
+unsafe fn build_region(w: i32, h: i32, cap: Rect, radius: i32, active: bool, vis_h: i32) -> HRGN {
     unsafe {
-        let d = radius_px * 2;
-        let rgn = CreateRoundRectRgn(0, 0, w + 1, h + 1, d, d);
-        // Dopo la chiamata la regione appartiene al sistema.
-        SetWindowRgn(hwnd, Some(rgn), true);
+        let base = if active {
+            CreateRectRgn(0, 0, w, h)
+        } else {
+            let d = radius * 2;
+            CreateRoundRectRgn(cap.x, cap.y, cap.x + cap.w + 1, cap.y + cap.h + 1, d, d)
+        };
+        let clip = CreateRectRgn(0, 0, w, vis_h.max(0));
+        let out = CreateRectRgn(0, 0, 0, 0);
+        CombineRgn(Some(out), Some(base), Some(clip), RGN_AND);
+        let _ = DeleteObject(HGDIOBJ(base.0));
+        let _ = DeleteObject(HGDIOBJ(clip.0));
+        out
     }
 }
 
-/// Porta il Dock nella posizione e dimensione desiderate.
+/// Un passo di animazione e di aggiornamento della zona cliccabile.
+fn tick() {
+    let mut st = lock();
+    let (Some(fit), Some(geo)) = (st.fit, st.geo) else { return };
+    if !st.shown || st.hwnd == 0 {
+        return;
+    }
+    let now = Instant::now();
+    let dt = st.last_tick.map_or(0.0, |t| now.duration_since(t).as_secs_f64()).min(0.1);
+    st.last_tick = Some(now);
+
+    let shown = window_rect(geo.work, geo.scale, &fit);
+    let hidden_y = geo.monitor.y + geo.monitor.h;
+    let cap = capsule_rect(geo.scale, &fit);
+    let cur_y = slide_y(shown.y, hidden_y, st.p);
+    let win = Rect { y: cur_y, ..shown };
+    let cap_abs = Rect { x: win.x + cap.x, y: win.y + cap.y, w: cap.w, h: cap.h };
+
+    let cur = cursor();
+    let active = cur.is_some_and(|c| is_active(c, win, cap_abs, st.active));
+    if st.active && !active {
+        st.left_at = Some(now);
+    }
+    if active {
+        st.left_at = None;
+    }
+    st.active = active;
+
+    // Visibilità: sempre visibile senza auto-nascondi; con auto-nascondi si
+    // mostra se il cursore è sul Dock o tocca il bordo inferiore, o se un menu
+    // è aperto, e si nasconde dopo un breve ritardo.
+    let want = !autohide()
+        || active
+        || MENU_OPEN.load(Ordering::Relaxed)
+        || cur.is_some_and(|c| at_bottom_edge(c, geo.monitor));
+    let target = if want {
+        st.idle_since = None;
+        true
+    } else {
+        let since = *st.idle_since.get_or_insert(now);
+        now.duration_since(since).as_secs_f64() < HIDE_DELAY_SECONDS
+    };
+    st.p = step_visibility(st.p, target, dt);
+
+    let y = slide_y(shown.y, hidden_y, st.p);
+    if st.applied_pos != Some((shown.x, y)) {
+        unsafe {
+            let _ = SetWindowPos(
+                hwnd_of(st.hwnd),
+                None,
+                shown.x,
+                y,
+                0,
+                0,
+                SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+        }
+        st.applied_pos = Some((shown.x, y));
+    }
+
+    // La zona resta estesa un attimo dopo l'uscita: la capsula si rimpicciolisce
+    // con una transizione e non va tagliata di colpo.
+    let grace = st
+        .left_at
+        .is_some_and(|t| now.duration_since(t).as_secs_f64() < SHRINK_GRACE_SECONDS);
+    let region_active = active || grace;
+    let vis_h = visible_height(y, shown.h, geo.monitor.y + geo.monitor.h);
+    let radius = (fit.radius * geo.scale).round() as i32;
+    let key = [shown.w, shown.h, vis_h, region_active as i32, cap.x, cap.y, cap.w, cap.h, radius];
+    if st.applied_region != Some(key) {
+        unsafe {
+            let rgn = build_region(shown.w, shown.h, cap, radius, region_active, vis_h);
+            // Dopo la chiamata la regione appartiene al sistema.
+            SetWindowRgn(hwnd_of(st.hwnd), Some(rgn), true);
+        }
+        st.applied_region = Some(key);
+    }
+}
+
+/// Segue monitor, scala e area di lavoro; applica la dimensione della finestra e
+/// la mostra la prima volta.
 pub fn reconcile(app: &AppHandle) {
-    let Some(fit) = *lock(&FIT) else { return };
+    let Some(fit) = lock().fit else { return };
     let Some(win) = app.get_webview_window(LABEL) else { return };
     let Ok(Some(mon)) = app.primary_monitor() else { return };
     let wa = mon.work_area();
@@ -129,86 +272,70 @@ pub fn reconcile(app: &AppHandle) {
         w: wa.size.width as i32,
         h: wa.size.height as i32,
     };
+    let (mp, ms) = (mon.position(), mon.size());
+    let monitor = Rect { x: mp.x, y: mp.y, w: ms.width as i32, h: ms.height as i32 };
     let scale = mon.scale_factor();
-    let rect = dock_rect(work, scale, &fit);
-    let radius_px = (fit.radius * scale).round() as i32;
+    let rect = window_rect(work, scale, &fit);
 
-    let visible = win.is_visible().unwrap_or(false);
-    if visible && *lock(&APPLIED) == Some((rect, radius_px)) {
-        return;
+    let (size_changed, first) = {
+        let mut st = lock();
+        st.geo = Some(Geometry { work, monitor, scale });
+        let changed = st.size != (rect.w, rect.h);
+        st.size = (rect.w, rect.h);
+        if changed {
+            // Nuova dimensione: posizione e zona vanno riapplicate.
+            st.applied_pos = None;
+            st.applied_region = None;
+        }
+        (changed, !st.shown)
+    };
+    if size_changed {
+        let _ = win.set_size(PhysicalSize::new(rect.w as u32, rect.h as u32));
     }
-    let pos = PhysicalPosition::new(rect.x, rect.y);
-    let _ = win.set_size(PhysicalSize::new(rect.w as u32, rect.h as u32));
-    let _ = win.set_position(pos);
-    clip_to_pill(&win, rect.w, rect.h, radius_px);
-    if !visible {
+    if first {
+        // Prima visualizzazione: già nella posizione giusta, poi la mostra.
         glass::square_borderless(&win);
+        let hidden = autohide();
+        {
+            let mut st = lock();
+            st.p = if hidden { 0.0 } else { 1.0 };
+            st.shown = true;
+        }
+        let y = slide_y(rect.y, monitor.y + monitor.h, if hidden { 0.0 } else { 1.0 });
+        let _ = win.set_position(PhysicalPosition::new(rect.x, y));
         let _ = win.show();
-        // La prima visualizzazione può spostare la finestra: si riafferma la posizione.
-        let _ = win.set_position(pos);
-        // Mostrare la finestra e applicare il vetro può azzerare il ritaglio: lo si riafferma.
-        clip_to_pill(&win, rect.w, rect.h, radius_px);
+        // La prima visualizzazione può spostare la finestra: il ciclo riafferma
+        // posizione e regione.
+        let mut st = lock();
+        st.applied_pos = None;
+        st.applied_region = None;
     }
-    *lock(&APPLIED) = Some((rect, radius_px));
 }
 
-/// Il frontend ha misurato la pillola.
+/// Il frontend ha misurato la capsula e la zona.
 pub fn fit(app: &AppHandle, fit: Fit) {
-    *lock(&FIT) = Some(fit);
+    lock().fit = Some(fit);
     reconcile(app);
 }
 
-/// Crea la finestra e segue i cambi di monitor, scala e area di lavoro.
+/// Crea la finestra e avvia il ciclo di animazione.
 pub fn start(app: &AppHandle) {
+    AUTOHIDE.store(crate::dockstore::autohide(), Ordering::Relaxed);
     if let Err(e) = create(app) {
         eprintln!("EosOS: creazione del Dock fallita: {e}");
         return;
     }
     let app = app.clone();
-    std::thread::spawn(move || loop {
-        std::thread::sleep(POLL_INTERVAL);
-        reconcile(&app);
+    std::thread::spawn(move || {
+        let mut n = 0u32;
+        loop {
+            std::thread::sleep(TICK);
+            n = n.wrapping_add(1);
+            if n.is_multiple_of(RECONCILE_EVERY) {
+                reconcile(&app);
+            }
+            // Un panic nel ciclo non deve fermare il Dock.
+            let _ = std::panic::catch_unwind(tick);
+        }
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const FIT: Fit = Fit { width: 400.0, height: 74.0, radius: 26.0 };
-
-    #[test]
-    fn centered_at_the_bottom_of_the_work_area() {
-        let work = Rect { x: 0, y: 28, w: 1920, h: 1020 };
-        let r = dock_rect(work, 1.0, &FIT);
-        assert_eq!((r.w, r.h), (400, 74));
-        assert_eq!(r.x, 760);
-        assert_eq!(r.y, 28 + 1020 - 74 - 8);
-    }
-
-    #[test]
-    fn scale_and_monitor_origin_are_respected() {
-        // Monitor primario con origine negativa, scala 150%.
-        let work = Rect { x: -2560, y: 0, w: 2560, h: 1400 };
-        let r = dock_rect(work, 1.5, &FIT);
-        assert_eq!((r.w, r.h), (600, 111));
-        assert_eq!(r.x, -2560 + (2560 - 600) / 2);
-        assert_eq!(r.y, 1400 - 111 - 12);
-    }
-
-    #[test]
-    fn never_wider_than_the_work_area() {
-        let r = dock_rect(Rect { x: 0, y: 0, w: 300, h: 600 }, 1.0, &FIT);
-        assert_eq!((r.x, r.w), (0, 300));
-    }
-
-    #[test]
-    fn sanitize_rejects_nonsense() {
-        assert!(sanitize(400.0, 74.0, 26.0).is_some());
-        assert!(sanitize(f64::NAN, 74.0, 26.0).is_none());
-        assert!(sanitize(0.0, 74.0, 26.0).is_none());
-        assert!(sanitize(400.0, -1.0, 26.0).is_none());
-        assert!(sanitize(400.0, 74.0, f64::INFINITY).is_none());
-        assert!(sanitize(1e9, 74.0, 26.0).is_none());
-    }
 }

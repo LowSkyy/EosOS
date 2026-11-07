@@ -1,6 +1,7 @@
 mod appbar;
 mod dock;
 mod dockact;
+mod dockgeom;
 mod dockstore;
 mod dockwin;
 mod foreground;
@@ -51,15 +52,38 @@ fn dock_menu(app: tauri::AppHandle, window: tauri::Window, id: String) -> tauri:
         MenuItem::with_id(&app, menu_id(MenuAction::Pin, &id), "Fissa nel Dock", true, None::<&str>)?
     };
     let menu = Menu::with_items(&app, &[&open, &quit, &sep, &pin])?;
-    window.popup_menu(&menu)
+    dockwin::set_menu_open(true);
+    let r = window.popup_menu(&menu);
+    dockwin::set_menu_open(false);
+    r
 }
 
-/// Il frontend del Dock comunica le misure della pillola (px CSS).
+/// Il frontend del Dock comunica le misure della zona e della capsula (px CSS).
 #[tauri::command(async)]
-fn dock_fit(app: tauri::AppHandle, width: f64, height: f64, radius: f64) {
-    if let Some(fit) = dockwin::sanitize(width, height, radius) {
+fn dock_fit(app: tauri::AppHandle, fit: dockgeom::FitArgs) {
+    if let Some(fit) = dockgeom::sanitize(fit) {
         dockwin::fit(&app, fit);
     }
+}
+
+/// Clic destro sullo sfondo della capsula: impostazioni del Dock.
+#[tauri::command]
+fn dock_settings_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Result<()> {
+    use dockact::{menu_id, MenuAction};
+    use tauri::menu::{CheckMenuItem, Menu};
+    let hide = CheckMenuItem::with_id(
+        &app,
+        menu_id(MenuAction::ToggleAutoHide, "-"),
+        "Nascondi automaticamente",
+        true,
+        dockwin::autohide(),
+        None::<&str>,
+    )?;
+    let menu = Menu::with_items(&app, &[&hide])?;
+    dockwin::set_menu_open(true);
+    let r = window.popup_menu(&menu);
+    dockwin::set_menu_open(false);
+    r
 }
 
 #[tauri::command]
@@ -151,7 +175,7 @@ pub fn run() {
                 std::thread::spawn(move || dockact::run_menu_action(action, &id));
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

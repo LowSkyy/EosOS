@@ -62,4 +62,7 @@
   --dock-pad: 9px;
   --dock-gap: 6px;
   --dock-radius: 26px;
+  /* Margini della finestra intorno alla capsula: sopra (icone ingrandite e rimbalzo) e ai lati. */
+  --dock-head: 90px;
+  --dock-side: 72px;
 }

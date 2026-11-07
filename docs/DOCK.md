@@ -43,7 +43,13 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
    - **Ordine stabile**: le app aperte non fissate restano nell'ordine di comparsa (`stable_order`), non si riordinano a ogni cambio di finestra.
    - **Icone**: l'estrazione dalla shell è serializzata (chiamate simultanee fallivano a caso).
    - Non ancora: trascinare per riordinare, app dello Store/UWP, rimbalzo all'avvio (D4).
-4. **D4 – Effetti**: ingrandimento a onda, rimbalzo all'avvio, auto-nascondi con scorrimento.
+4. **D4 – Effetti** — FATTA (7 nov 2026): `dockgeom.rs` (geometria e animazione, funzioni pure testate), `dockwin.rs` (ciclo a ~60 Hz), `Dock.tsx`. Verificata dal vivo: ingrandimento a onda (screenshot con il mouse sul Dock), rimbalzo (8 fotogrammi consecutivi, l'icona sale e scende), auto-nascondi attivato dal menu e misurato (scompare dopo ~0,5 s di cursore lontano, riappare toccando il bordo inferiore), `test-taskbar` (4 scenari) e `test-workarea` ancora OK. Note:
+   - **Finestra fissa e più alta della capsula** (margine `--dock-head` sopra e `--dock-side` ai lati, in `tokens.css`): non cambia mai dimensione durante l'uso, quindi niente sfarfallio. Il frontend misura una copia invisibile della capsula a riposo (`Ghost`) e comunica a Rust zona e capsula con `dock_fit`.
+   - **Zona cliccabile dinamica** (`SetWindowRgn`): finché il cursore è fuori è solo la capsula a riposo (i clic sopra e ai lati passano alle app); toccando la capsula diventa tutta la finestra, perché le icone ingrandite devono vedersi e poter essere cliccate. Isteresi: si entra dalla capsula, si resta nella finestra intera. Verificato misurando quale finestra riceve il clic.
+   - **Ingrandimento**: campana a coseno (1,7× al massimo, raggio 2,4 icone), calcolata dalla distanza dal centro attuale di ogni icona; si scrive direttamente nel DOM (una variabile CSS per icona), senza rendering React a ogni movimento. Rispetta `prefers-reduced-motion`.
+   - **Auto-nascondi** (impostazione `autohide` in `dock.json`, menu con il clic destro sullo sfondo della capsula): la finestra scorre sotto il bordo con uscita morbida; la parte fuori schermo è ritagliata, per non comparire su un monitor posto sotto. Il Dock non si nasconde mentre un menu è aperto.
+   - **Rimbalzo**: parte al clic su un'app chiusa e continua finché non compare (massimo 8 s).
+   - Menu nativo: la posizione dipende dal cursore; per provarlo senza tastiera si possono usare la porta di debug di WebView2 e UI Automation per trovare la voce, ma serve un clic vero del mouse sul suo centro.
 5. **D5 – Rifiniture**: puntino grigio per app senza finestre, DPI misti, riavvio di Explorer, cursore Liquid Glass, riserva di spazio opzionale.
 
 ## Fuori scopo

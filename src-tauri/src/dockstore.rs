@@ -14,6 +14,9 @@ use crate::dock::{same_app, Pinned};
 struct File {
     version: u32,
     pinned: Vec<Entry>,
+    /// Il Dock scompare e ricompare toccando il bordo inferiore dello schermo.
+    #[serde(default)]
+    autohide: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -31,9 +34,10 @@ fn parse(text: &str) -> Option<Vec<Pinned>> {
     Some(f.pinned.into_iter().map(|e| Pinned { name: e.name, path: PathBuf::from(e.path) }).collect())
 }
 
-fn serialize(pinned: &[Pinned]) -> String {
+fn serialize(pinned: &[Pinned], autohide: bool) -> String {
     let f = File {
         version: 1,
+        autohide,
         pinned: pinned
             .iter()
             .map(|p| Entry { name: p.name.clone(), path: p.path.to_string_lossy().to_string() })
@@ -69,13 +73,29 @@ pub fn dedup(list: Vec<Pinned>) -> Vec<Pinned> {
 }
 
 fn save(pinned: &[Pinned]) {
+    save_with(pinned, autohide());
+}
+
+/// Impostazione "nascondi automaticamente" (falsa se il file manca o è illeggibile).
+pub fn autohide() -> bool {
+    store_path()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<File>(&t).ok())
+        .is_some_and(|f| f.autohide)
+}
+
+pub fn set_autohide(on: bool) {
+    save_with(&load(), on);
+}
+
+fn save_with(pinned: &[Pinned], autohide: bool) {
     let Some(path) = store_path() else { return };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
     // Scrittura atomica: un crollo a metà non lascia un file troncato.
     let tmp = path.with_extension("json.tmp");
-    if std::fs::write(&tmp, serialize(pinned)).is_ok() {
+    if std::fs::write(&tmp, serialize(pinned, autohide)).is_ok() {
         let _ = std::fs::rename(&tmp, &path);
     }
 }
@@ -121,8 +141,17 @@ mod tests {
     #[test]
     fn roundtrip_through_json() {
         let list = vec![pin("A", r"C:\x\a.exe"), pin("B", r"C:\y\b.exe")];
-        let back = parse(&serialize(&list)).expect("json valido");
+        let back = parse(&serialize(&list, true)).expect("json valido");
         assert_eq!(back, list);
+    }
+
+    #[test]
+    fn autohide_defaults_to_false_for_old_files() {
+        // File scritti prima dell'impostazione: nessun campo `autohide`.
+        let f: File = serde_json::from_str(r#"{"version":1,"pinned":[]}"#).unwrap();
+        assert!(!f.autohide);
+        let f: File = serde_json::from_str(&serialize(&[], true)).unwrap();
+        assert!(f.autohide);
     }
 
     #[test]

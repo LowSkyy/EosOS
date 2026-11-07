@@ -32,3 +32,35 @@ export function sameItems(a: DockItem[], b: DockItem[]): boolean {
     })
   );
 }
+
+/** Ingrandimento massimo dell'icona sotto il cursore (1 = nessuno). */
+export const MAGNIFY_MAX = 1.7;
+/** Raggio dell'effetto, in passi tra un'icona e la successiva. */
+export const MAGNIFY_REACH = 2.4;
+
+/**
+ * Fattore di ingrandimento di un'icona a `distance` px dal cursore: campana
+ * a coseno, massima sotto il cursore e 1 oltre `reach` passi (`pitch` = passo
+ * tra due icone). Liscia, simmetrica e monotona decrescente.
+ */
+export function magnifyScale(
+  distance: number,
+  pitch: number,
+  max = MAGNIFY_MAX,
+  reach = MAGNIFY_REACH,
+): number {
+  const radius = reach * pitch;
+  const d = Math.abs(distance);
+  if (!(radius > 0) || d >= radius) return 1;
+  return 1 + (max - 1) * ((1 + Math.cos((Math.PI * d) / radius)) / 2);
+}
+
+/** Toglie dall'insieme dei rimbalzi le app ormai aperte o scomparse. Pura. */
+export function pruneBouncing(bouncing: ReadonlySet<string>, items: DockItem[]): Set<string> {
+  const next = new Set<string>();
+  for (const id of bouncing) {
+    const it = items.find((i) => i.id === id);
+    if (it && !it.running) next.add(id);
+  }
+  return next;
+}

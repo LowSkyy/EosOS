@@ -25,6 +25,7 @@ pub enum MenuAction {
     Quit,
     Pin,
     Unpin,
+    ToggleAutoHide,
 }
 
 const PREFIX: &str = "dock";
@@ -36,6 +37,7 @@ pub fn menu_id(action: MenuAction, id: &str) -> String {
         MenuAction::Quit => "quit",
         MenuAction::Pin => "pin",
         MenuAction::Unpin => "unpin",
+        MenuAction::ToggleAutoHide => "autohide",
     };
     format!("{PREFIX}:{a}:{id}")
 }
@@ -51,6 +53,7 @@ pub fn parse_menu_id(raw: &str) -> Option<(MenuAction, String)> {
         "quit" => MenuAction::Quit,
         "pin" => MenuAction::Pin,
         "unpin" => MenuAction::Unpin,
+        "autohide" => MenuAction::ToggleAutoHide,
         _ => return None,
     };
     let id = parts.next()?;
@@ -160,12 +163,17 @@ pub fn quit(item: &DockItem) {
 
 /// Esegue un'azione del menu su una voce identificata dall'`id`.
 pub fn run_menu_action(action: MenuAction, id: &str) {
+    if action == MenuAction::ToggleAutoHide {
+        crate::dockwin::toggle_autohide();
+        return;
+    }
     let Some(item) = dock::find(id) else { return };
     match action {
         MenuAction::Open => activate_or_launch(&item),
         MenuAction::Quit => quit(&item),
         MenuAction::Pin => dockstore::pin(Pinned { name: item.name.clone(), path: item.path.clone().into() }),
         MenuAction::Unpin => dockstore::unpin(Path::new(&item.path)),
+        MenuAction::ToggleAutoHide => {} // gestita sopra: non riguarda una voce
     }
 }
 
@@ -183,7 +191,7 @@ mod tests {
 
     #[test]
     fn menu_id_roundtrip_with_colons_in_the_id() {
-        for a in [MenuAction::Open, MenuAction::Quit, MenuAction::Pin, MenuAction::Unpin] {
+        for a in [MenuAction::Open, MenuAction::Quit, MenuAction::Pin, MenuAction::Unpin, MenuAction::ToggleAutoHide] {
             let raw = menu_id(a, r"c:\program files\app\app.exe");
             assert_eq!(parse_menu_id(&raw), Some((a, r"c:\program files\app\app.exe".to_string())));
         }

@@ -38,36 +38,67 @@ body {
 }
 
 /* ---- Dock (finestra "dock", vista ?view=dock) ---- */
+
+/* La finestra nativa è la zona intera: capsula a riposo + margine sopra e ai
+   lati per le icone ingrandite e il rimbalzo. */
+.dock-zone {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
 .dock {
   box-sizing: border-box;
-  display: inline-flex;
-  align-items: flex-start;
+  display: flex;
+  align-items: flex-end;
   gap: var(--dock-gap);
-  padding: var(--dock-pad) var(--dock-pad) calc(var(--dock-pad) - 2px);
+  /* Altezza fissa: le icone ingrandite crescono verso l'alto, fuori dalla capsula. */
+  height: calc(var(--dock-icon) + var(--dock-pad) * 2 + 4px);
+  padding: 0 var(--dock-pad) calc(var(--dock-pad) - 2px);
   width: max-content;
   background: var(--dock-bg);
   border-radius: var(--dock-radius);
-  /* Bordo interno: la finestra nativa è ritagliata alla pillola, quindi niente ombra esterna.
+  /* Bordo interno: la finestra nativa è ritagliata, quindi niente ombra esterna.
      Nessuna sfocatura dello sfondo (vedi dockwin.rs): la tinta è il vetro. */
   box-shadow: inset 0 0 0 1px var(--dock-border);
 }
 :root[data-glass="none"] .dock { background: var(--dock-bg-solid); }
 
+/* Copia invisibile a riposo: serve solo a misurare. */
+.dock-ghost {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .dock-item {
   position: relative;
-  cursor: default;
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: var(--dock-icon);
+  flex: none;
+  cursor: default;
+  /* --s è la scala dell'ingrandimento, scritta dal componente. */
+  width: calc(var(--dock-icon) * var(--s, 1));
+  transition: width 90ms ease-out;
 }
+.dock-ghost .dock-item { transition: none; }
+
 .dock-icon {
   display: block;
-  width: var(--dock-icon);
-  height: var(--dock-icon);
+  width: 100%;
+  aspect-ratio: 1;
   object-fit: contain;
   pointer-events: none;
 }
+.dock-ghost .dock-icon { height: var(--dock-icon); }
 .dock-icon-fallback {
   display: flex;
   align-items: center;
@@ -89,8 +120,22 @@ body {
 .dock-dot[data-running="true"] { opacity: 1; }
 
 .dock-separator {
-  align-self: stretch;
+  flex: none;
+  align-self: flex-end;
   width: 1px;
-  margin: 4px 2px 8px;
+  height: calc(var(--dock-icon) - 12px);
+  margin: 0 2px 8px;
   background: var(--dock-border);
+}
+
+/* Rimbalzo all'avvio di un'app: continua finché l'app non compare. */
+@keyframes dock-bounce {
+  0%, 100% { transform: translateY(0); animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1); }
+  45% { transform: translateY(calc(var(--dock-icon) * -0.45)); animation-timing-function: cubic-bezier(0.6, 0, 0.8, 0.4); }
+}
+.dock-item[data-bounce="true"] .dock-icon { animation: dock-bounce 0.75s infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-item { transition: none; }
+  .dock-item[data-bounce="true"] .dock-icon { animation: none; opacity: 0.6; }
 }
