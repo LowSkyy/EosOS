@@ -46,17 +46,18 @@ struct Frame {
     rgba: Vec<u8>,
 }
 
-/// Chi usa lo sfondo: il Dock e il Launcher hanno ciascuno il proprio fotogramma (sono visibili
+/// Chi usa lo sfondo: il Dock, il Launcher e il pannello degli indicatori hanno ciascuno il proprio fotogramma (sono visibili
 /// insieme, in posti diversi dello schermo).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Channel {
     Dock = 0,
     Launcher = 1,
+    Panel = 2,
 }
 
-const CHANNELS: [Channel; 2] = [Channel::Dock, Channel::Launcher];
+const CHANNELS: [Channel; 3] = [Channel::Dock, Channel::Launcher, Channel::Panel];
 
-static FRAMES: [Mutex<Option<Frame>>; 2] = [const { Mutex::new(None) }; 2];
+static FRAMES: [Mutex<Option<Frame>>; 3] = [const { Mutex::new(None) }; 3];
 static SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Riduce di `f` un'immagine BGRA e la converte in RGBA opaco, mediando ogni
@@ -155,7 +156,7 @@ fn grab(r: Rect) -> Option<Vec<u8>> {
 /// Avvia il thread di cattura (un giro per canale, solo se ha qualcosa da catturare).
 pub fn start() {
     std::thread::spawn(|| {
-        let mut last: [Vec<u8>; 2] = [Vec::new(), Vec::new()];
+        let mut last: [Vec<u8>; 3] = [Vec::new(), Vec::new(), Vec::new()];
         loop {
             std::thread::sleep(INTERVAL);
             for ch in CHANNELS {
@@ -171,6 +172,7 @@ fn step(ch: Channel, last: &mut Vec<u8>) {
     let info = match ch {
         Channel::Dock => crate::dockwin::capture_info(),
         Channel::Launcher => crate::launcherwin::capture_info(),
+        Channel::Panel => crate::panelwin::capture_info(),
     };
     let Some((window, capture)) = info else {
         last.clear(); // al prossimo giro si ripubblica: lo sfondo può essere cambiato
@@ -250,6 +252,7 @@ mod tests {
         // Nessun fotogramma pubblicato in questo test: vuoto per qualunque `since`.
         assert!(latest(Channel::Dock, u64::MAX).is_empty());
         assert!(latest(Channel::Launcher, u64::MAX).is_empty());
+        assert!(latest(Channel::Panel, u64::MAX).is_empty());
     }
 
     #[test]

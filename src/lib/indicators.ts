@@ -130,3 +130,86 @@ export const KNOWN_ICONS = [
   "volume-3",
   "volume-muted",
 ] as const;
+
+/** Un valore di volume come lo vede l'utente: percentuale e silenzio. */
+export type VolumeValue = { percent: number; muted: boolean };
+
+/** Dopo un tuo gesto sul cursore o sul silenzio, per quanto si ignora lo stato che arriva dal sistema. */
+export const INPUT_HOLD_MS = 2500;
+
+/**
+ * Quale volume mostrare nel pannello: subito dopo un gesto dell'utente vale il suo valore (lo stato
+ * del sistema arriva con un ritardo di circa 1,5 s e farebbe tornare il cursore indietro); poi
+ * quello del sistema, così un cambio fatto altrove (tasti del portatile, cuffie) si vede. Pura, testata.
+ */
+export function reconcileVolume(local: VolumeValue | null, incoming: VolumeValue | null, sinceInputMs: number): VolumeValue | null {
+  if (local && sinceInputMs < INPUT_HOLD_MS) return local;
+  return incoming ?? local;
+}
+
+/**
+ * Manda al massimo un valore ogni `ms` millisecondi, ma l'ULTIMO valore arriva sempre: trascinando
+ * il cursore non si inonda il sistema di richieste, e il valore finale non si perde. Testata con
+ * timer finti.
+ */
+export function makeLatestSender<T>(send: (v: T) => void, ms: number): (v: T) => void {
+  let last = Number.NEGATIVE_INFINITY;
+  let pending: { v: T } | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const flush = () => {
+    timer = null;
+    if (pending) {
+      const { v } = pending;
+      pending = null;
+      last = Date.now();
+      send(v);
+    }
+  };
+  return (v: T) => {
+    pending = { v };
+    const wait = last + ms - Date.now();
+    if (wait <= 0) {
+      if (timer) clearTimeout(timer);
+      flush();
+    } else if (!timer) {
+      timer = setTimeout(flush, wait);
+    }
+  };
+}
+
+/** Una riga etichetta/valore del pannello. */
+export type DetailRow = { label: string; value: string };
+
+/** Righe di dettaglio della rete per il pannello. Pura, testata. */
+export function networkDetails(n: Network): DetailRow[] {
+  const kind = { wifi: "Wi-Fi", ethernet: "Cavo di rete", cellular: "Rete mobile", none: "Nessuna" }[n.kind];
+  const state = { internet: "Connesso a Internet", limited: "Connesso, senza Internet", none: "Non connesso" }[n.online];
+  const rows: DetailRow[] = [];
+  if (n.kind !== "none") rows.push({ label: "Rete", value: n.name?.trim() || kind });
+  rows.push({ label: "Tipo", value: kind });
+  rows.push({ label: "Stato", value: state });
+  if (n.kind === "wifi" && n.bars !== null) rows.push({ label: "Segnale", value: `${n.bars} su 5` });
+  return rows;
+}
+
+/** Righe di dettaglio della batteria per il pannello. Pura, testata. */
+export function batteryDetails(b: Battery): DetailRow[] {
+  const state = b.charging ? "In carica" : b.plugged ? "Collegata alla rete" : "A batteria";
+  const rows: DetailRow[] = [{ label: "Stato", value: state }];
+  if (b.minutes_left !== null && !b.plugged) {
+    const h = Math.floor(b.minutes_left / 60);
+    const m = b.minutes_left % 60;
+    rows.push({ label: "Tempo rimanente", value: h > 0 ? (m > 0 ? `${h} h ${m} min` : `${h} h`) : `${m} min` });
+  }
+  return rows;
+}
+
+/** Titolo del pannello per ogni indicatore. */
+export function panelTitle(key: IndicatorKey): string {
+  return key === "battery" ? "Batteria" : key === "network" ? "Rete" : "Audio";
+}
+
+/** Etichetta del pulsante che apre le Impostazioni di Windows. */
+export function settingsLabel(key: IndicatorKey): string {
+  return key === "battery" ? "Impostazioni batteria…" : key === "network" ? "Impostazioni di rete…" : "Impostazioni audio…";
+}

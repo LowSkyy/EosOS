@@ -403,6 +403,87 @@ fn read_once() -> Option<Indicators> {
     Some(read_real())
 }
 
+// ------------------------------------------------------------------ scrittura del volume
+
+/// Percentuale chiesta dalla pagina → intero 0-100; `None` per NaN e infiniti (non si scrive nulla).
+/// Pura, testata.
+pub fn sanitize_volume(v: f64) -> Option<u8> {
+    v.is_finite().then(|| v.round().clamp(0.0, 100.0) as u8)
+}
+
+/// Il file finto con volume e/o silenzio cambiati (gli altri campi restano). Se manca la sezione
+/// `volume` la crea (50%, non silenziato). `None` se il testo non è un oggetto JSON. Pura, testata.
+#[cfg_attr(not(any(test, feature = "test-hooks")), allow(dead_code))]
+pub fn fake_with_volume(json: &str, percent: Option<u8>, muted: Option<bool>) -> Option<String> {
+    let mut v: serde_json::Value = serde_json::from_str(crate::dockstore::strip_bom(json)).ok()?;
+    let obj = v.as_object_mut()?;
+    let vol = obj.entry("volume").or_insert_with(|| serde_json::json!({ "percent": 50, "muted": false }));
+    let vo = vol.as_object_mut()?;
+    if let Some(p) = percent {
+        vo.insert("percent".into(), p.into());
+    }
+    if let Some(m) = muted {
+        vo.insert("muted".into(), m.into());
+    }
+    serde_json::to_string(&v).ok()
+}
+
+/// Scrive volume e/o silenzio nel file finto (solo build di prova): MAI sull'audio vero.
+#[cfg(feature = "test-hooks")]
+fn write_fake(path: &std::path::Path, percent: Option<u8>, muted: Option<bool>) -> bool {
+    // Volume e silenzio arrivano da due comandi paralleli: senza blocco la lettura-modifica-scrittura
+    // di uno cancellerebbe la modifica dell'altro (trovato dalla prova del pannello).
+    static WRITE_LOCK: Mutex<()> = Mutex::new(());
+    let _g = WRITE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let Ok(text) = std::fs::read_to_string(path) else { return false };
+    let Some(new) = fake_with_volume(&text, percent, muted) else { return false };
+    let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
+    std::fs::write(&tmp, new).is_ok() && std::fs::rename(&tmp, path).is_ok()
+}
+
+thread_local! {
+    /// COM (MTA) iniziato una volta per thread e mai chiuso (vedi `read_real`).
+    static COM_READY: bool = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok();
+}
+
+/// Scrive volume e/o silenzio sul dispositivo di uscita predefinito vero.
+fn real_set_volume(percent: Option<u8>, muted: Option<bool>) -> bool {
+    let _ = COM_READY.with(|r| *r);
+    unsafe {
+        let Ok(en) = CoCreateInstance::<_, IMMDeviceEnumerator>(&MMDeviceEnumerator, None, CLSCTX_ALL) else { return false };
+        let Ok(dev) = en.GetDefaultAudioEndpoint(eRender, eMultimedia) else { return false };
+        let Ok(vol) = dev.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) else { return false };
+        let mut ok = true;
+        if let Some(p) = percent {
+            ok &= vol.SetMasterVolumeLevelScalar(f32::from(p) / 100.0, std::ptr::null()).is_ok();
+        }
+        if let Some(m) = muted {
+            ok &= vol.SetMute(m, std::ptr::null()).is_ok();
+        }
+        ok
+    }
+}
+
+/// Cambia il volume (0-100) e/o il silenzio. Nelle build di prova con `EOSOS_FAKE_INDICATORS`
+/// scrive solo nel file finto. `false` se il valore non è valido o la scrittura fallisce.
+pub fn set_volume(percent: Option<f64>, muted: Option<bool>) -> bool {
+    let percent = match percent {
+        Some(v) => match sanitize_volume(v) {
+            Some(p) => Some(p),
+            None => return false,
+        },
+        None => None,
+    };
+    if percent.is_none() && muted.is_none() {
+        return false;
+    }
+    #[cfg(feature = "test-hooks")]
+    if let Some(path) = std::env::var_os("EOSOS_FAKE_INDICATORS") {
+        return write_fake(std::path::Path::new(&path), percent, muted);
+    }
+    real_set_volume(percent, muted)
+}
+
 // ------------------------------------------------------------------ clic
 
 /// Pagina di Impostazioni per un indicatore. La pagina manda solo l'id; l'indirizzo lo sceglie
@@ -485,6 +566,41 @@ mod tests {
         let mut expected: Vec<&str> = KNOWN.to_vec();
         expected.sort_unstable();
         assert_eq!(seen.into_iter().collect::<Vec<_>>(), expected);
+    }
+
+    #[test]
+    fn volume_requests_are_sanitized() {
+        assert_eq!(sanitize_volume(0.0), Some(0));
+        assert_eq!(sanitize_volume(49.6), Some(50));
+        assert_eq!(sanitize_volume(100.0), Some(100));
+        assert_eq!(sanitize_volume(250.0), Some(100));
+        assert_eq!(sanitize_volume(-30.0), Some(0));
+        assert_eq!(sanitize_volume(f64::NAN), None);
+        assert_eq!(sanitize_volume(f64::INFINITY), None);
+        assert_eq!(sanitize_volume(f64::NEG_INFINITY), None);
+        // Valori non validi o richieste vuote non scrivono nulla (e non toccano l'audio).
+        assert!(!set_volume(Some(f64::NAN), None));
+        assert!(!set_volume(None, None));
+    }
+
+    #[test]
+    fn fake_file_volume_edit_keeps_everything_else() {
+        let src = r#"{"battery":{"percent":85},"network":{"kind":"wifi","online":"internet"},"volume":{"percent":40,"muted":false}}"#;
+        let v: serde_json::Value = serde_json::from_str(&fake_with_volume(src, Some(75), None).unwrap()).unwrap();
+        assert_eq!((v["volume"]["percent"].clone(), v["volume"]["muted"].clone()), (75.into(), false.into()));
+        assert_eq!(v["battery"]["percent"], 85);
+        assert_eq!(v["network"]["kind"], "wifi");
+        let m: serde_json::Value = serde_json::from_str(&fake_with_volume(src, None, Some(true)).unwrap()).unwrap();
+        assert_eq!((m["volume"]["percent"].clone(), m["volume"]["muted"].clone()), (40.into(), true.into()));
+        let both: serde_json::Value = serde_json::from_str(&fake_with_volume(src, Some(0), Some(true)).unwrap()).unwrap();
+        assert_eq!((both["volume"]["percent"].clone(), both["volume"]["muted"].clone()), (0.into(), true.into()));
+        // Senza sezione volume la crea; BOM tollerato; testo non valido o non oggetto: niente.
+        let made: serde_json::Value = serde_json::from_str(&fake_with_volume("{}", Some(10), None).unwrap()).unwrap();
+        assert_eq!(made["volume"]["percent"], 10);
+        let with_bom = format!("{}{src}", char::from_u32(0xfeff).unwrap());
+        assert!(fake_with_volume(&with_bom, Some(1), None).is_some());
+        assert!(fake_with_volume("non json", Some(1), None).is_none());
+        assert!(fake_with_volume("[1,2]", Some(1), None).is_none());
     }
 
     #[test]
@@ -703,5 +819,26 @@ mod tests {
         if let Some(v) = &st.volume {
             assert!(v.percent <= 100);
         }
+    }
+
+    /// Scrive sul volume VERO e lo ripristina. Non gira mai da solo: solo con l'ok esplicito dell'utente
+    /// (`cargo test real_volume_roundtrip -- --ignored`). Cambia di un solo punto e rimette com'era.
+    #[test]
+    #[ignore]
+    fn real_volume_roundtrip() {
+        let (before, after, restored) = std::thread::spawn(|| {
+            let _mta = MtaScope::new();
+            let before = read_volume().expect("uscita audio");
+            let target = if before.percent >= 99 { before.percent - 1 } else { before.percent + 1 };
+            assert!(real_set_volume(Some(target), None));
+            let after = read_volume().unwrap();
+            assert!(real_set_volume(Some(before.percent), Some(before.muted)));
+            (before, after, read_volume().unwrap())
+        })
+        .join()
+        .unwrap();
+        println!("prima {}%, durante {}%, dopo {}%", before.percent, after.percent, restored.percent);
+        assert_eq!(restored.percent, before.percent);
+        assert_eq!(restored.muted, before.muted);
     }
 }

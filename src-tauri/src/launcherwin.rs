@@ -93,7 +93,7 @@ fn win_of(app: &AppHandle) -> Option<tauri::WebviewWindow> {
 }
 
 /// Il Launcher non compare in Alt+Tab né nella taskbar, ma si attiva (riceve la tastiera).
-unsafe fn apply_styles(hwnd: HWND) {
+pub(crate) unsafe fn apply_styles(hwnd: HWND) {
     unsafe {
         let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
         let want = (ex | WS_EX_TOOLWINDOW.0 as isize) & !(WS_EX_APPWINDOW.0 as isize | WS_EX_NOACTIVATE.0 as isize);

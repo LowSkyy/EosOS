@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  batteryDetails,
   batteryFill,
+  INPUT_HOLD_MS,
+  makeLatestSender,
+  networkDetails,
+  panelTitle,
+  reconcileVolume,
+  settingsLabel,
   indicatorItems,
   KNOWN_ICONS,
   openId,
@@ -85,5 +92,95 @@ describe("icon helpers", () => {
   it("knows every icon Rust can send, without duplicates", () => {
     expect(new Set(KNOWN_ICONS).size).toBe(KNOWN_ICONS.length);
     expect(KNOWN_ICONS).toHaveLength(20);
+  });
+});
+
+describe("reconcileVolume", () => {
+  const local = { percent: 70, muted: false };
+  const incoming = { percent: 40, muted: false };
+  it("keeps the user's value right after a gesture, then follows the system", () => {
+    expect(reconcileVolume(local, incoming, 0)).toEqual(local);
+    expect(reconcileVolume(local, incoming, INPUT_HOLD_MS - 1)).toEqual(local);
+    expect(reconcileVolume(local, incoming, INPUT_HOLD_MS)).toEqual(incoming);
+  });
+  it("uses whatever exists when one side is missing", () => {
+    expect(reconcileVolume(null, incoming, 0)).toEqual(incoming);
+    expect(reconcileVolume(local, null, 99999)).toEqual(local);
+    expect(reconcileVolume(null, null, 0)).toBeNull();
+  });
+});
+
+describe("makeLatestSender", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("sends the first value immediately", () => {
+    const sent: number[] = [];
+    const s = makeLatestSender((v: number) => sent.push(v), 50);
+    s(1);
+    expect(sent).toEqual([1]);
+  });
+  it("limits the rate while dragging but never loses the last value", () => {
+    const sent: number[] = [];
+    const s = makeLatestSender((v: number) => sent.push(v), 50);
+    s(1);
+    for (const v of [2, 3, 4, 5]) {
+      vi.advanceTimersByTime(10);
+      s(v);
+    }
+    expect(sent).toEqual([1]); // 40 ms: ancora nella finestra
+    vi.advanceTimersByTime(20);
+    expect(sent).toEqual([1, 5]); // arriva l'ultimo, non i valori intermedi
+    vi.advanceTimersByTime(500);
+    expect(sent).toEqual([1, 5]);
+  });
+  it("sends again right away once the interval has passed", () => {
+    const sent: number[] = [];
+    const s = makeLatestSender((v: number) => sent.push(v), 50);
+    s(1);
+    vi.advanceTimersByTime(80);
+    s(2);
+    expect(sent).toEqual([1, 2]);
+  });
+});
+
+describe("panel details", () => {
+  it("describes the network", () => {
+    const wifi = { kind: "wifi", online: "internet", name: "Casa", bars: 4, icon: "wifi-3", title: "" } as const;
+    expect(networkDetails(wifi)).toEqual([
+      { label: "Rete", value: "Casa" },
+      { label: "Tipo", value: "Wi-Fi" },
+      { label: "Stato", value: "Connesso a Internet" },
+      { label: "Segnale", value: "4 su 5" },
+    ]);
+    const cable = { kind: "ethernet", online: "limited", name: null, bars: null, icon: "ethernet-alert", title: "" } as const;
+    expect(networkDetails(cable).map((r) => r.value)).toEqual(["Cavo di rete", "Cavo di rete", "Connesso, senza Internet"]);
+    const none = { kind: "none", online: "none", name: null, bars: null, icon: "net-off", title: "" } as const;
+    expect(networkDetails(none)).toEqual([
+      { label: "Tipo", value: "Nessuna" },
+      { label: "Stato", value: "Non connesso" },
+    ]);
+    expect(networkDetails({ ...wifi, name: "  " })[0].value).toBe("Wi-Fi");
+  });
+  it("describes the battery", () => {
+    const base = { percent: 85, charging: false, plugged: false, minutes_left: 135, icon: "battery-high", label: "85%", title: "" };
+    expect(batteryDetails(base)).toEqual([
+      { label: "Stato", value: "A batteria" },
+      { label: "Tempo rimanente", value: "2 h 15 min" },
+    ]);
+    expect(batteryDetails({ ...base, minutes_left: 45 })[1].value).toBe("45 min");
+    expect(batteryDetails({ ...base, minutes_left: 120 })[1].value).toBe("2 h");
+    expect(batteryDetails({ ...base, minutes_left: null })).toEqual([{ label: "Stato", value: "A batteria" }]);
+    expect(batteryDetails({ ...base, charging: true, plugged: true, minutes_left: null })).toEqual([{ label: "Stato", value: "In carica" }]);
+    expect(batteryDetails({ ...base, plugged: true, minutes_left: 90 })).toEqual([{ label: "Stato", value: "Collegata alla rete" }]);
+  });
+  it("titles and settings buttons", () => {
+    expect(panelTitle("volume")).toBe("Audio");
+    expect(panelTitle("network")).toBe("Rete");
+    expect(panelTitle("battery")).toBe("Batteria");
+    expect(settingsLabel("volume")).toContain("audio");
   });
 });

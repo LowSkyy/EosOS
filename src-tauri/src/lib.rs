@@ -16,6 +16,7 @@ mod launcherfiles;
 mod launcherrank;
 mod launcherstore;
 mod launcherwin;
+mod panelwin;
 mod taskbar;
 mod util;
 mod watchdog;
@@ -136,6 +137,48 @@ fn indicators_get() -> indicators::Indicators {
 #[tauri::command(async)]
 fn indicator_open(id: String) -> bool {
     indicators::open_settings(&id)
+}
+
+/// Clic su un indicatore: apre, cambia o chiude il pannello sotto di esso. La pagina descrive il
+/// rettangolo dell'indicatore in px CSS rispetto alla propria finestra; Rust lo converte in pixel
+/// dello schermo con posizione e scala della finestra che ha chiamato.
+#[tauri::command]
+fn panel_toggle(window: tauri::Window, app: tauri::AppHandle, key: String, left: f64, top: f64, width: f64, height: f64) {
+    let (Ok(pos), Ok(scale)) = (window.outer_position(), window.scale_factor()) else { return };
+    if let Some(anchor) = panelwin::anchor_to_physical((pos.x, pos.y), scale, left, top, width, height) {
+        panelwin::toggle(&app, &key, anchor);
+    }
+}
+
+/// Nasconde il pannello degli indicatori (Esc).
+#[tauri::command]
+fn panel_hide(app: tauri::AppHandle) {
+    panelwin::hide(&app);
+}
+
+/// Altezza che serve al pannello, in px CSS.
+#[tauri::command]
+fn panel_fit(app: tauri::AppHandle, height: f64) {
+    panelwin::fit(&app, height);
+}
+
+/// Ultimo fotogramma dello sfondo da sfocare dietro il pannello.
+#[tauri::command(async)]
+fn panel_backdrop(since: u64) -> tauri::ipc::Response {
+    tauri::ipc::Response::new(backdrop::latest(backdrop::Channel::Panel, since))
+}
+
+/// Imposta il volume del dispositivo di uscita (0-100; NaN rifiutato). Nelle build di prova con la
+/// sorgente simulata scrive solo nel file finto, mai sull'audio vero.
+#[tauri::command(async)]
+fn volume_set(percent: f64) -> bool {
+    indicators::set_volume(Some(percent), None)
+}
+
+/// Attiva o disattiva il silenzio del dispositivo di uscita.
+#[tauri::command(async)]
+fn volume_mute(on: bool) -> bool {
+    indicators::set_volume(None, Some(on))
 }
 
 /// Esegue un'azione del Launcher. Le azioni che spengono o riavviano rispondono "confirm" alla
@@ -336,12 +379,12 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, indicator_open, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
         .on_window_event(|window, event| {
-            if launcherwin::on_window_event(window, event) {
+            if launcherwin::on_window_event(window, event) || panelwin::on_window_event(window, event) {
                 return;
             }
             if let tauri::WindowEvent::CloseRequested { .. } = event {
@@ -356,6 +399,7 @@ pub fn run() {
             launcherclip::start();
             indicators::start(app.handle().clone());
             launcherwin::start(app.handle());
+            panelwin::start(app.handle());
             foreground::start(app.handle().clone());
             Ok(())
         })
