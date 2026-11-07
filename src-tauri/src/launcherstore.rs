@@ -1,9 +1,10 @@
-//! Uso delle app del Launcher (per la "frecency"), salvato in `%LOCALAPPDATA%\EosOS\launcher.json`.
+//! Dati del Launcher, salvati in `%LOCALAPPDATA%\EosOS\launcher.json`: l'uso delle app (per la
+//! "frecency") e le impostazioni (per ora il consenso alla cronologia degli appunti).
 //!
-//! Stessa robustezza di `dockstore`: tolleranza del BOM, file illeggibile conservato come
-//! `.bad`, scrittura atomica sotto lock, e MAI una riscrittura dopo una lettura fallita (un
-//! errore di accesso non è un file mancante). Qui non ci sono appunti né contenuti: solo, per
-//! ogni app, quante volte e quando è stata avviata.
+//! Stessa robustezza di `dockstore`: tolleranza del BOM, file illeggibile conservato come `.bad`,
+//! scrittura atomica sotto lock, e MAI una riscrittura dopo una lettura fallita (un errore di
+//! accesso non è un file mancante). Qui non ci sono contenuti: per ogni app solo quante volte e
+//! quando è stata avviata; **il testo degli appunti non finisce mai su disco**.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -23,6 +24,9 @@ struct File {
     version: u32,
     #[serde(default)]
     usage: HashMap<String, Entry>,
+    /// Consenso alla cronologia degli appunti: assente = mai chiesto.
+    #[serde(default)]
+    clipboard: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
@@ -33,20 +37,38 @@ struct Entry {
 
 type UsageMap = HashMap<String, Usage>;
 
+/// Impostazioni del Launcher.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct Settings {
+    /// `None`: non ancora chiesto. `Some(true)`/`Some(false)`: scelta dell'utente.
+    pub clipboard: Option<bool>,
+}
+
+/// Tutto ciò che sta nel file.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct State {
+    pub usage: UsageMap,
+    pub settings: Settings,
+}
+
 fn store_path() -> Option<PathBuf> {
     Some(PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join(r"EosOS\launcher.json"))
 }
 
-/// L'uso dal testo del file (con o senza BOM), o `None` se non è JSON valido. Pura, testata.
-pub fn parse(text: &str) -> Option<UsageMap> {
+/// Lo stato dal testo del file (con o senza BOM), o `None` se non è JSON valido. Pura, testata.
+pub fn parse(text: &str) -> Option<State> {
     let f: File = serde_json::from_str(strip_bom(text)).ok()?;
-    Some(f.usage.into_iter().map(|(k, e)| (k, Usage { count: e.count, last: e.last })).collect())
+    Some(State {
+        usage: f.usage.into_iter().map(|(k, e)| (k, Usage { count: e.count, last: e.last })).collect(),
+        settings: Settings { clipboard: f.clipboard },
+    })
 }
 
-fn serialize(usage: &UsageMap) -> String {
+fn serialize(st: &State) -> String {
     let f = File {
         version: 1,
-        usage: usage.iter().map(|(k, u)| (k.clone(), Entry { count: u.count, last: u.last })).collect(),
+        usage: st.usage.iter().map(|(k, u)| (k.clone(), Entry { count: u.count, last: u.last })).collect(),
+        clipboard: st.settings.clipboard,
     };
     serde_json::to_string_pretty(&f).unwrap_or_default()
 }
@@ -77,13 +99,13 @@ pub fn prune(map: &mut UsageMap, max: usize) -> bool {
 #[derive(Debug, PartialEq)]
 pub enum Decision {
     /// Il file è valido.
-    Use(UsageMap),
+    Use(State),
     /// Il file manca: si riparte da vuoto.
     Fresh,
     /// Il file esiste ma non è JSON valido: si conserva come `.bad` e si riparte da vuoto.
     BackupAndFresh,
     /// Il file non si legge ora: NON si tocca e si usa l'ultimo stato buono.
-    KeepLast(UsageMap),
+    KeepLast(State),
 }
 
 impl Decision {
@@ -94,7 +116,7 @@ impl Decision {
 }
 
 /// Decide come usare l'esito della lettura. Pura, testata.
-pub fn decide(read: Read, last_good: Option<&UsageMap>) -> Decision {
+pub fn decide(read: Read, last_good: Option<&State>) -> Decision {
     match read {
         Read::Text(t) => parse(&t).map_or(Decision::BackupAndFresh, Decision::Use),
         Read::Missing => Decision::Fresh,
@@ -103,18 +125,18 @@ pub fn decide(read: Read, last_good: Option<&UsageMap>) -> Decision {
 }
 
 static STORE_LOCK: Mutex<()> = Mutex::new(());
-static LAST: Mutex<Option<UsageMap>> = Mutex::new(None);
+static LAST: Mutex<Option<State>> = Mutex::new(None);
 
 fn lock_store() -> MutexGuard<'static, ()> {
     STORE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn last() -> Option<UsageMap> {
+fn last() -> Option<State> {
     LAST.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
-fn remember(map: &UsageMap) {
-    *LAST.lock().unwrap_or_else(|e| e.into_inner()) = Some(map.clone());
+fn remember(st: &State) {
+    *LAST.lock().unwrap_or_else(|e| e.into_inner()) = Some(st.clone());
 }
 
 /// Legge il file riprovando brevemente (antivirus, rinomina in corso).
@@ -130,51 +152,51 @@ fn read_store() -> Read {
     Read::Failed
 }
 
-fn write_file(map: &UsageMap) {
+fn write_file(st: &State) {
     let Some(path) = store_path() else { return };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
     let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
-    if std::fs::write(&tmp, serialize(map)).is_ok() {
+    if std::fs::write(&tmp, serialize(st)).is_ok() {
         if std::fs::rename(&tmp, &path).is_ok() {
-            remember(map);
+            remember(st);
         } else {
             let _ = std::fs::remove_file(&tmp);
         }
     }
 }
 
-/// Uso corrente e se è affidabile (chi modifica non deve riscrivere dati non affidabili).
+/// Stato corrente e se è affidabile (chi modifica non deve riscrivere dati non affidabili).
 /// `locked`: chi chiama tiene già `STORE_LOCK`.
-fn load_full(locked: bool) -> (UsageMap, bool) {
+fn load_full(locked: bool) -> (State, bool) {
     let prev = last();
     let decision = decide(read_store(), prev.as_ref());
     let reliable = decision.is_reliable();
     match decision {
-        Decision::Use(m) => {
-            remember(&m);
-            (m, reliable)
+        Decision::Use(st) => {
+            remember(&st);
+            (st, reliable)
         }
-        Decision::KeepLast(m) => (m, reliable),
+        Decision::KeepLast(st) => (st, reliable),
         Decision::Fresh | Decision::BackupAndFresh => {
             let _g = (!locked).then(lock_store);
             // Un altro thread può aver creato il file mentre si aspettava il lock.
             let again = decide(read_store(), prev.as_ref());
             let reliable = again.is_reliable();
             match again {
-                Decision::Use(m) => {
-                    remember(&m);
-                    (m, reliable)
+                Decision::Use(st) => {
+                    remember(&st);
+                    (st, reliable)
                 }
-                Decision::KeepLast(m) => (m, reliable),
+                Decision::KeepLast(st) => (st, reliable),
                 other => {
                     if other == Decision::BackupAndFresh
                         && let Some(path) = store_path()
                     {
                         let _ = std::fs::copy(&path, path.with_extension("json.bad"));
                     }
-                    let empty = UsageMap::new();
+                    let empty = State::default();
                     write_file(&empty);
                     (empty, reliable)
                 }
@@ -185,19 +207,39 @@ fn load_full(locked: bool) -> (UsageMap, bool) {
 
 /// L'uso di tutte le app, per la classifica.
 pub fn load() -> UsageMap {
-    load_full(false).0
+    load_full(false).0.usage
+}
+
+/// Le impostazioni correnti (se il file non si legge, quelle dell'ultima lettura buona).
+pub fn settings() -> Settings {
+    load_full(false).0.settings
+}
+
+/// Legge, modifica e riscrive sotto il lock. `f` dice se qualcosa è cambiato. Se la lettura è
+/// fallita non si scrive nulla.
+fn modify(f: impl FnOnce(&mut State) -> bool) {
+    let _g = lock_store();
+    let (mut st, reliable) = load_full(true);
+    if !reliable {
+        return;
+    }
+    if f(&mut st) {
+        write_file(&st);
+    }
 }
 
 /// Registra l'avvio di `id` e salva. Se il file non si è potuto leggere non scrive nulla.
 pub fn record_launch(id: &str, now: u64) {
-    let _g = lock_store();
-    let (mut map, reliable) = load_full(true);
-    if !reliable {
-        return;
-    }
-    record(&mut map, id, now);
-    prune(&mut map, MAX_ENTRIES);
-    write_file(&map);
+    modify(|st| {
+        record(&mut st.usage, id, now);
+        prune(&mut st.usage, MAX_ENTRIES);
+        true
+    });
+}
+
+/// Salva la scelta dell'utente sulla cronologia degli appunti.
+pub fn set_clipboard_consent(on: bool) {
+    modify(|st| st.settings.clipboard.replace(on) != Some(on));
 }
 
 #[cfg(test)]
@@ -207,22 +249,44 @@ mod tests {
     fn map(items: &[(&str, u32, u64)]) -> UsageMap {
         items.iter().map(|(k, c, l)| (k.to_string(), Usage { count: *c, last: *l })).collect()
     }
+    fn state(items: &[(&str, u32, u64)], clip: Option<bool>) -> State {
+        State { usage: map(items), settings: Settings { clipboard: clip } }
+    }
 
     #[test]
     fn parse_accepts_bom_and_rejects_garbage() {
         let json = r#"{"version":1,"usage":{"a":{"count":3,"last":10}}}"#;
-        assert_eq!(parse(json).unwrap()["a"], Usage { count: 3, last: 10 });
+        assert_eq!(parse(json).unwrap().usage["a"], Usage { count: 3, last: 10 });
         assert!(parse(&format!("\u{feff}{json}")).is_some(), "BOM tollerato");
         assert!(parse("non json").is_none());
         assert!(parse("").is_none());
-        assert!(parse(r#"{"version":1}"#).unwrap().is_empty(), "senza uso: vuoto");
+        assert!(parse(r#"{"version":1}"#).unwrap().usage.is_empty(), "senza uso: vuoto");
         assert!(parse(r#"{"version":1,"usage":{"a":{"count":-1,"last":1}}}"#).is_none(), "conteggio negativo");
     }
 
     #[test]
+    fn clipboard_consent_defaults_to_unasked_and_roundtrips() {
+        assert_eq!(parse(r#"{"version":1}"#).unwrap().settings.clipboard, None, "file vecchio: mai chiesto");
+        for c in [None, Some(true), Some(false)] {
+            let st = state(&[("x", 2, 5)], c);
+            assert_eq!(parse(&serialize(&st)).unwrap(), st);
+        }
+        assert_eq!(parse(r#"{"version":1,"clipboard":false}"#).unwrap().settings.clipboard, Some(false));
+    }
+
+    #[test]
+    fn serialized_file_never_contains_clipboard_text_fields() {
+        // Il file ha solo uso e consenso: nessun campo che possa contenere testo copiato.
+        let v: serde_json::Value = serde_json::from_str(&serialize(&state(&[("a", 1, 1)], Some(true)))).unwrap();
+        let mut keys: Vec<_> = v.as_object().unwrap().keys().cloned().collect();
+        keys.sort();
+        assert_eq!(keys, ["clipboard", "usage", "version"]);
+    }
+
+    #[test]
     fn serialize_roundtrips() {
-        let m = map(&[("x", 2, 5), ("y", 9, 7)]);
-        assert_eq!(parse(&serialize(&m)).unwrap(), m);
+        let st = state(&[("x", 2, 5), ("y", 9, 7)], Some(true));
+        assert_eq!(parse(&serialize(&st)).unwrap(), st);
     }
 
     #[test]
@@ -251,14 +315,14 @@ mod tests {
 
     #[test]
     fn decide_never_treats_a_failed_read_as_missing() {
-        let last = map(&[("a", 1, 1)]);
+        let last = state(&[("a", 1, 1)], Some(false));
         assert_eq!(decide(Read::Failed, Some(&last)), Decision::KeepLast(last.clone()));
-        assert_eq!(decide(Read::Failed, None), Decision::KeepLast(UsageMap::new()));
+        assert_eq!(decide(Read::Failed, None), Decision::KeepLast(State::default()));
         assert!(!decide(Read::Failed, None).is_reliable());
         assert_eq!(decide(Read::Missing, Some(&last)), Decision::Fresh);
         assert_eq!(decide(Read::Text("rotto".into()), Some(&last)), Decision::BackupAndFresh);
-        let ok = decide(Read::Text(r#"{"version":1,"usage":{"a":{"count":1,"last":2}}}"#.into()), None);
-        assert_eq!(ok, Decision::Use(map(&[("a", 1, 2)])));
+        let ok = decide(Read::Text(r#"{"version":1,"usage":{"a":{"count":1,"last":2}},"clipboard":true}"#.into()), None);
+        assert_eq!(ok, Decision::Use(state(&[("a", 1, 2)], Some(true))));
         assert!(ok.is_reliable() && Decision::Fresh.is_reliable() && Decision::BackupAndFresh.is_reliable());
     }
 }

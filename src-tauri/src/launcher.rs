@@ -18,6 +18,7 @@ use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 use crate::dock::{aumid_path, cached_icon, ComScope};
 use crate::launcheract;
+use crate::launcherclip;
 use crate::launchercalc;
 use crate::launcherfiles;
 use crate::launcherrank::{fold, rank};
@@ -40,7 +41,7 @@ pub struct AppEntry {
 pub struct LauncherItem {
     pub id: String,
     pub name: String,
-    /// "app", "action", "calc" o "file".
+    /// "app", "action", "calc", "file", "clip" (appunti) o "setting" (richiesta di consenso).
     pub kind: &'static str,
     /// Testo secondario (per il calcolo: l'espressione).
     pub detail: Option<String>,
@@ -144,6 +145,11 @@ pub fn warm_up() {
 /// c'è, sta sempre in cima. Qualunque ricerca annulla una conferma in sospeso.
 pub fn search(query: &str, have: &[String], filter: Option<&str>) -> Vec<LauncherItem> {
     launcheract::cancel_pending();
+    // Gli appunti si vedono SOLO nella loro scheda: mai tra i risultati generali (potrebbero
+    // contenere cose private che non si vogliono mostrare a ogni tasto).
+    if filter == Some("clip") {
+        return clips(query);
+    }
     let (want_apps, want_actions, want_calc) = match filter {
         None => (true, true, true),
         Some("app") => (true, false, false),
@@ -212,6 +218,51 @@ pub fn files(query: &str, have: &[String]) -> Vec<LauncherItem> {
         .collect()
 }
 
+/// Voci della scheda Appunti. Senza consenso (mai chiesto o rifiutato) c'è una sola voce che lo
+/// chiede: la cronologia non si registra finché l'utente non la attiva.
+pub fn clips(query: &str) -> Vec<LauncherItem> {
+    if !launcherclip::enabled() {
+        return vec![LauncherItem {
+            id: "clip:enable".into(),
+            name: "Attiva la cronologia degli appunti".into(),
+            kind: "setting",
+            detail: Some("Solo in memoria, mai su disco; ignora le password".into()),
+            icon: None,
+        }];
+    }
+    launcherclip::list(query, LIMIT)
+        .into_iter()
+        .map(|(id, preview, age)| LauncherItem {
+            id: format!("clip:{id}"),
+            name: preview,
+            kind: "clip",
+            detail: Some(age),
+            icon: None,
+        })
+        .collect()
+}
+
+/// L'utente accetta o rifiuta la cronologia degli appunti: la scelta si salva (solo il sì/no) e
+/// rifiutare svuota subito la memoria.
+pub fn set_clipboard(on: bool) {
+    launcherstore::set_clipboard_consent(on);
+    launcherclip::set_enabled(on);
+}
+
+fn clip_id(id: &str) -> Option<u64> {
+    id.strip_prefix("clip:")?.parse().ok()
+}
+
+/// Rimette negli appunti la voce `id` (Rust ha il testo; la pagina non lo vede).
+pub fn clip_use(id: &str) -> bool {
+    clip_id(id).is_some_and(launcherclip::copy_back)
+}
+
+/// Toglie una voce dalla cronologia.
+pub fn clip_delete(id: &str) -> bool {
+    clip_id(id).is_some_and(launcherclip::remove)
+}
+
 /// Avvia l'app con questo `id`, se è nell'indice, e ne registra l'uso. `false` se l'id è
 /// sconosciuto o l'avvio fallisce.
 pub fn launch(id: &str) -> bool {
@@ -240,6 +291,18 @@ mod tests {
         let v = clean(vec![e("A", "Alpha"), e("a", "Alpha bis"), e("", "Senza id"), e("B", "  "), e("C", "Gamma")]);
         assert_eq!(v, vec![e("A", "Alpha"), e("C", "Gamma")]);
         assert!(clean(vec![]).is_empty());
+    }
+
+    #[test]
+    fn clip_ids_parse_strictly() {
+        assert_eq!(clip_id("clip:12"), Some(12));
+        assert_eq!(clip_id("clip:"), None);
+        assert_eq!(clip_id("clip:-1"), None);
+        assert_eq!(clip_id("clip:1 OR 1"), None);
+        assert_eq!(clip_id("12"), None);
+        assert_eq!(clip_id("clip:enable"), None);
+        assert!(!clip_use("clip:999999999"), "id inesistente");
+        assert!(!clip_delete("clip:999999999"));
     }
 
     #[test]

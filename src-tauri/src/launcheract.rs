@@ -26,6 +26,8 @@ pub enum Run {
     Exec(&'static str, &'static [&'static str]),
     /// Qualcosa che la shell sa aprire (`ms-settings:`, `shell:Downloads`).
     Open(&'static str),
+    /// Un'operazione interna di EosOS, per nome (`execute` la conosce).
+    Internal(&'static str),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -74,6 +76,22 @@ pub const ACTIONS: &[Action] = &[
         confirm: true,
         power: true,
         run: Run::Exec("shutdown.exe", &["/s", "/t", "0"]),
+    },
+    Action {
+        id: "action:clip-clear",
+        name: "Svuota la cronologia degli appunti",
+        keywords: &["clipboard", "appunti", "cronologia", "clear"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("clip-clear"),
+    },
+    Action {
+        id: "action:clip-off",
+        name: "Disattiva la cronologia degli appunti",
+        keywords: &["clipboard", "appunti", "cronologia", "disattiva"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("clip-off"),
     },
     Action {
         id: "action:settings",
@@ -187,6 +205,15 @@ fn execute(action: &Action) -> bool {
         return true;
     }
     match action.run {
+        Run::Internal("clip-clear") => {
+            crate::launcherclip::clear();
+            true
+        }
+        Run::Internal("clip-off") => {
+            crate::launcher::set_clipboard(false);
+            true
+        }
+        Run::Internal(_) => false,
         Run::Exec(prog, args) => {
             use std::os::windows::process::CommandExt;
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;

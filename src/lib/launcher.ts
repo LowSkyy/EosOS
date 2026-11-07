@@ -1,13 +1,13 @@
-export type ItemKind = "app" | "action" | "calc" | "file";
+export type ItemKind = "app" | "action" | "calc" | "file" | "clip" | "setting";
 
 /** Scheda attiva: solo le app, solo le azioni, o tutto (`null`). */
-export type Filter = "app" | "file" | "action" | null;
+export type Filter = "app" | "file" | "action" | "clip" | null;
 
 /** Un risultato del Launcher, come lo manda Rust (`launcher_search`). */
 export type LauncherItem = {
   id: string;
   name: string;
-  /** "app", "action" (azione di sistema), "calc" (risultato di un calcolo) o "file". */
+  /** "app", "action" (azione di sistema), "calc" (risultato di un calcolo), "file", "clip" (voce degli appunti) o "setting" (richiesta di consenso). */
   kind: ItemKind;
   /** Testo secondario: per il calcolo, l'espressione digitata. */
   detail?: string | null;
@@ -81,12 +81,12 @@ export function toggleFilter(current: Filter, wanted: Exclude<Filter, null>): Fi
 
 /** Scheda associata a un tasto numerico con Ctrl, o `undefined` se non è una scheda. Pura, testata. */
 export function filterForKey(key: string): Exclude<Filter, null> | undefined {
-  return key === "1" ? "app" : key === "2" ? "file" : key === "3" ? "action" : undefined;
+  return key === "1" ? "app" : key === "2" ? "file" : key === "3" ? "action" : key === "4" ? "clip" : undefined;
 }
 
 /** Nome della scheda per l'etichetta accanto al campo. */
 export function filterLabel(f: Exclude<Filter, null>): string {
-  return f === "app" ? "App" : f === "file" ? "File" : "Azioni";
+  return f === "app" ? "App" : f === "file" ? "File" : f === "clip" ? "Appunti" : "Azioni";
 }
 
 /** Quante righe al massimo nell'elenco. */
@@ -126,6 +126,8 @@ export function glyphFor(item: Pick<LauncherItem, "id" | "kind" | "name">): stri
     "action:desktop": "🖥",
   };
   if (item.kind === "file") return "📄";
+  if (item.kind === "clip") return "📋";
+  if (item.kind === "setting") return "⚙";
   return byId[item.id] ?? fallbackLetter(item.name);
 }
 
@@ -133,5 +135,7 @@ export function glyphFor(item: Pick<LauncherItem, "id" | "kind" | "name">): stri
 export function kindLabel(item: Pick<LauncherItem, "kind">, confirming: boolean): string {
   if (confirming) return "Invio per confermare";
   if (item.kind === "calc") return "Invio per copiare";
+  if (item.kind === "clip") return "Appunti";
+  if (item.kind === "setting") return "Invio per attivare";
   return item.kind === "action" ? "Azione" : item.kind === "file" ? "File" : "App";
 }

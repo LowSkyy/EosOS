@@ -54,6 +54,8 @@ function Cleanup {
 $bytes = [System.IO.File]::ReadAllBytes($exe)
 $text = [System.Text.Encoding]::GetEncoding(28591).GetString($bytes)
 if (-not $text.Contains('eosos-actions.log')) { Write-Host 'Questo eseguibile non e una build di prova (feature test-hooks): rifiuto di provare Riavvia/Spegni.'; exit 2 }
+$lj = Join-Path $env:LOCALAPPDATA 'EosOS\launcher.json'
+$ljBackup = $null; if (Test-Path $lj) { $ljBackup = Get-Content $lj -Raw; Remove-Item $lj }   # parte da "mai chiesto"
 $actionLog = Join-Path $env:TEMP 'eosos-actions.log'
 Remove-Item $actionLog -ErrorAction SilentlyContinue
 $savedClip = $null; try { $savedClip = Get-Clipboard -Raw -ErrorAction Stop } catch {}
@@ -229,11 +231,82 @@ try {
     Check 'Invio apre il file con il programma predefinito' ($editor -ne [IntPtr]::Zero)
     if ($editor -ne [IntPtr]::Zero) { [void][LT]::PostClose($editor) }
   }
+
+  Write-Host 'N. appunti (solo in memoria, con consenso)'
+  $tag = 'eosos-clip-test-' + (Get-Random -Maximum 99999)
+  function SetExcluded($text, $format, $bytes) {
+    $script = "Add-Type -AssemblyName System.Windows.Forms; `$d = New-Object System.Windows.Forms.DataObject; `$d.SetText('$text'); `$d.SetData('$format', (New-Object System.IO.MemoryStream(,[byte[]]($bytes)))); [System.Windows.Forms.Clipboard]::SetDataObject(`$d, `$true)"
+    & powershell -NoProfile -STA -Command $script | Out-Null
+  }
+  function ClipRows { Js "Array.from(document.querySelectorAll('.launcher-item')).map(function(e){return e.dataset.kind + '|' + e.querySelector('.launcher-name').textContent}).join('~')" }
+  # 1. copia PRIMA del consenso: non va registrata
+  Set-Clipboard -Value "$tag prima-del-consenso"; Start-Sleep -Milliseconds 500
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  PressCtrl 0x34; Start-Sleep -Milliseconds 800
+  Check 'chip Appunti' ((Js "!!document.querySelector('.launcher-chip') && document.querySelector('.launcher-chip').textContent") -eq 'Appunti')
+  Check 'senza consenso: solo la richiesta di attivarlo' ((ClipRows) -like 'setting|*')
+  Press 0x0D; Start-Sleep -Milliseconds 900
+  Check 'consenso salvato (solo si/no)' ((Get-Content $lj -Raw) -match '"clipboard":\s*true')
+  Check 'la copia precedente al consenso non c e' (-not ((ClipRows) -like "*$tag*"))
+  [LT]::Key(0x1B); Start-Sleep -Milliseconds 500
+  Check 'chiuso' (-not (IsOpen))
+
+  # 2. copie dopo il consenso
+  Set-Clipboard -Value "$tag uno"; Start-Sleep -Milliseconds 500
+  SetExcluded "$tag segreto-escluso" 'ExcludeClipboardContentFromMonitorProcessing' '1,0,0,0'; Start-Sleep -Milliseconds 500
+  SetExcluded "$tag segreto-no-storia" 'CanIncludeInClipboardHistory' '0,0,0,0'; Start-Sleep -Milliseconds 500
+  Set-Clipboard -Value "$tag due`nsecondariga"; Start-Sleep -Milliseconds 500
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  # nella ricerca generale gli appunti NON compaiono
+  TypeText 'eosos'; Start-Sleep -Milliseconds 900
+  Check 'gli appunti non compaiono nella ricerca generale' (-not ((ClipRows) -like '*clip|*'))
+  foreach ($i in 1..5) { Press 0x08 }
+  PressCtrl 0x34; Start-Sleep -Milliseconds 800
+  $rows = ClipRows
+  Check 'copie normali presenti, la piu recente per prima' (($rows -like "clip|$tag due*") -and ($rows -like "*clip|$tag uno*")) $rows
+  Check 'copia esclusa da gestore di password NON registrata' (-not ($rows -like '*segreto-escluso*'))
+  Check 'copia con CanIncludeInClipboardHistory=0 NON registrata' (-not ($rows -like '*segreto-no-storia*'))
+  Check 'anteprima = prima riga' (-not ($rows -like '*secondariga*'))
+  TypeText 'uno'; Start-Sleep -Milliseconds 800
+  Check 'filtro per testo' (((ClipRows) -like "clip|$tag uno*") -and -not ((ClipRows) -like '*due*'))
+
+  # 3. Invio rimette la voce negli appunti
+  Set-Clipboard -Value 'altro-contenuto'; Start-Sleep -Milliseconds 400
+  Press 0x0D; Start-Sleep -Milliseconds 900
+  Check 'Launcher chiuso' (-not (IsOpen))
+  Check 'la voce e di nuovo negli appunti' ((Get-Clipboard -Raw).Trim() -eq "$tag uno")
+
+  # 4. Canc toglie una voce
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  PressCtrl 0x34; Start-Sleep -Milliseconds 700
+  TypeText 'eosos'; Start-Sleep -Milliseconds 300; Press 0x20; TypeText 'clip'; Start-Sleep -Milliseconds 800
+  $before = (ClipRows).Split('~').Count
+  Press 0x2E; Start-Sleep -Milliseconds 800
+  $after = @((ClipRows).Split('~') | Where-Object { $_ }).Count
+  Check 'Canc toglie la voce selezionata' ($after -eq $before - 1) "$before -> $after"
+
+  # 5. nulla su disco
+  [LT]::Key(0x1B); Start-Sleep -Milliseconds 500
+  $hits = @(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'EosOS'), (Join-Path $env:LOCALAPPDATA 'dev.eosos.app') -Recurse -File -ErrorAction SilentlyContinue | Select-String -SimpleMatch 'eosos-clip-test' -List)
+  $hits += @(Get-ChildItem $env:TEMP -Filter 'eosos-actions.log' -ErrorAction SilentlyContinue | Select-String -SimpleMatch 'eosos-clip-test' -List)
+  Check 'il testo copiato non e su disco (dati di EosOS, profilo WebView2, log)' ($hits.Count -eq 0) ($hits | ForEach-Object { $_.Path })
+
+  # 6. disattivare svuota la memoria
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  PressCtrl 0x33; Start-Sleep -Milliseconds 300
+  TypeText 'disattiva'; Start-Sleep -Milliseconds 800
+  Press 0x0D; Start-Sleep -Milliseconds 900
+  Check 'consenso ritirato' ((Get-Content $lj -Raw) -match '"clipboard":\s*false')
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  PressCtrl 0x34; Start-Sleep -Milliseconds 800
+  Check 'cronologia svuotata e di nuovo da attivare' (((ClipRows) -like 'setting|*') -and -not ((ClipRows) -like "*$tag*"))
+  [LT]::Key(0x1B); Start-Sleep -Milliseconds 400
 }
 finally {
   Cleanup
   if ($testFile) { Remove-Item $testFile -ErrorAction SilentlyContinue }
   if ($savedClip) { Set-Clipboard -Value $savedClip }
   Remove-Item $actionLog -ErrorAction SilentlyContinue
+  if ($ljBackup) { Set-Content -Path $lj -Value $ljBackup -Encoding UTF8 -NoNewline } else { Remove-Item $lj -ErrorAction SilentlyContinue }
 }
 if ($script:fail -eq 0) { Write-Host 'TUTTO OK' -ForegroundColor Green } else { Write-Host "$($script:fail) controlli falliti" -ForegroundColor Red; exit 1 }

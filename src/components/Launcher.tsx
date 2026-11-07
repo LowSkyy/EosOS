@@ -109,6 +109,12 @@ export default function Launcher() {
     if (item.kind === "file") {
       hide();
       await invoke("launcher_open_file", { id: item.id, reveal });
+    } else if (item.kind === "clip") {
+      hide();
+      await invoke("launcher_clip_use", { id: item.id });
+    } else if (item.kind === "setting") {
+      await invoke("launcher_clip_set", { on: true });
+      void search(query, filter);
     } else if (item.kind === "calc") {
       // Copia il risultato: il Launcher è a fuoco, quindi la pagina può scrivere negli appunti.
       try {
@@ -154,6 +160,15 @@ export default function Launcher() {
         e.preventDefault();
         void launch(items[sel], e.ctrlKey);
         break;
+      case "Delete": {
+        // Toglie la voce selezionata dalla cronologia degli appunti.
+        const it = items[sel];
+        if (it?.kind === "clip") {
+          e.preventDefault();
+          void invoke("launcher_clip_delete", { id: it.id }).then(() => search(query, filter));
+        }
+        break;
+      }
       case "Escape":
         e.preventDefault();
         hide();
@@ -177,7 +192,7 @@ export default function Launcher() {
             setQuery(e.target.value);
             setSel(0);
           }}
-          placeholder={filter ? `Cerca in ${filterLabel(filter)}` : "Cerca app, file, azioni, calcoli"}
+          placeholder={filter ? `Cerca in ${filterLabel(filter)}` : "Cerca app, file, azioni, calcoli (Ctrl+4: appunti)"}
           spellCheck={false}
           autoComplete="off"
           autoFocus

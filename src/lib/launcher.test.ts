@@ -105,7 +105,8 @@ describe("filters", () => {
     expect(filterForKey("1")).toBe("app");
     expect(filterForKey("2")).toBe("file");
     expect(filterForKey("3")).toBe("action");
-    expect(filterForKey("4")).toBeUndefined();
+    expect(filterForKey("4")).toBe("clip");
+    expect(filterForKey("5")).toBeUndefined();
     expect(filterForKey("a")).toBeUndefined();
   });
 });
@@ -122,6 +123,8 @@ describe("glyphFor and kindLabel", () => {
     expect(kindLabel({ kind: "calc" }, false)).toBe("Invio per copiare");
     expect(kindLabel({ kind: "action" }, true)).toBe("Invio per confermare");
     expect(kindLabel({ kind: "file" }, false)).toBe("File");
+    expect(kindLabel({ kind: "clip" }, false)).toBe("Appunti");
+    expect(kindLabel({ kind: "setting" }, false)).toBe("Invio per attivare");
   });
 });
 
@@ -133,6 +136,7 @@ describe("combine", () => {
     expect(combine(mk(5, "app"), mk(3, "file"), "file").map((i) => i.kind)).toEqual(["file", "file", "file"]);
     expect(combine(mk(5, "app"), mk(3, "file"), "app")).toHaveLength(5);
     expect(combine(mk(5, "app"), mk(3, "file"), "action").every((i) => i.kind === "app")).toBe(true);
+    expect(combine(mk(4, "clip"), mk(3, "file"), "clip").every((i) => i.kind === "clip")).toBe(true);
   });
   it("fills the rest of the list with files on the all tab", () => {
     const r = combine(mk(3, "app"), mk(10, "file"), null);
@@ -160,11 +164,13 @@ describe("wantsFiles and filterLabel", () => {
     expect(wantsFiles("", "file")).toBe(false);
     expect(wantsFiles("relazione", "app")).toBe(false);
     expect(wantsFiles("relazione", "action")).toBe(false);
+    expect(wantsFiles("relazione", "clip")).toBe(false);
     expect(wantsFiles("😀😀", "file")).toBe(true);
   });
   it("labels tabs", () => {
     expect(filterLabel("file")).toBe("File");
     expect(filterLabel("action")).toBe("Azioni");
     expect(filterLabel("app")).toBe("App");
+    expect(filterLabel("clip")).toBe("Appunti");
   });
 });
