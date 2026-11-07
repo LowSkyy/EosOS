@@ -403,6 +403,30 @@ fn read_once() -> Option<Indicators> {
     Some(read_real())
 }
 
+// ------------------------------------------------------------------ clic
+
+/// Pagina di Impostazioni per un indicatore. La pagina manda solo l'id; l'indirizzo lo sceglie
+/// Rust da questa tabella fissa (un id sconosciuto non apre nulla). Pura, testata.
+pub fn settings_uri(id: &str) -> Option<&'static str> {
+    match id {
+        "battery" => Some("ms-settings:batterysaver"),
+        "network" => Some("ms-settings:network"),
+        "sound" => Some("ms-settings:sound"),
+        _ => None,
+    }
+}
+
+/// Apre la pagina di Impostazioni dell'indicatore `id`. `false` se l'id è sconosciuto o l'apertura fallisce.
+pub fn open_settings(id: &str) -> bool {
+    use windows::core::{w, HSTRING};
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    let Some(uri) = settings_uri(id) else { return false };
+    let target = HSTRING::from(uri);
+    let r = unsafe { ShellExecuteW(None, w!("open"), &target, None, None, SW_SHOWNORMAL) };
+    r.0 as usize > 32
+}
+
 // ------------------------------------------------------------------ servizio
 
 /// Avvia il controllo periodico: a ogni cambio salva lo stato e manda `indicators-changed` a tutte
@@ -431,6 +455,47 @@ mod tests {
 
     fn link(level: i32, wlan: bool, wwan: bool, name: &str, bars: Option<u8>) -> Link {
         Link { level, wlan, wwan, name: Some(name.into()), bars }
+    }
+
+    /// La pagina disegna un'icona per ognuno di questi id (`KNOWN_ICONS` in src/lib/indicators.ts):
+    /// se Rust ne produce uno nuovo o ne perde uno, questo test e quello della pagina si rompono.
+    #[test]
+    fn every_icon_rust_can_emit_is_one_the_page_knows() {
+        const KNOWN: [&str; 20] = [
+            "battery-critical", "battery-low", "battery-half", "battery-high", "battery-full", "battery-charging",
+            "battery-plugged", "wifi-1", "wifi-2", "wifi-3", "wifi-alert", "ethernet", "ethernet-alert", "cellular",
+            "net-off", "volume-0", "volume-1", "volume-2", "volume-3", "volume-muted",
+        ];
+        let mut seen = std::collections::BTreeSet::new();
+        for p in 0..=100u8 {
+            for (c, pl) in [(false, false), (true, true), (false, true), (true, false)] {
+                seen.insert(battery_icon(p, c, pl));
+            }
+            for m in [false, true] {
+                seen.insert(volume_icon(p, m));
+            }
+        }
+        for kind in [NetKind::Wifi, NetKind::Ethernet, NetKind::Cellular, NetKind::None] {
+            for online in [Online::Internet, Online::Limited, Online::None] {
+                for bars in [None, Some(0), Some(1), Some(2), Some(3), Some(4), Some(5)] {
+                    seen.insert(network_icon(kind, online, bars));
+                }
+            }
+        }
+        let mut expected: Vec<&str> = KNOWN.to_vec();
+        expected.sort_unstable();
+        assert_eq!(seen.into_iter().collect::<Vec<_>>(), expected);
+    }
+
+    #[test]
+    fn only_known_indicators_open_a_settings_page() {
+        assert_eq!(settings_uri("battery"), Some("ms-settings:batterysaver"));
+        assert_eq!(settings_uri("network"), Some("ms-settings:network"));
+        assert_eq!(settings_uri("sound"), Some("ms-settings:sound"));
+        for bad in ["", "volume", "Battery", "ms-settings:privacy", "calc.exe", r"C:\Windows\System32\cmd.exe", "battery "] {
+            assert_eq!(settings_uri(bad), None, "{bad:?}");
+            assert!(!open_settings(bad));
+        }
     }
 
     #[test]

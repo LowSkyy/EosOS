@@ -131,6 +131,13 @@ fn indicators_get() -> indicators::Indicators {
     indicators::current()
 }
 
+/// Clic su un indicatore della barra: apre la pagina di Impostazioni giusta. La pagina manda solo
+/// l'id ("battery", "network", "sound"); l'indirizzo lo sceglie Rust.
+#[tauri::command(async)]
+fn indicator_open(id: String) -> bool {
+    indicators::open_settings(&id)
+}
+
 /// Esegue un'azione del Launcher. Le azioni che spengono o riavviano rispondono "confirm" alla
 /// prima richiesta ed eseguono alla seconda (stessa azione, entro 10 secondi): la conferma è di
 /// Rust, non della pagina. Risposte: "done", "confirm", "unknown", "failed".
@@ -329,7 +336,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, indicator_open, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

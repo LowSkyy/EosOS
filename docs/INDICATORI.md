@@ -51,6 +51,19 @@ Solo Rust, nessuna interfaccia ancora. Modulo `indicators.rs` (14 test sulla par
 
 Non provato: batteria vera (il PC non ne ha), Wi-Fi vero (c'è solo il cavo), cambio vero del dispositivo audio, ripresa dalla sospensione.
 
+## I2 — Barra: FATTA (7 nov 2026)
+
+- **Componente** (`Indicators.tsx`, logica pura in `lib/indicators.ts`, 9 test): a destra della barra, prima dell'orologio, nell'ordine di macOS: **batteria, rete, audio**. Chiede lo stato a Rust all'avvio (`indicators_get`) e poi ascolta `indicators-changed` (che parte solo sui cambi). Un indicatore assente non compare, e se non c'è nulla sparisce l'intero blocco. Una barra per monitor: tutte mostrano gli stessi indicatori (provato con le due barre del tuo PC).
+- **Batteria con la percentuale sempre visibile** ("85%" accanto all'icona, cifre a larghezza fissa), come richiesto. Il riempimento dell'icona segue la percentuale vera; in carica ha il fulmine, collegata e piena la spina.
+- **Icone SVG disegnate nella pagina** (nessuna immagine), con `currentColor`, quindi seguono tema chiaro e scuro. Rete: Wi-Fi a tre archi (gli archi oltre il livello sono sbiaditi), Wi-Fi con punto esclamativo se senza Internet, cavo, rete mobile, scollegato (Wi-Fi sbiadito barrato). Audio: altoparlante con 0-3 onde, croce se silenziato.
+- **Allarme discreto**: batteria quasi scarica (≤ 10% e non in carica) e rete assente o senza Internet diventano rosse; l'audio disattivato no (è una scelta, non un guasto).
+- **Clic**: apre la pagina giusta di Impostazioni (`ms-settings:batterysaver`, `ms-settings:network`, `ms-settings:sound`). La pagina manda solo un id fisso (`battery`, `network`, `sound`; il volume usa `sound`) e **Rust sceglie l'indirizzo** da una tabella (`settings_uri`): un id sconosciuto, un indirizzo di Impostazioni diverso o un percorso non aprono nulla (test).
+- **Accessibilità**: ogni indicatore è un pulsante con nome per i lettori di schermo e suggerimento al passaggio del mouse (il testo calcolato da Rust: "Batteria 85% · in carica", "Wi-Fi: Casa"); stato di focus visibile; la barra resta alta 28 px CSS.
+- **Controllo incrociato delle icone**: un test Rust verifica che ogni icona che Rust può emettere (tutte le combinazioni di livello, stato, tipo di rete) sia tra le 20 che la pagina disegna, e un test della pagina controlla la stessa lista: se uno dei due lati cambia, si rompe un test.
+- **Verifica dal vivo** (`scripts/test-indicators.ps1`, 37 controlli, barra vera con sorgente simulata): ordine e testi giusti; percentuale sempre visibile; altezza della barra invariata; la barra del secondo monitor mostra gli stessi tre indicatori; batteria al 5% e Wi-Fi senza Internet in allarme, audio silenziato no; senza batteria (come questo PC) compaiono solo rete e audio; senza nulla il blocco sparisce e ricompare quando tornano; **clic vero** con il mouse sull'indicatore di rete, dopo aver verificato che sotto il cursore ci fosse la barra di EosOS: si apre la finestra Impostazioni, poi chiusa. Schermate controllate nei temi scuro e chiaro e in allarme. Test: 178 Rust, 80 pagina, clippy a 0 avvisi.
+
+Non provato: scala diversa dal 100% e secondo monitor a scala diversa per gli indicatori (previsto in I4, la barra è già per monitor e le misure sono in px CSS), clic con il mouse sulla batteria e sull'audio (stessa funzione di quello di rete, coperta dal test della tabella), Wi-Fi e batteria veri.
+
 ## Fuori scopo
 
 Bluetooth, Non disturbare/Focus, luminosità, tastiera/monitor esterni, Live Activities, estensioni di terze parti per la barra, Centro di controllo completo con pagine e controlli ridimensionabili.

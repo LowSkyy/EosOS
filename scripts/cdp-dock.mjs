@@ -13,7 +13,11 @@ import fs from "node:fs";
 const port = process.env.CDP_PORT || 9222;
 const list = await (await fetch(`http://localhost:${port}/json`)).json();
 const view = process.env.CDP_VIEW || "dock";
-const target = list.find((x) => x.url.includes(`view=${view}`));
+// "bar" = le pagine della barra in alto (senza ?view=); CDP_INDEX sceglie quale (una per monitor).
+const pages = view === "bar"
+  ? list.filter((x) => x.type === "page" && !x.url.includes("view=") && !x.url.startsWith("devtools"))
+  : list.filter((x) => x.url.includes(`view=${view}`));
+const target = pages[Number(process.env.CDP_INDEX || 0)];
 if (!target) {
   console.error(`pagina ${view} non trovata`);
   process.exit(2);

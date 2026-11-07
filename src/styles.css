@@ -299,3 +299,29 @@ body {
 .launcher-item[data-selected="true"] .launcher-detail { color: rgba(255, 255, 255, 0.8); }
 .launcher-item[data-confirming="true"] { background: rgba(255, 69, 58, 0.9); color: #fff; }
 .launcher-item[data-confirming="true"] .launcher-kind { color: #fff; font-weight: var(--weight-strong); }
+
+/* ---- Indicatori di sistema nella barra (batteria, rete, audio) ---- */
+
+.menubar-right { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.indicators { display: flex; align-items: center; gap: 12px; }
+.indicator {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--bar-fg);
+  font: inherit;
+  cursor: default;
+}
+.indicator:hover { background: rgba(128, 128, 128, 0.22); }
+.indicator:active { background: rgba(128, 128, 128, 0.34); }
+.indicator:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 1px; }
+.indicator-glyph { display: block; flex: none; }
+.indicator-label { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--bar-fg); }
+/* Quasi scarica o senza rete: si nota senza gridare. */
+.indicator[data-alert="true"] { color: #ff453a; }
+.indicator[data-alert="true"] .indicator-label { color: #ff453a; }
