@@ -44,7 +44,7 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 
 **Oltre il piano originale**
 - Hardening dalla review di sicurezza (handle unico al genitore, handshake "watchdog pronto", log con rotazione, CSP restrittivo).
-- Fascia vuota con taskbar nascosta: auto-nascondi temporaneo con marcatore (`%LOCALAPPDATA%\EosOSutohide-pending`), ripristino a ogni uscita e recupero all'avvio dopo un kill totale; un thread tiene la taskbar nascosta.
+- Fascia vuota con taskbar nascosta: auto-nascondi temporaneo con marcatore (`%LOCALAPPDATA%\EosOS\autohide-pending`), ripristino a ogni uscita e recupero all'avvio dopo un kill totale; un thread tiene la taskbar nascosta.
 - Riavvio di Explorer: taskbar ri-nascosta e appbar ri-registrate (`detect_restart`).
 - B3/B4: callback `EnumWindows` a prova di panic; si nasconde solo una taskbar di `explorer.exe`.
 - Nomi comprensibili per i componenti di shell di Windows; icona originale; Clippy a zero avvisi.
