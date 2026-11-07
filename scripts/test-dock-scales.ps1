@@ -4,7 +4,9 @@
 #
 # ATTENZIONE: ogni cambio di scala ridisegna tutte le finestre aperte (per qualche secondo).
 #
-# Uso: powershell -File scripts\test-dock-scales.ps1 [-Exe percorso\eosos.exe] [-Scales 125,150,175]
+# Uso: powershell -File scripts\test-dock-scales.ps1 [-Exe percorso\eosos.exe] [-Scales 175]
+#   Con -File passare UNA sola scala (-Scales 175): un elenco con la virgola arriva come un unico
+#   numero non valido e non viene provata nessuna scala. Senza -Scales si provano 125, 150 e 175.
 #
 # Per ogni scala (con EosOS gia' acceso, quindi a cambio di scala "dal vivo") e poi una volta con
 # avvio a freddo alla scala piu' alta controlla:
