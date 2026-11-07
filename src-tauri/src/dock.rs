@@ -194,9 +194,9 @@ pub fn merge(pinned: &[Pinned], running: &[Running]) -> Vec<DockItem> {
 // ---------------------------------------------------------------- COM
 
 /// Inizializza COM sul thread corrente per la durata dello scope.
-struct ComScope(bool);
+pub(crate) struct ComScope(bool);
 impl ComScope {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         // S_OK / S_FALSE vanno bilanciati con CoUninitialize; RPC_E_CHANGED_MODE no.
         Self(unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED) }.is_ok())
     }
@@ -666,7 +666,7 @@ static ICONS: OnceLock<TimedCache> = OnceLock::new();
 /// Icona con cache a scadenza: un fallimento (shell non pronta, per esempio subito dopo il
 /// riavvio di Explorer) si ritenta dopo pochi secondi invece di restare per sempre, e un
 /// successo si rinfresca ogni tanto (l'app può aggiornare la sua icona).
-fn cached_icon(path: &Path) -> Option<String> {
+pub(crate) fn cached_icon(path: &Path) -> Option<String> {
     let cache = ICONS.get_or_init(Default::default);
     let k = key(path);
     let old = {

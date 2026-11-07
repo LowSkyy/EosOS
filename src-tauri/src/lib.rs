@@ -7,6 +7,9 @@ mod dockstore;
 mod dockwin;
 mod foreground;
 mod glass;
+mod launcher;
+mod launcherrank;
+mod launcherstore;
 mod taskbar;
 mod util;
 mod watchdog;
@@ -73,6 +76,20 @@ fn dock_fit(app: tauri::AppHandle, fit: dockgeom::FitArgs) {
 #[tauri::command(async)]
 fn dock_backdrop(since: u64) -> tauri::ipc::Response {
     tauri::ipc::Response::new(backdrop::latest(since))
+}
+
+/// Ricerca del Launcher tra le app. `have`: gli id di cui il frontend ha già l'icona. Lavoro
+/// bloccante (shell, icone): fuori dal thread UI.
+#[tauri::command(async)]
+fn launcher_search(query: String, have: Option<Vec<String>>) -> Vec<launcher::LauncherItem> {
+    launcher::search(&query, &have.unwrap_or_default())
+}
+
+/// Avvia un'app del Launcher. Il frontend manda solo l'`id` di un risultato che ha ricevuto;
+/// ciò che si esegue lo ricava Rust dall'indice.
+#[tauri::command(async)]
+fn launcher_launch(id: String) -> bool {
+    launcher::launch(&id)
 }
 
 /// Trascinamento di un'icona: la mette nella posizione `index` tra le fissate
@@ -233,7 +250,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
@@ -246,6 +263,7 @@ pub fn run() {
             appbar::start(app.handle());
             dockwin::start(app.handle());
             backdrop::start();
+            launcher::warm_up();
             foreground::start(app.handle().clone());
             Ok(())
         })

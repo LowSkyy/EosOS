@@ -28,6 +28,11 @@ Fonti: [Apple Support: cronologia degli appunti](https://support.apple.com/guide
 - **Appunti**: `AddClipboardFormatListener` su una finestra nascosta; solo testo nella prima versione; cronologia **in memoria**, non su disco, con scadenza (ore) e limite di voci. Si ignorano le copie che i gestori di password marcano con `ExcludeClipboardContentFromMonitorProcessing` / `CanIncludeInClipboardHistory = 0`. Nessun contenuto negli log.
 - **Impostazioni** in `launcher.json` (scorciatoia, schede attive, durata della cronologia), con la stessa robustezza di `dock.json`: tolleranza del BOM, file illeggibile conservato come `.bad`, scrittura atomica sotto lock, nessuna riscrittura dopo una lettura fallita.
 
+## Decisioni dell'utente (7 nov 2026)
+
+- Scorciatoia predefinita **Alt+Spazio**, configurabile (L2 la registra, L6 la rende configurabile).
+- Cronologia degli appunti **solo in memoria**: mai su disco, con scadenza e limite di voci, e senza le copie dei gestori di password (L5).
+
 ## Fasi
 
 1. **L1 – Dati e classifica (Rust)**: indice delle app da `shell:AppsFolder` (nome, id, icona), corrispondenza approssimata, frecency, comando `launcher_search`. Test unitari su classifica e punteggi.
@@ -36,6 +41,23 @@ Fonti: [Apple Support: cronologia degli appunti](https://support.apple.com/guide
 4. **L4 – File**: ricerca nell'indice di Windows Search con ripiego.
 5. **L5 – Appunti**: cronologia in memoria con esclusioni, scheda dedicata, richiesta di consenso al primo uso.
 6. **L6 – Rifiniture**: scorciatoia configurabile, animazioni, più monitor (si apre dove sta il cursore), DPI, riavvio di Explorer, revisione di codice.
+
+## L1 — Dati e classifica: FATTA (7 nov 2026)
+
+Solo Rust, nessuna finestra ancora. Tre moduli:
+
+- `launcherrank.rs` (puro, 14 test): `fold` (minuscole e senza accenti), `initials` (sigle, anche dalle maiuscole interne), `match_score`, `frecency`/`bonus`, `rank`.
+  - Livelli di corrispondenza: nome identico 1000, inizio del nome 900, inizio di una parola 800, sigla 750 (`vsc` → Visual Studio Code), sottostringa 600, sottosequenza 100-560.
+  - La sottosequenza è l'ultimo ripiego e ha limiti contro il rumore: la prima lettera deve cadere a inizio parola e le lettere trovate devono stare vicine (al più 3 volte la lunghezza della query). Senza questi limiti `paint` dava "Pannello di controllo" e `calc` "PC Health Check" (visto sull'indice reale). Un refuso (`calclatrice`) si perdona, una lettera estranea no.
+  - Con una lettera sola contano solo l'inizio del nome e delle parole.
+  - Frecency: logaritmica nel numero di usi, dimezzata ogni 14 giorni, bonus con tetto 120 punti: sposta un'app tra livelli vicini ma non scavalca una corrispondenza molto migliore (un'app identica al testo resta prima anche se un'altra è usatissima). A query vuota compaiono solo le app già usate, per frecency. A parità: nome più corto, poi alfabetico (ordine deterministico).
+- `launcherstore.rs` (7 test): `launcher.json` con, per ogni app, solo numero di avvii e ultimo avvio (mai contenuti). Stessa robustezza di `dock.json`: BOM tollerato, file non JSON conservato come `.bad`, scrittura atomica con nome temporaneo per processo sotto lock, una lettura fallita NON è un file mancante e non porta a riscrivere nulla (`decide`/`KeepLast`). Si ricordano al massimo 500 app (`prune` scarta le meno recenti).
+- `launcher.rs` (3 test + 2 sulla shell vera): indice da `shell:AppsFolder` (`IEnumShellItems`; id = nome di parsing relativo, nome = nome visualizzato), ripulito da voci vuote e doppioni, riletto ogni 5 minuti; una rilettura vuota non cancella un indice buono; riscaldato in un thread all'avvio. Icone dalla stessa cache del Dock.
+- Comandi Tauri: `launcher_search(query, have)` e `launcher_launch(id)`. **Sicurezza**: la pagina manda solo un `id`; `launch` lo cerca nell'indice e avvia `shell:AppsFolder\<id>` solo se c'è (un percorso come `C:\Windows\System32\cmd.exe` non è avviabile). L'uso si registra solo se l'avvio è riuscito.
+
+Verifica dal vivo: sull'indice reale (185 voci) `calc` → Calcolatrice, `note` → Blocco note, `vsc` → Visual Studio Code, `chr` → Google Chrome, `paint`/`zzzzqq` → nessun risultato; avvio vero della Calcolatrice (app di prova) con registrazione dell'uso e comparsa in cima a query vuota; poi chiusa e file di prova rimosso. Test totali 106 verdi (2 a richiesta), clippy a 0 avvisi.
+
+Limiti noti: l'indice include anche voci di servizio (Cestino, manuali, "License Agreement", cartelle degli strumenti): vanno filtrate o declassate in L6, quando si vede come appaiono nella finestra.
 
 ## Fuori scopo
 
