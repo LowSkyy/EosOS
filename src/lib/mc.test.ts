@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boxStyle, cardLetter, cellTitle, desktopAction, desktopLabel, neighbour } from "./mc";
+import { advancedHint, boxStyle, canRemove, cardLetter, cellTitle, cleanDesktopName, desktopAction, desktopLabel, dragStarted, neighbour } from "./mc";
 
 describe("boxStyle", () => {
   it("turns a rectangle into absolute positioning", () => {
@@ -62,5 +62,34 @@ describe("desktops bar", () => {
   it("names each desktop for screen readers", () => {
     expect(desktopLabel(cur, 0, 2)).toBe("Desktop 1, desktop 1 di 2, corrente");
     expect(desktopLabel(other, 1, 2)).toBe("Lavoro, desktop 2 di 2");
+  });
+});
+
+describe("dragging and desktop management", () => {
+  it("starts a drag only after a real movement", () => {
+    expect(dragStarted({ x: 10, y: 10 }, { x: 10, y: 10 })).toBe(false);
+    expect(dragStarted({ x: 10, y: 10 }, { x: 14, y: 14 })).toBe(false);
+    expect(dragStarted({ x: 10, y: 10 }, { x: 18, y: 10 })).toBe(true);
+    expect(dragStarted({ x: 0, y: 0 }, { x: -6, y: -6 })).toBe(true);
+  });
+  const cur = { id: "{A}", name: "1", current: true };
+  const other = { id: "{B}", name: "2", current: false };
+  it("allows removing any desktop only with the internal backend, the current one otherwise", () => {
+    expect(canRemove({ remove_any: true }, other, 2)).toBe(true);
+    expect(canRemove({ remove_any: false }, other, 2)).toBe(false);
+    expect(canRemove({ remove_any: false }, cur, 2)).toBe(true);
+    expect(canRemove({ remove_any: true }, cur, 1)).toBe(false);
+    expect(canRemove({ remove_any: false }, cur, 1)).toBe(false);
+  });
+  it("cleans a typed desktop name", () => {
+    expect(cleanDesktopName("  Lavoro  ")).toBe("Lavoro");
+    expect(cleanDesktopName("   ")).toBe("");
+    expect(cleanDesktopName("x".repeat(100))).toHaveLength(60);
+    expect([...cleanDesktopName("\u{1F600}".repeat(80))]).toHaveLength(60);
+  });
+  it("explains the missing advanced features", () => {
+    const base = { internal: true, move_window: true, remove_any: true, rename: true, reason: null };
+    expect(advancedHint(base)).toBeNull();
+    expect(advancedHint({ ...base, internal: false })).toContain("non è disponibile");
   });
 });

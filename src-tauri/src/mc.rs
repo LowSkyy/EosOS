@@ -165,6 +165,18 @@ pub struct ViewWindow {
     pub thumb: Option<[f64; 4]>,
 }
 
+/// Cosa si può fare con i desktop virtuali su questa versione di Windows, per la pagina.
+#[derive(Serialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct VdInfo {
+    /// Le interfacce non documentate sono usabili (un profilo ha superato la verifica).
+    pub internal: bool,
+    pub move_window: bool,
+    pub remove_any: bool,
+    pub rename: bool,
+    /// Perché le funzioni avanzate non ci sono, in una riga.
+    pub reason: Option<String>,
+}
+
 /// La panoramica di un monitor, per la pagina.
 #[derive(Serialize, Clone, Debug, PartialEq)]
 pub struct View {
@@ -175,6 +187,7 @@ pub struct View {
     pub windows: Vec<ViewWindow>,
     /// I desktop virtuali per la fascia in alto (uguali su ogni monitor); li riempie chi apre la panoramica.
     pub desktops: Vec<crate::vdesk::Desktop>,
+    pub vd: VdInfo,
 }
 
 /// Dove va la miniatura di una finestra nella sua cella: il riquadro libero della cella (senza
@@ -204,7 +217,7 @@ pub fn view_of(index: usize, m: &McMonitor, thumbs: &HashMap<u64, Rect>, icons: 
         })
         .collect();
     let k = if m.scale.is_finite() && m.scale > 0.0 { m.scale } else { 1.0 };
-    View { index, scale: m.scale, width: f64::from(m.w) / k, height: f64::from(m.h) / k, windows, desktops: Vec::new() }
+    View { index, scale: m.scale, width: f64::from(m.w) / k, height: f64::from(m.h) / k, windows, desktops: Vec::new(), vd: VdInfo::default() }
 }
 
 fn title_of(hwnd: HWND) -> String {

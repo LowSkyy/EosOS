@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "id": "w11-24h2-and-later",
+      "description": "Windows 11 24H2 (build 26100.2605) e successive: layout delle interfacce non documentate come descritto dal crate winvd. Non e' una garanzia per le build piu' nuove: la verifica di coerenza all'avvio decide se vale.",
+      "minBuild": 26100,
+      "maxBuild": 999999,
+      "monitorArgs": false,
+      "manager": {
+        "service": "{C5E0CDCA-7B6E-41B2-9FC4-D93975CC467B}",
+        "iid": "{53F5CA0B-158F-4124-900C-057158060B27}",
+        "methods": {
+          "getCount": 3,
+          "moveView": 4,
+          "canMoveView": 5,
+          "getCurrent": 6,
+          "getDesktops": 7,
+          "getAdjacent": 8,
+          "switchTo": 9,
+          "create": 11,
+          "remove": 13,
+          "find": 14,
+          "includeExclude": 15,
+          "setName": 16
+        }
+      },
+      "desktop": {
+        "iid": "{3F07F4BE-B107-441A-AF0F-39D82529072C}",
+        "methods": { "getId": 4 }
+      },
+      "views": {
+        "service": "{1841C6D7-4F9D-42C0-AF41-8747538F10E5}",
+        "iid": "{1841C6D7-4F9D-42C0-AF41-8747538F10E5}",
+        "methods": { "getViewForHwnd": 6 }
+      }
+    }
+  ]
+}

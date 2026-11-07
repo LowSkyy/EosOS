@@ -134,6 +134,14 @@ pub const ACTIONS: &[Action] = &[
         run: Run::Internal("mc-corner"),
     },
     Action {
+        id: "action:vd-report",
+        name: "Mission Control: rapporto dei desktop virtuali",
+        keywords: &["desktop virtuali", "diagnostica", "rapporto", "report", "spaces"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("vd-report"),
+    },
+    Action {
         id: "action:settings",
         name: "Impostazioni",
         keywords: &["settings", "preferenze", "opzioni"],
@@ -267,6 +275,7 @@ fn execute(action: &Action) -> bool {
             // manifest di comctl32 v6, non partirebbero (STATUS_ENTRYPOINT_NOT_FOUND).
             MC_OPEN.get().map(|f| f()).is_some()
         }
+        Run::Internal("vd-report") => crate::vdreport::write_and_open(),
         Run::Internal("mc-corner") => {
             MC_CORNER.get().map(|f| f()).is_some()
         }

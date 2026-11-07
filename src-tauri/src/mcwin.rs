@@ -79,6 +79,8 @@ pub enum Phase {
 /// Una miniatura da animare: dalla posizione della finestra vera alla sua cella (pixel dello schermo).
 #[derive(Clone)]
 struct Anim {
+    /// Id della finestra sorgente (per nascondere la sua miniatura durante un trascinamento).
+    id: u64,
     handle: isize,
     /// Origine del monitor: il rettangolo di destinazione di DWM è in coordinate della finestra panoramica.
     origin: (i32, i32),
@@ -251,7 +253,7 @@ fn register_thumbs(app: &AppHandle, snap: &[McMonitor], animate: bool) -> Vec<Ha
                 }
                 let mut s = st();
                 s.thumbs.push(th);
-                s.anims.push(Anim { handle: th, origin: (m.x, m.y), from, to });
+                s.anims.push(Anim { id: w.id, handle: th, origin: (m.x, m.y), from, to });
                 map.insert(w.id, to);
             }
         }
@@ -277,11 +279,20 @@ fn views(app: &AppHandle, snap: &[McMonitor], animate: bool) -> Vec<View> {
     let thumbs = register_thumbs(app, snap, animate);
     let icons = icons_for(snap);
     let desktops = crate::vdesk::list();
+    let rep = crate::vdint::report(false);
+    let vd = crate::mc::VdInfo {
+        internal: rep.caps.internal,
+        move_window: rep.caps.move_window,
+        remove_any: rep.caps.remove_any,
+        rename: rep.caps.rename,
+        reason: rep.reason.clone(),
+    };
     snap.iter()
         .enumerate()
         .map(|(i, m)| {
             let mut v = view_of(i, m, &thumbs[i], &icons);
             v.desktops = desktops.clone();
+            v.vd = vd.clone();
             v
         })
         .collect()
@@ -546,6 +557,82 @@ pub fn new_desktop(app: &AppHandle) -> bool {
         let _ = crate::vdesk::create();
     });
     true
+}
+
+/// Nasconde o mostra la miniatura viva di una finestra (mentre la pagina la trascina disegna al suo posto
+/// un'etichetta che segue il cursore). Solo per id elencati.
+pub fn set_thumb_visible(id: u64, visible: bool) -> bool {
+    if !is_known(id) {
+        return false;
+    }
+    let handle = st().anims.iter().find(|a| a.id == id).map(|a| a.handle);
+    let Some(h) = handle else { return false };
+    let props = DWM_THUMBNAIL_PROPERTIES { dwFlags: DWM_TNP_VISIBLE, fVisible: visible.into(), ..Default::default() };
+    unsafe { DwmUpdateThumbnailProperties(h, &props) }.is_ok()
+}
+
+/// Sposta la finestra `id` sul desktop `index` (backend interno). Solo con la panoramica aperta, un id elencato,
+/// un indice valido e un profilo che ha superato la verifica. Dopo lo spostamento la panoramica si ridisegna: la
+/// finestra non è più sul desktop corrente e sparisce dalla griglia.
+pub fn move_window_to(app: &AppHandle, id: u64, index: usize) -> bool {
+    if st().phase != Phase::Open || !is_known(id) || !unsafe { IsWindow(Some(hwnd_from(id))) }.as_bool() {
+        return false;
+    }
+    let list = crate::vdesk::list();
+    if index >= list.len() || list[index].current || !crate::vdint::caps().move_window {
+        return false;
+    }
+    let ok = crate::vdint::move_window(id as usize, index).is_ok();
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(350));
+        refresh(&app);
+    });
+    ok
+}
+
+/// Rimuove il desktop `index`. Con il backend interno: qualunque desktop, le sue finestre vanno al vicino. Senza:
+/// solo il desktop corrente, con Win+Ctrl+F4 a panoramica chiusa. Con un solo desktop non si fa nulla.
+pub fn remove_desktop(app: &AppHandle, index: usize) -> bool {
+    if st().phase != Phase::Open {
+        return false;
+    }
+    let list = crate::vdesk::list();
+    if list.len() < 2 || index >= list.len() {
+        return false;
+    }
+    if crate::vdint::caps().remove_any {
+        let ok = crate::vdint::remove_desktop(index).is_ok();
+        let app = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(350));
+            refresh(&app);
+        });
+        return ok;
+    }
+    if !list[index].current {
+        return false; // senza il backend interno non si puo' rimuovere un altro desktop
+    }
+    close(app);
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_millis(200));
+        let _ = crate::vdesk::remove_current();
+    });
+    true
+}
+
+/// Rinomina il desktop `index` (backend interno). Il nome è ripulito e limitato a 60 caratteri.
+pub fn rename_desktop(app: &AppHandle, index: usize, name: &str) -> bool {
+    if st().phase != Phase::Open || index >= crate::vdesk::list().len() || !crate::vdint::caps().rename {
+        return false;
+    }
+    let ok = crate::vdint::rename_desktop(index, name).is_ok();
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(250));
+        refresh(&app);
+    });
+    ok
 }
 
 /// Apre o chiude la panoramica (la scorciatoia).

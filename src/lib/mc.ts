@@ -14,6 +14,17 @@ export type McWindow = {
 /** Un desktop virtuale nella fascia in alto. */
 export type McDesktop = { id: string; name: string; current: boolean };
 
+/** Cosa si può fare con i desktop virtuali su questa versione di Windows. */
+export type McVd = {
+  /** Le interfacce non documentate sono usabili (un profilo ha superato la verifica di coerenza). */
+  internal: boolean;
+  move_window: boolean;
+  remove_any: boolean;
+  rename: boolean;
+  /** Perché le funzioni avanzate non ci sono. */
+  reason: string | null;
+};
+
 /** La panoramica di un monitor. */
 export type McView = {
   index: number;
@@ -22,6 +33,7 @@ export type McView = {
   height: number;
   windows: McWindow[];
   desktops: McDesktop[];
+  vd: McVd;
 };
 
 /** Altezza della fascia dell'etichetta in fondo alla cella (px CSS): da tenere uguale a `LABEL_H` di mc.rs. */
@@ -86,4 +98,30 @@ export function desktopAction(d: McDesktop, index: number): { kind: "close" } | 
 /** Nome accessibile di un desktop: numero, nome e se è quello corrente. Pura, testata. */
 export function desktopLabel(d: McDesktop, index: number, total: number): string {
   return `${d.name}, desktop ${index + 1} di ${total}${d.current ? ", corrente" : ""}`;
+}
+
+/** Di quanti pixel si deve muovere il puntatore perché un clic diventi un trascinamento. */
+export const DRAG_THRESHOLD = 8;
+
+/** Il puntatore si è mosso abbastanza da iniziare un trascinamento? Pura, testata. */
+export function dragStarted(from: { x: number; y: number }, to: { x: number; y: number }, threshold = DRAG_THRESHOLD): boolean {
+  return Math.hypot(to.x - from.x, to.y - from.y) >= threshold;
+}
+
+/**
+ * Si può rimuovere questo desktop? Con il backend interno qualunque (se ce n'è più di uno); senza, solo il
+ * corrente (Windows lo chiude con una scorciatoia). Pura, testata.
+ */
+export function canRemove(vd: Pick<McVd, "remove_any">, d: McDesktop, total: number): boolean {
+  return total > 1 && (vd.remove_any || d.current);
+}
+
+/** Il nome che si manda a Rust per un desktop rinominato: senza spazi ai bordi, al più 60 caratteri; vuoto = nessuna modifica. Pura, testata. */
+export function cleanDesktopName(raw: string): string {
+  return [...raw.trim()].slice(0, 60).join("");
+}
+
+/** Riga da mostrare sotto la fascia quando le funzioni avanzate dei desktop non ci sono. Pura, testata. */
+export function advancedHint(vd: McVd): string | null {
+  return vd.internal ? null : "Spostare finestre, rinominare e rimuovere desktop qualsiasi non è disponibile su questa versione di Windows.";
 }

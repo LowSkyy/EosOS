@@ -23,6 +23,9 @@ mod mcstore;
 mod mctrigger;
 mod mcwin;
 mod vdesk;
+mod vdint;
+mod vdprofile;
+mod vdreport;
 mod panelwin;
 mod taskbar;
 mod util;
@@ -267,6 +270,37 @@ fn mc_new_desktop(app: tauri::AppHandle) -> bool {
     mcwin::new_desktop(&app)
 }
 
+/// Sposta una finestra su un altro desktop (backend interno, solo se ha superato la verifica).
+#[tauri::command(async)]
+fn mc_move_window(app: tauri::AppHandle, id: u64, index: usize) -> bool {
+    mcwin::move_window_to(&app, id, index)
+}
+
+/// Rimuove un desktop virtuale.
+#[tauri::command(async)]
+fn mc_remove_desktop(app: tauri::AppHandle, index: usize) -> bool {
+    mcwin::remove_desktop(&app, index)
+}
+
+/// Dà un nome a un desktop virtuale (backend interno, solo se ha superato la verifica).
+#[tauri::command(async)]
+fn mc_rename_desktop(app: tauri::AppHandle, index: usize, name: String) -> bool {
+    mcwin::rename_desktop(&app, index, &name)
+}
+
+/// Nasconde o mostra la miniatura viva di una finestra durante un trascinamento.
+#[tauri::command]
+fn mc_thumb_visible(id: u64, visible: bool) -> bool {
+    mcwin::set_thumb_visible(id, visible)
+}
+
+/// Il rapporto diagnostico dei desktop virtuali (build, profili provati, esito di ogni controllo). Con
+/// `refresh` rifà la selezione. Niente dati dell'utente.
+#[tauri::command(async)]
+fn mc_vd_report(refresh: Option<bool>) -> vdint::Report {
+    vdint::report(refresh.unwrap_or(false))
+}
+
 /// Esegue un'azione del Launcher. Le azioni che spengono o riavviano rispondono "confirm" alla
 /// prima richiesta ed eseguono alla seconda (stessa azione, entro 10 secondi): la conferma è di
 /// Rust, non della pagina. Risposte: "done", "confirm", "unknown", "failed".
@@ -471,7 +505,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

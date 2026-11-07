@@ -208,6 +208,12 @@ pub fn switch_to(to: usize) -> bool {
     ok
 }
 
+/// Chiude il desktop CORRENTE con Win+Ctrl+F4 (le sue finestre passano al precedente). È il ripiego quando il
+/// backend interno non è disponibile: un desktop diverso dal corrente non si può rimuovere così.
+pub fn remove_current() -> bool {
+    win_ctrl(VIRTUAL_KEY(0x73), false)
+}
+
 /// Crea un nuovo desktop con Win+Ctrl+D (Windows passa subito al nuovo).
 pub fn create() -> bool {
     win_ctrl(VK_D, false)
