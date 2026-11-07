@@ -8,12 +8,16 @@ import {
   clampGlass,
   dotState,
   dropTarget,
+  knownIconIds,
   magnifyScale,
   previewOffsets,
   pruneBouncing,
   sameItems,
   splitDock,
+  updateIconCache,
+  withCachedIcons,
   type DockItem,
+  type IconCache,
   type DockSettings,
 } from "../lib/dock";
 import { parseFrame, sourceRect, type Frame } from "../lib/backdrop";
@@ -27,6 +31,8 @@ const BACKDROP_MS = 40;
 const POLL_MS = 2000;
 /** Un rimbalzo non dura più di così, anche se l'app non compare mai. */
 const BOUNCE_MAX_MS = 8000;
+/** Ogni quanto si scartano le icone già ricevute per ricaricarle. */
+const ICON_REFRESH_MS = 10 * 60 * 1000;
 
 function Icon({
   item,
@@ -110,12 +116,16 @@ export default function Dock() {
   // Generazione dell'elenco: sale a ogni modifica fatta qui (riordino). Un sondaggio partito
   // prima non deve poter sovrascrivere con dati vecchi il risultato appena mostrato.
   const epoch = useRef(0);
+  // Le icone sono grandi (PNG in base64): Rust le manda una volta sola, qui si tengono.
+  const icons = useRef<IconCache>(new Map());
   const load = useCallback(
     () => {
       const started = epoch.current;
-      return invoke<DockItem[]>("dock_items")
-        .then((next) => {
+      return invoke<DockItem[]>("dock_items", { have: knownIconIds(icons.current) })
+        .then((received) => {
           if (!alive.current || started !== epoch.current) return;
+          updateIconCache(icons.current, received);
+          const next = withCachedIcons(received, icons.current);
           setItems((cur) => (sameItems(cur, next) ? cur : next));
           setBouncing((cur) => {
             const pruned = pruneBouncing(cur, next);
@@ -212,6 +222,12 @@ export default function Dock() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [paint]);
+
+  // Ogni 10 minuti si scartano le icone ricevute: se un'app ha cambiato icona si ricarica.
+  useEffect(() => {
+    const t = setInterval(() => icons.current.clear(), ICON_REFRESH_MS);
+    return () => clearInterval(t);
+  }, []);
 
   // Legge l'elenco subito e poi a intervalli; aggiorna lo stato solo se cambia.
   useEffect(() => {
@@ -329,6 +345,14 @@ export default function Dock() {
   const pointerMove = (e: React.PointerEvent) => {
     const p = pending.current;
     if (!p) return;
+    // Nessun tasto premuto: il rilascio è avvenuto fuori dalla zona cliccabile (che si
+    // restringe alla capsula quando il cursore esce) e non è mai arrivato. Senza questo il
+    // movimento successivo avvierebbe un trascinamento fantasma.
+    if ((e.buttons & 1) === 0) {
+      pending.current = null;
+      setDrag(null);
+      return;
+    }
     const dx = e.clientX - p.startX;
     if (!p.active) {
       if (Math.abs(dx) < DRAG_THRESHOLD) return;
@@ -419,7 +443,11 @@ export default function Dock() {
       className="dock-zone"
       ref={zone}
       onMouseMove={magnify}
-      onMouseLeave={rest}
+      onMouseLeave={() => {
+        rest();
+        // Una pressione che non è ancora un trascinamento non deve restare in sospeso.
+        if (pending.current && !pending.current.active) pending.current = null;
+      }}
       onPointerMove={pointerMove}
       onPointerUp={(e) => pointerEnd(e, true)}
       onPointerCancel={(e) => pointerEnd(e, false)}

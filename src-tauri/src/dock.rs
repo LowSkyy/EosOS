@@ -483,14 +483,40 @@ pub fn find_ancestor(table: &[(u32, u32, String)], pid: u32, names: &[String]) -
     None
 }
 
-/// Tutte le finestre "da app" con il loro eseguibile, nell'ordine Z (dall'alto).
-/// Se l'eseguibile di una finestra non è tra le app fissate ma un suo antenato
-/// sì, la finestra è attribuita a quell'app (vedi `find_ancestor`).
-pub fn app_windows() -> Vec<(HWND, PathBuf)> {
-    app_windows_for(&crate::dockstore::load())
+/// Programmi che AVVIANO altri programmi senza possederne le finestre: shell, terminali,
+/// servizi. Mai da usare come "app madre" di una finestra.
+const LAUNCHERS: [&str; 17] = [
+    "explorer.exe", "cmd.exe", "powershell.exe", "pwsh.exe", "windowsterminal.exe", "wt.exe",
+    "openconsole.exe", "conhost.exe", "bash.exe", "wsl.exe", "services.exe", "svchost.exe",
+    "winlogon.exe", "userinit.exe", "sihost.exe", "taskhostw.exe", "runtimebroker.exe",
+];
+
+/// Il nome del file (minuscolo) è quello di un lanciatore? Pura, testata.
+pub fn is_launcher(file_name: &str) -> bool {
+    LAUNCHERS.contains(&file_name.to_lowercase().as_str())
 }
 
-/// Come `app_windows`, con l'elenco delle fissate già letto: chi ne ha uno non rilegge il file.
+/// La finestra di `child` va attribuita all'app madre `ancestor`? Solo se è un suo helper:
+/// l'eseguibile sta dentro la cartella dell'app madre (`Steam\bin\cef\...\steamwebhelper.exe`,
+/// figlio di `Steam\Steam.exe`), non è un lanciatore e non è un gioco installato nella
+/// libreria (`steamapps`). Senza questo, ogni programma avviato da un'app fissata (un gioco
+/// lanciato da Steam, un'app aperta da Esplora risorse o da un terminale) verrebbe assorbito
+/// dall'icona della madre. Pura, testata.
+pub fn may_inherit(child: &Path, ancestor: &Path) -> bool {
+    let (Some(dir), Some(name)) = (ancestor.parent(), ancestor.file_name()) else { return false };
+    if is_launcher(&name.to_string_lossy()) {
+        return false;
+    }
+    let child = PathBuf::from(key(child));
+    let Ok(rest) = child.strip_prefix(PathBuf::from(key(dir))) else { return false };
+    !rest.components().any(|c| c.as_os_str() == "steamapps")
+}
+
+/// Tutte le finestre "da app" con il loro eseguibile, nell'ordine Z (dall'alto), dato l'elenco
+/// delle fissate già letto (chi ne ha uno non rilegge il file).
+///
+/// Se l'eseguibile di una finestra non è tra le app fissate ma un suo antenato sì, e ne è un
+/// helper (`may_inherit`), la finestra è attribuita a quell'app (vedi `find_ancestor`).
 pub fn app_windows_for(pinned: &[Pinned]) -> Vec<(HWND, PathBuf)> {
     // Un solo avvio di COM per tutta l'enumerazione, non uno per finestra.
     let _com = ComScope::new();
@@ -499,10 +525,12 @@ pub fn app_windows_for(pinned: &[Pinned]) -> Vec<(HWND, PathBuf)> {
         let _ = EnumWindows(Some(collect_window), LPARAM(&mut raw as *mut _ as isize));
     }
     let pinned: Vec<PathBuf> = pinned.iter().map(|p| p.path.clone()).collect();
+    // Nomi delle app madri possibili: le fissate, tranne i lanciatori (Esplora risorse, terminali).
     let names: Vec<String> = pinned
         .iter()
         .filter_map(|p| p.file_name())
         .map(|n| n.to_string_lossy().to_lowercase())
+        .filter(|n| !is_launcher(n))
         .collect();
     // La tabella dei processi si costruisce solo se serve.
     let mut table: Option<Vec<(u32, u32, String)>> = None;
@@ -521,18 +549,19 @@ pub fn app_windows_for(pinned: &[Pinned]) -> Vec<(HWND, PathBuf)> {
                     }
                     p
                 })
-                .filter(|p| pinned.iter().any(|x| same_app(x, p)));
+                .filter(|p| pinned.iter().any(|x| same_app(x, p)) && may_inherit(&path, p));
             (hwnd, owner.unwrap_or(path))
         })
         .collect()
 }
 
 /// Eseguibili con almeno una finestra aperta, nell'ordine Z (dall'alto).
-pub fn read_running_for(pinned: &[Pinned]) -> Vec<Running> {
+/// Le app con almeno una finestra, nell'ordine Z, a partire da un elenco già enumerato.
+pub fn running_of(windows: &[(HWND, PathBuf)]) -> Vec<Running> {
     let mut out: Vec<Running> = Vec::new();
-    for (_, path) in app_windows_for(pinned) {
-        if !out.iter().any(|r| key(&r.path) == key(&path)) {
-            out.push(Running { path });
+    for (_, path) in windows {
+        if !out.iter().any(|r| key(&r.path) == key(path)) {
+            out.push(Running { path: path.clone() });
         }
     }
     out
@@ -741,8 +770,16 @@ fn apply_run_order(items: &mut [DockItem]) {
 
 /// Voci senza icone, con i nomi risolti. Serve a ritrovare una voce dall'`id`.
 pub fn items_basic() -> Vec<DockItem> {
+    items_and_windows().0
+}
+
+/// Voci del Dock e finestre da cui derivano, calcolate in UN solo passaggio: una lettura di
+/// `dock.json`, una enumerazione delle finestre, una tabella dei processi. Chi deve anche
+/// agire sulle finestre (clic, "Esci") le riusa invece di enumerarle di nuovo.
+pub fn items_and_windows() -> (Vec<DockItem>, Vec<(HWND, PathBuf)>) {
     let pinned = crate::dockstore::load(); // una sola lettura del file per sondaggio
-    let mut items = merge(&pinned, &read_running_for(&pinned));
+    let windows = app_windows_for(&pinned);
+    let mut items = merge(&pinned, &running_of(&windows));
     for it in &mut items {
         if it.name.is_empty() {
             let path = PathBuf::from(&it.path);
@@ -763,22 +800,29 @@ pub fn items_basic() -> Vec<DockItem> {
         .map(|n| n.to_string_lossy().to_lowercase())
         .collect();
     mark_background(&mut items, &processes_named(&idle));
-    items
+    (items, windows)
 }
 
 /// Elenco completo del Dock: fissate + aperte, con nomi e icone.
-pub fn items() -> Vec<DockItem> {
+pub fn items(have_icons: &[String]) -> Vec<DockItem> {
     let mut items = items_basic();
     for it in &mut items {
-        it.icon = cached_icon(Path::new(&it.path));
+        // Un'icona che il frontend ha già non si rimanda a ogni sondaggio: sono ~128 px in
+        // base64 per voce, centinaia di KB di JSON ogni 2 secondi per niente.
+        it.icon = if have_icons.contains(&it.id) { None } else { cached_icon(Path::new(&it.path)) };
     }
     items
 }
-
 /// La voce con questo `id`, se è davvero nel Dock in questo momento. Le azioni
 /// partono sempre da qui: il frontend non può far eseguire percorsi arbitrari.
 pub fn find(id: &str) -> Option<DockItem> {
     items_basic().into_iter().find(|i| i.id == id)
+}
+
+/// Come `find`, con le finestre già enumerate (per non rifare il lavoro in `dockact`).
+pub fn find_with_windows(id: &str) -> Option<(DockItem, Vec<(HWND, PathBuf)>)> {
+    let (items, windows) = items_and_windows();
+    items.into_iter().find(|i| i.id == id).map(|i| (i, windows))
 }
 
 #[cfg(test)]
@@ -955,6 +999,41 @@ mod tests {
     }
 
     #[test]
+    fn only_real_helpers_inherit_the_ancestors_icon() {
+        let steam = Path::new(r"C:\Program Files (x86)\Steam\Steam.exe");
+        // Helper dello stesso programma, nella sua cartella: si'.
+        assert!(may_inherit(Path::new(r"C:\Program Files (x86)\Steam\bin\cef\cef.win64\steamwebhelper.exe"), steam));
+        assert!(may_inherit(Path::new(r"c:\program files (x86)\STEAM\steamwebhelper.exe"), steam));
+        // Un gioco della libreria di Steam e' un'altra app, anche se sta nella cartella.
+        assert!(!may_inherit(Path::new(r"C:\Program Files (x86)\Steam\steamapps\common\Game\game.exe"), steam));
+        // Un programma altrove (un gioco installato per conto suo, un'app aperta da Esplora risorse).
+        assert!(!may_inherit(Path::new(r"C:\Games\Foo\foo.exe"), steam));
+        // I lanciatori non possiedono le finestre di quello che avviano.
+        assert!(!may_inherit(Path::new(r"C:\Windows\System32\notepad.exe"), Path::new(r"C:\Windows\explorer.exe")));
+        assert!(!may_inherit(Path::new(r"C:\Tools\a\a.exe"), Path::new(r"C:\Tools\WindowsTerminal.exe")));
+        // Senza cartella o nome non si decide.
+        assert!(!may_inherit(Path::new(r"C:\x\y.exe"), Path::new("")));
+    }
+
+    #[test]
+    fn launcher_names() {
+        for l in ["explorer.exe", "EXPLORER.EXE", "cmd.exe", "powershell.exe", "pwsh.exe", "WindowsTerminal.exe", "svchost.exe"] {
+            assert!(is_launcher(l), "{l}");
+        }
+        for n in ["steam.exe", "chrome.exe", "code.exe", "notepad.exe", "explorer"] {
+            assert!(!is_launcher(n), "{n}");
+        }
+    }
+
+    #[test]
+    fn running_of_deduplicates_by_executable_keeping_z_order() {
+        let h = |n: isize| HWND(n as *mut _);
+        let wins = vec![(h(1), PathBuf::from("C:/a/a.exe")), (h(2), PathBuf::from("C:/b/b.exe")), (h(3), PathBuf::from("C:/A/A.EXE"))];
+        let r = running_of(&wins);
+        assert_eq!(r.iter().map(|x| x.path.to_string_lossy().to_string()).collect::<Vec<_>>(), ["C:/a/a.exe", "C:/b/b.exe"]);
+    }
+
+    #[test]
     fn stable_order_keeps_known_appends_new_and_drops_closed() {
         let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         let mut known = Vec::new();
@@ -1004,7 +1083,7 @@ mod tests {
 
     #[test]
     fn live_items_do_not_crash_and_have_names() {
-        let items = items();
+        let items = items(&[]);
         for it in &items {
             assert!(!it.name.is_empty(), "nome vuoto per {}", it.path);
         }
@@ -1016,7 +1095,7 @@ mod tests {
     fn dump_dock() {
         let dir = std::env::temp_dir().join("eosos-dock");
         let _ = std::fs::create_dir_all(&dir);
-        for it in items() {
+        for it in items(&[]) {
             println!("{:<28} fissata={:<5} aperta={:<5} {}", it.name, it.pinned, it.running, it.path);
             if let Some(b64) = it.icon.as_deref().and_then(|u| u.strip_prefix("data:image/png;base64,")) {
                 let bytes = base64::engine::general_purpose::STANDARD.decode(b64).unwrap();

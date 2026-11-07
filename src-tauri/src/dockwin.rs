@@ -14,13 +14,15 @@
 //!   monitor posto sotto;
 //! - il resto (posizione e dimensione) segue monitor, scala e area di lavoro.
 //!
-//! Niente sfocatura dello sfondo: tutti gli effetti di Windows (acrilico, blur,
-//! sfondo di sistema) riempiono l'intero rettangolo della finestra e ignorano il
-//! ritaglio, lasciando angoli quadrati. Il vetro è quindi una tinta traslucida
-//! con bordo luminoso (CSS) dentro una capsula perfetta. Una vera sfocatura
-//! richiederebbe la Composition API (fase D5).
+//! **Sfocatura dello sfondo**: nessun effetto di Windows (acrilico, blur, sfondo di sistema)
+//! rispetta una forma arrotondata, quindi la sfocatura non è della finestra: la cattura lo
+//! schermo dietro il Dock (`backdrop.rs`, con la finestra esclusa dalla cattura) e la
+//! disegna e sfoca la pagina, ritagliata dalla capsula. Qui c'è solo l'esclusione.
 //!
-//! Il Dock non è un appbar: non riserva spazio e non tocca la taskbar.
+//! **Spazio riservato**: se l'impostazione è attiva (e senza auto-nascondi) il Dock è anche un
+//! appbar in basso (`appbar::reserve_bottom`): le finestre massimizzate si fermano sopra la
+//! capsula e il Dock si appoggia al bordo *disponibile* (sopra la taskbar), non all'area di
+//! lavoro, che già lo esclude. Non cambia la taskbar.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;

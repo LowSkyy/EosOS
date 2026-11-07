@@ -25,16 +25,17 @@ fn get_active_app() -> Option<foreground::ActiveApp> {
 
 /// Voci del Dock (fissate + aperte). Lavoro bloccante (COM, icone): fuori dal thread UI.
 #[tauri::command(async)]
-fn dock_items() -> Vec<dock::DockItem> {
-    dock::items()
+fn dock_items(have: Option<Vec<String>>) -> Vec<dock::DockItem> {
+    // `have`: gli id di cui il frontend ha già l'icona, che non si rimanda.
+    dock::items(&have.unwrap_or_default())
 }
 
 /// Clic su un'icona del Dock. Il frontend manda solo l'`id` di una voce che il
 /// Dock sta mostrando: il percorso da eseguire lo ricava Rust.
 #[tauri::command(async)]
 fn dock_activate(id: String) {
-    if let Some(item) = dock::find(&id) {
-        dockact::activate(&item);
+    if let Some((item, windows)) = dock::find_with_windows(&id) {
+        dockact::activate(&item, &windows);
     }
 }
 

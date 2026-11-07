@@ -75,7 +75,7 @@ export function dotState(item: Pick<DockItem, "running" | "background">): "runni
 }
 
 /** Impostazioni del Dock salvate da Rust. */
-export type DockSettings = { autohide: boolean; glass: number; blur: boolean };
+export type DockSettings = { autohide: boolean; glass: number; blur: boolean; reserve: boolean };
 
 /** Opacità del vetro valida (0..1), con ripiego sullo standard per valori assurdi. */
 export function clampGlass(v: unknown): number {
@@ -130,4 +130,28 @@ export function applyMove(items: DockItem[], id: string, target: number): DockIt
   const t = Math.min(Math.max(target, 0), pinned.length);
   pinned.splice(t, 0, { ...moved, pinned: true });
   return [...pinned, ...others];
+}
+
+/** Icone già ricevute da Rust: id -> data URL. Si rimandano solo quelle che mancano. */
+export type IconCache = Map<string, string>;
+
+/**
+ * Aggiorna la cache con le icone arrivate in `items` e toglie quelle delle voci scomparse.
+ * Rust non rimanda le icone che il frontend dichiara di avere (`knownIconIds`), quindi in
+ * `items` ci sono solo le nuove: tutte le altre arrivano con `icon: null`.
+ */
+export function updateIconCache(cache: IconCache, items: DockItem[]): void {
+  const alive = new Set(items.map((i) => i.id));
+  for (const id of [...cache.keys()]) if (!alive.has(id)) cache.delete(id);
+  for (const it of items) if (it.icon) cache.set(it.id, it.icon);
+}
+
+/** Riempie con la cache le icone che Rust non ha rimandato. Pura, testata. */
+export function withCachedIcons(items: DockItem[], cache: IconCache): DockItem[] {
+  return items.map((i) => (i.icon || !cache.has(i.id) ? i : { ...i, icon: cache.get(i.id) ?? null }));
+}
+
+/** Gli id di cui si ha già l'icona: quelli da NON rimandare. */
+export function knownIconIds(cache: IconCache): string[] {
+  return [...cache.keys()];
 }

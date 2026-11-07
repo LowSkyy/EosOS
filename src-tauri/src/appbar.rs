@@ -132,12 +132,19 @@ fn new_data(hwnd: HWND) -> APPBARDATA {
 type BottomStrip = (isize, (i32, i32, i32, i32));
 static LAST_BOTTOM: Mutex<Option<BottomStrip>> = Mutex::new(None);
 
+/// Serializza la riserva e il rilascio della fascia in basso: `reserve_bottom` è chiamata sia dal
+/// ciclo di controllo sia dal comando `dock_fit`, e senza questo una delle due poteva vedere la
+/// finestra già "registrata" prima che `ABM_NEW` fosse partito e mandare `ABM_SETPOS` a vuoto,
+/// lasciando la fascia mai riservata.
+static BOTTOM_LOCK: Mutex<()> = Mutex::new(());
+
 /// Riserva una fascia alta `height_px` in basso sul monitor `mon` per `hwnd` (il
 /// Dock), registrandolo come appbar se non lo è già, e ritorna il rettangolo
 /// assegnato dal sistema. Se in basso c'è la taskbar, la fascia si ferma sopra di
 /// lei: `rc.bottom` è il bordo inferiore *disponibile* al Dock. Il sistema modifica
 /// l'area di lavoro solo quando il rettangolo cambia.
 pub fn reserve_bottom(hwnd: HWND, mon: RECT, height_px: i32) -> RECT {
+    let _serial = BOTTOM_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let mut abd = new_data_edge(hwnd, ABE_BOTTOM);
     unsafe {
         let key = hwnd.0 as isize;
@@ -174,6 +181,7 @@ pub fn reserve_bottom(hwnd: HWND, mon: RECT, height_px: i32) -> RECT {
 
 /// Rilascia la fascia in basso del Dock. Idempotente.
 pub fn release_bottom(hwnd: HWND) {
+    let _serial = BOTTOM_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     *LAST_BOTTOM.lock().unwrap_or_else(|e| e.into_inner()) = None;
     remove(hwnd);
 }

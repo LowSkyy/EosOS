@@ -26,6 +26,7 @@ public static class DR {
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
   [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint a, uint b, ref R r, uint c);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int n);
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
   public static R Work() { R r = new R(); SystemParametersInfo(0x30, 0, ref r, 0); return r; }
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   public static System.Collections.Generic.List<string> Of(uint pid) { var o = new System.Collections.Generic.List<string>(); EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) { var sb = new StringBuilder(256); GetWindowText(h, sb, 256); R r; GetWindowRect(h, out r); o.Add(h + " vis=" + IsWindowVisible(h) + " '" + sb + "' (" + r.L + "," + r.T + "," + r.Rt + "," + r.B + ")"); } return true; }, IntPtr.Zero); return o; }
@@ -36,9 +37,13 @@ $dockJson = Join-Path $env:LOCALAPPDATA 'EosOS\dock.json'
 $backup = $null
 if (Test-Path $dockJson) { $backup = Get-Content $dockJson -Raw }
 function Cleanup { Get-CimInstance Win32_Process -Filter "Name='eosos.exe'" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } }
-# Chiude solo i Blocco note nati dopo quelli gia' presenti all'avvio del test.
-$script:notepadBefore = @()
+# Chiude solo i Blocco note nati dopo quelli gia' presenti all'avvio del test. L'elenco di quelli
+# gia' presenti si registra QUI, prima di tutto il resto: se il test fallisce presto, il blocco
+# `finally` non deve mai trovare un elenco vuoto e chiudere i Blocco note dell'utente (con testo
+# non salvato).
+$script:notepadBefore = @(Get-Process notepad -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
 function Stop-NewNotepad {
+  if ($null -eq $script:notepadBefore) { return }   # senza elenco di riferimento non si chiude nulla
   Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $script:notepadBefore -notcontains $_.Id } | Stop-Process -Force -ErrorAction SilentlyContinue
 }
 function Restore-Json { if ($null -ne $backup) { [IO.File]::WriteAllText($dockJson, $backup, (New-Object Text.UTF8Encoding($false))) } }
@@ -81,8 +86,7 @@ try {
   # Il nuovo Blocco note parte tramite un lanciatore che termina subito: lo si cerca per nome, ma
   # SOLO tra i processi nati dopo l'avvio. Un Blocco note gia' aperto dall'utente (magari con testo
   # non salvato) non va ne' massimizzato ne' chiuso.
-  $notepadBefore = @(Get-Process notepad -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
-  $script:notepadBefore = $notepadBefore
+  $notepadBefore = $script:notepadBefore
   Start-Process notepad.exe; Start-Sleep 4
   $mine = @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $notepadBefore -notcontains $_.Id -and $_.MainWindowHandle -ne [IntPtr]::Zero })
   $h = if ($mine.Count -gt 0) { $mine[0].MainWindowHandle } else { [IntPtr]::Zero }
@@ -98,12 +102,18 @@ try {
   Stop-NewNotepad
 
   Write-Host "`n=== D. uscita normale ==="
-  [void]$p.CloseMainWindow(); Start-Sleep 1
-  if (-not $p.HasExited) { Get-CimInstance Win32_Process -Filter "Name='eosos.exe'" | ForEach-Object { try { (Get-Process -Id $_.ProcessId).CloseMainWindow() | Out-Null } catch {} } }
-  Start-Sleep 5
+  # Chiusura gentile (WM_CLOSE) di una finestra di EosOS: l'app deve uscire da sola e ripristinare
+  # tutto. Niente ripiego sul kill: dopo un kill e' il sistema a togliere l'appbar, e il controllo
+  # passerebbe anche se il percorso di uscita normale fosse rotto.
+  $bar = [DR]::Find('EosOS')
+  Check "finestra di EosOS trovata per la chiusura gentile" ($bar -ne [IntPtr]::Zero)
+  if ($bar -ne [IntPtr]::Zero) { [void][DR]::PostMessage($bar, 0x10, [IntPtr]::Zero, [IntPtr]::Zero) }
+  $t0 = Get-Date; while (-not $p.HasExited -and ((Get-Date) - $t0).TotalSeconds -lt 12) { Start-Sleep -Milliseconds 300 }
+  Check "l'uscita normale termina EosOS (senza kill)" ($p.HasExited)
+  Start-Sleep 2
   $d = [DR]::Work(); Write-Host "area di lavoro: $($d.T)..$($d.B)"
-  if ($d.B -ne $before.B) { Cleanup; Start-Sleep 3; $d = [DR]::Work() }  # se la chiusura gentile non basta, e' lo scenario E
-  Check "dopo l'uscita l'area di lavoro e' come prima" ($d.T -eq $before.T -and $d.B -eq $before.B)
+  Check "dopo l'uscita normale l'area di lavoro e' come prima" ($d.T -eq $before.T -and $d.B -eq $before.B)
+  if (-not $p.HasExited) { Cleanup; Start-Sleep 3 }   # solo per non lasciare processi, dopo i controlli
 
   Write-Host "`n=== E. kill brutale ==="
   $p = Start-Eos

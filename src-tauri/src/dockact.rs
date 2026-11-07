@@ -4,7 +4,7 @@
 //! Ogni azione parte da una voce già presente nel Dock (`dock::find`): il
 //! frontend manda solo l'`id`, mai un percorso.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use windows::core::{w, HSTRING};
 use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
@@ -71,14 +71,13 @@ pub fn parse_menu_id(raw: &str) -> Option<(MenuAction, String)> {
 }
 
 /// Finestre aperte dell'app, dall'alto verso il basso nell'ordine Z.
-fn windows_of(item: &DockItem) -> Vec<HWND> {
-    dock::app_windows()
-        .into_iter()
+fn windows_of(item: &DockItem, windows: &[(HWND, PathBuf)]) -> Vec<HWND> {
+    windows
+        .iter()
         .filter(|(_, p)| same_app(p, Path::new(&item.path)))
-        .map(|(h, _)| h)
+        .map(|(h, _)| *h)
         .collect()
 }
-
 /// Avvia l'eseguibile della voce.
 fn launch(item: &DockItem) {
     // App dello Store: la shell sa avviare `shell:AppsFolder\<identificatore>`.
@@ -105,6 +104,7 @@ fn launch(item: &DockItem) {
 
 /// Porta `hwnd` in primo piano, ripristinandola se è minimizzata.
 fn focus(hwnd: HWND) {
+    let mut ok;
     unsafe {
         if IsIconic(hwnd).as_bool() {
             let _ = ShowWindow(hwnd, SW_RESTORE);
@@ -112,15 +112,21 @@ fn focus(hwnd: HWND) {
         // Il trucco dell'Alt solo se Windows NEGA il primo piano. Non basta che il primo piano
         // finisca altrove: se l'app ha una finestra di dialogo aperta il primo piano va a lei
         // anche quando la richiesta riesce, e un Alt finto attiverebbe la barra dei menu.
-        if !SetForegroundWindow(hwnd).as_bool() {
+        ok = SetForegroundWindow(hwnd).as_bool();
+        if !ok {
             // Windows nega il primo piano a chi non ha ricevuto input: premere
             // Alt un istante lo sblocca (trucco classico).
             keybd_event(VK_MENU.0 as u8, 0, Default::default(), 0);
-            let _ = SetForegroundWindow(hwnd);
+            ok = SetForegroundWindow(hwnd).as_bool();
             keybd_event(VK_MENU.0 as u8, 0, KEYEVENTF_KEYUP, 0);
         }
     }
-    crate::foreground::note_activated(hwnd);
+    // Si ricorda la finestra solo se il primo piano è stato ottenuto davvero. Se Windows lo
+    // ha negato (l'icona lampeggia nella taskbar) ricordarla farebbe credere al clic
+    // successivo che l'app sia già davanti, e la minimizzerebbe invece di portarla avanti.
+    if ok {
+        crate::foreground::note_activated(hwnd);
+    }
 }
 
 /// Quale finestra va minimizzata al clic su un'app? Pura, testata.
@@ -151,8 +157,8 @@ pub fn window_to_minimize(
 
 /// Clic sull'icona: avvia se chiusa; se aperta la porta in primo piano, e se è
 /// già quella davanti la minimizza.
-pub fn activate(item: &DockItem) {
-    let wins = windows_of(item);
+pub fn activate(item: &DockItem, windows: &[(HWND, PathBuf)]) {
+    let wins = windows_of(item, windows);
     let Some(&top) = wins.first() else {
         launch(item);
         return;
@@ -174,8 +180,8 @@ pub fn activate(item: &DockItem) {
 
 /// "Esci": chiede la chiusura (WM_CLOSE) di tutte le finestre dell'app, come
 /// farebbe il pulsante X: l'app può ancora chiedere di salvare.
-pub fn quit(item: &DockItem) {
-    for hwnd in windows_of(item) {
+pub fn quit(item: &DockItem, windows: &[(HWND, PathBuf)]) {
+    for hwnd in windows_of(item, windows) {
         unsafe {
             let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
         }
@@ -196,10 +202,10 @@ pub fn run_menu_action(action: MenuAction, id: &str) {
         }
         _ => {}
     }
-    let Some(item) = dock::find(id) else { return };
+    let Some((item, windows)) = dock::find_with_windows(id) else { return };
     match action {
-        MenuAction::Open => activate_or_launch(&item),
-        MenuAction::Quit => quit(&item),
+        MenuAction::Open => activate_or_launch(&item, &windows),
+        MenuAction::Quit => quit(&item, &windows),
         MenuAction::Pin => dockstore::pin(Pinned { name: item.name.clone(), path: item.path.clone().into() }),
         MenuAction::Unpin => dockstore::unpin(Path::new(&item.path)),
         MenuAction::ToggleAutoHide
@@ -210,8 +216,8 @@ pub fn run_menu_action(action: MenuAction, id: &str) {
 }
 
 /// "Apri" dal menu: porta in primo piano senza mai minimizzare.
-fn activate_or_launch(item: &DockItem) {
-    match windows_of(item).first() {
+fn activate_or_launch(item: &DockItem, windows: &[(HWND, PathBuf)]) {
+    match windows_of(item, windows).first() {
         Some(&top) => focus(top),
         None => launch(item),
     }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   MAGNIFY_MAX,
+  knownIconIds,
+  updateIconCache,
+  withCachedIcons,
   applyMove,
   dropTarget,
   previewOffsets,
@@ -166,5 +169,39 @@ describe("applyMove", () => {
   });
   it("un id sconosciuto lascia l'elenco com'è", () => {
     expect(applyMove(list, "boh", 0)).toBe(list);
+  });
+});
+
+describe("cache delle icone", () => {
+  it("tiene le icone ricevute, ne ricorda gli id e rimette l'icona alle voci che Rust non rimanda", () => {
+    const cache = new Map<string, string>();
+    // Primo sondaggio: Rust manda tutte le icone.
+    const first = [item("a", { icon: "data:a" }), item("b", { icon: "data:b" })];
+    updateIconCache(cache, first);
+    expect(knownIconIds(cache).sort()).toEqual(["a", "b"]);
+    // Secondi sondaggio: il frontend ha dichiarato a e b, quindi Rust le manda senza icona.
+    const second = [item("a"), item("b"), item("c", { icon: "data:c" })];
+    updateIconCache(cache, second);
+    expect(withCachedIcons(second, cache).map((i) => i.icon)).toEqual(["data:a", "data:b", "data:c"]);
+  });
+
+  it("una voce senza icona (fallimento) resta senza e verra' richiesta di nuovo", () => {
+    const cache = new Map<string, string>();
+    const items = [item("a")];
+    updateIconCache(cache, items);
+    expect(knownIconIds(cache)).toEqual([]);
+    expect(withCachedIcons(items, cache)[0].icon).toBeNull();
+  });
+
+  it("le voci scomparse escono dalla cache", () => {
+    const cache = new Map<string, string>([["a", "data:a"], ["gone", "data:g"]]);
+    updateIconCache(cache, [item("a")]);
+    expect(knownIconIds(cache)).toEqual(["a"]);
+  });
+
+  it("non tocca le voci che hanno gia' un'icona", () => {
+    const cache = new Map<string, string>([["a", "vecchia"]]);
+    const items = [item("a", { icon: "nuova" })];
+    expect(withCachedIcons(items, cache)[0].icon).toBe("nuova");
   });
 });

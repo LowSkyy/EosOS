@@ -97,9 +97,16 @@ pub fn strip_bom(text: &str) -> &str {
     text.strip_prefix('\u{feff}').unwrap_or(text)
 }
 
-fn parse(text: &str) -> Option<Vec<Pinned>> {
+/// Elenco e impostazioni dal testo del file (con o senza BOM), o `None` se non è JSON valido.
+fn parse_full(text: &str) -> Option<(Vec<Pinned>, Settings)> {
     let f: File = serde_json::from_str(strip_bom(text)).ok()?;
-    Some(f.pinned.into_iter().map(|e| Pinned { name: e.name, path: PathBuf::from(e.path) }).collect())
+    let st = settings_of(&f);
+    Some((f.pinned.into_iter().map(|e| Pinned { name: e.name, path: PathBuf::from(e.path) }).collect(), st))
+}
+
+#[cfg(test)]
+fn parse(text: &str) -> Option<Vec<Pinned>> {
+    parse_full(text).map(|(list, _)| list)
 }
 
 fn serialize(pinned: &[Pinned], st: Settings) -> String {
@@ -147,20 +154,30 @@ pub fn dedup(list: Vec<Pinned>) -> Vec<Pinned> {
 /// modifiche simultanee (menu, trascinamento, ciclo di controllo) si perderebbero a vicenda.
 static STORE_LOCK: Mutex<()> = Mutex::new(());
 
-/// Elenco e impostazioni dell'ultima lettura o scrittura riuscita.
-type Snapshot = (Vec<Pinned>, Settings);
-static LAST_GOOD: Mutex<Option<Snapshot>> = Mutex::new(None);
+/// Ultimo elenco e ultime impostazioni letti o scritti con successo. Separati: `settings()` e
+/// `load()` leggono il file in momenti diversi e ognuno aggiorna solo la propria parte.
+static LAST_LIST: Mutex<Option<Vec<Pinned>>> = Mutex::new(None);
+static LAST_SETTINGS: Mutex<Option<Settings>> = Mutex::new(None);
 
 fn lock_store() -> MutexGuard<'static, ()> {
     STORE_LOCK.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-fn last_good() -> Option<Snapshot> {
-    LAST_GOOD.lock().unwrap_or_else(|e| e.into_inner()).clone()
+fn last_list() -> Option<Vec<Pinned>> {
+    LAST_LIST.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+fn last_settings() -> Option<Settings> {
+    *LAST_SETTINGS.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 fn remember(list: &[Pinned], st: Settings) {
-    *LAST_GOOD.lock().unwrap_or_else(|e| e.into_inner()) = Some((list.to_vec(), st));
+    *LAST_LIST.lock().unwrap_or_else(|e| e.into_inner()) = Some(list.to_vec());
+    remember_settings(st);
+}
+
+fn remember_settings(st: Settings) {
+    *LAST_SETTINGS.lock().unwrap_or_else(|e| e.into_inner()) = Some(st);
 }
 
 /// Esito della lettura del file.
@@ -190,8 +207,8 @@ fn read_store() -> Read {
 /// Cosa fare dopo aver letto il file.
 #[derive(Debug, PartialEq)]
 pub enum Decision {
-    /// Il file è valido: si usa questo elenco.
-    Use(Vec<Pinned>),
+    /// Il file è valido: si usano questo elenco e queste impostazioni.
+    Use(Vec<Pinned>, Settings),
     /// Il file manca: si riparte dalle app fissate sulla taskbar.
     Seed,
     /// Il file esiste ma non è JSON valido: si conserva come `dock.json.bad` e si riparte.
@@ -200,13 +217,21 @@ pub enum Decision {
     KeepLast(Vec<Pinned>),
 }
 
+impl Decision {
+    /// I dati sono quelli del file (o il file va ricreato)? `false` solo per `KeepLast`: una
+    /// lettura fallita. Su dati non affidabili non si deve scrivere nulla.
+    pub fn is_reliable(&self) -> bool {
+        !matches!(self, Decision::KeepLast(_))
+    }
+}
+
 /// Decide come usare il risultato della lettura. Un errore di accesso non è un file
 /// mancante: trattarlo così riscriverebbe `dock.json` con l'elenco della taskbar e
 /// butterebbe via le app fissate e il loro ordine. Pura, testata.
 pub fn decide(read: Read, last_good: Option<&[Pinned]>) -> Decision {
     match read {
-        Read::Text(t) => match parse(&t) {
-            Some(list) => Decision::Use(list),
+        Read::Text(t) => match parse_full(&t) {
+            Some((list, st)) => Decision::Use(list, st),
             None => Decision::BackupAndSeed,
         },
         Read::Missing => Decision::Seed,
@@ -222,15 +247,19 @@ fn settings_of(f: &File) -> Settings {
     Settings { autohide: f.autohide, glass: clamp_glass(f.glass), blur: f.blur, reserve: f.reserve }
 }
 
-/// Impostazioni salvate. Se il file manca o è illeggibile, quelle dell'ultima lettura
-/// riuscita o, in mancanza, quelle di default.
+/// Impostazioni salvate. Se il file manca, quelle di default; se non si legge, quelle
+/// dell'ultima lettura riuscita. Ogni lettura riuscita aggiorna la memoria.
 pub fn settings() -> Settings {
     match read_store() {
-        Read::Text(t) => serde_json::from_str::<File>(strip_bom(&t))
-            .ok()
-            .map_or_else(default_settings, |f| settings_of(&f)),
+        Read::Text(t) => match parse_full(&t) {
+            Some((_, st)) => {
+                remember_settings(st);
+                st
+            }
+            None => default_settings(),
+        },
         Read::Missing => default_settings(),
-        Read::Failed => last_good().map_or_else(default_settings, |(_, st)| st),
+        Read::Failed => last_settings().unwrap_or_else(default_settings),
     }
 }
 
@@ -255,32 +284,52 @@ fn write_file(pinned: &[Pinned], st: Settings) {
 /// valido lo si conserva come `dock.json.bad` prima di ripartire. Se non si riesce a
 /// leggerlo si usa l'ultimo elenco buono senza toccare nulla (vedi `decide`).
 pub fn load() -> Vec<Pinned> {
-    load_impl(false)
+    load_full(false).list
+}
+
+/// Elenco e impostazioni letti dal file, con l'indicazione se sono affidabili.
+struct Loaded {
+    list: Vec<Pinned>,
+    settings: Settings,
+    /// `false` se il file non si è potuto leggere: i dati sono l'ultimo stato noto e chi li
+    /// modifica NON deve riscriverli sul file.
+    reliable: bool,
 }
 
 /// `locked`: chi chiama tiene già `STORE_LOCK` (le modifiche, che leggono e riscrivono).
-fn load_impl(locked: bool) -> Vec<Pinned> {
-    let last = last_good();
-    let last_list = last.as_ref().map(|(l, _)| l.as_slice());
-    match decide(read_store(), last_list) {
-        Decision::Use(list) => {
-            let clean = dedup(list.clone());
-            if clean.len() != list.len() {
+fn load_full(locked: bool) -> Loaded {
+    let list = last_list();
+    let decision = decide(read_store(), list.as_deref());
+    let reliable = decision.is_reliable();
+    match decision {
+        Decision::Use(items, st) => {
+            let clean = dedup(items.clone());
+            if clean.len() != items.len() {
                 // Ripulisce i file scritti prima che i doppioni fossero esclusi.
                 let _g = (!locked).then(lock_store);
-                write_file(&clean, settings());
+                write_file(&clean, st);
             } else {
-                remember(&clean, settings_hint(last.as_ref()));
+                remember(&clean, st);
             }
-            clean
+            Loaded { list: clean, settings: st, reliable }
         }
-        Decision::KeepLast(list) => list,
+        Decision::KeepLast(items) => {
+            Loaded { list: items, settings: last_settings().unwrap_or_else(default_settings), reliable }
+        }
         Decision::Seed | Decision::BackupAndSeed => {
             let _g = (!locked).then(lock_store);
             // Un altro thread può aver creato il file mentre si aspettava il lock.
-            match decide(read_store(), last_list) {
-                Decision::Use(list) => dedup(list),
-                Decision::KeepLast(list) => list,
+            let again = decide(read_store(), list.as_deref());
+            let reliable = again.is_reliable();
+            match again {
+                Decision::Use(items, st) => {
+                    let clean = dedup(items);
+                    remember(&clean, st);
+                    Loaded { list: clean, settings: st, reliable }
+                }
+                Decision::KeepLast(items) => {
+                    Loaded { list: items, settings: last_settings().unwrap_or_else(default_settings), reliable }
+                }
                 other => {
                     if other == Decision::BackupAndSeed
                         && let Some(path) = store_path()
@@ -288,23 +337,26 @@ fn load_impl(locked: bool) -> Vec<Pinned> {
                         let _ = std::fs::copy(&path, path.with_extension("json.bad"));
                     }
                     let seeded = dedup(crate::dock::read_pinned());
-                    write_file(&seeded, settings());
-                    seeded
+                    let st = last_settings().unwrap_or_else(default_settings);
+                    write_file(&seeded, st);
+                    Loaded { list: seeded, settings: st, reliable }
                 }
             }
         }
     }
 }
 
-fn settings_hint(last: Option<&Snapshot>) -> Settings {
-    last.map_or_else(default_settings, |(_, st)| *st)
-}
-
-/// Legge, modifica e riscrive il file sotto il lock. `f` dice se qualcosa è cambiato.
+/// Legge, modifica e riscrive il file sotto il lock. `f` dice se qualcosa è cambiato. Se la
+/// lettura è fallita non si scrive nulla: riscrivere l'ultimo stato noto (o un elenco vuoto, se
+/// non ce n'è uno) cancellerebbe app fissate e impostazioni. L'azione dell'utente va persa,
+/// ma è un caso raro (file bloccato per qualche istante) e meglio di perdere tutto.
 fn modify(f: impl FnOnce(&mut Vec<Pinned>, &mut Settings) -> bool) {
     let _g = lock_store();
-    let mut list = load_impl(true);
-    let mut st = settings();
+    let loaded = load_full(true);
+    if !loaded.reliable {
+        return;
+    }
+    let (mut list, mut st) = (loaded.list, loaded.settings);
     if f(&mut list, &mut st) {
         write_file(&list, st);
     }
@@ -435,9 +487,34 @@ mod tests {
         // File presente ma non valido: si conserva come .bad e si riparte.
         assert_eq!(decide(Read::Text("{ rotto".into()), Some(&last)), Decision::BackupAndSeed);
         // File valido, anche con il BOM.
-        let good = serialize(&last, Settings { autohide: false, glass: 0.7, blur: true, reserve: true });
-        assert_eq!(decide(Read::Text(good.clone()), None), Decision::Use(last.to_vec()));
-        assert_eq!(decide(Read::Text(format!("\u{feff}{good}")), None), Decision::Use(last.to_vec()));
+        let st = Settings { autohide: true, glass: 0.15, blur: false, reserve: false };
+        let good = serialize(&last, st);
+        assert_eq!(decide(Read::Text(good.clone()), None), Decision::Use(last.to_vec(), st));
+        assert_eq!(decide(Read::Text(format!("\u{feff}{good}")), None), Decision::Use(last.to_vec(), st));
+    }
+
+    #[test]
+    fn only_a_failed_read_is_unreliable() {
+        let st = Settings { autohide: false, glass: 0.7, blur: true, reserve: true };
+        assert!(Decision::Use(vec![], st).is_reliable());
+        assert!(Decision::Seed.is_reliable());
+        assert!(Decision::BackupAndSeed.is_reliable());
+        // Con una lettura fallita non si deve scrivere nemmeno se c'e' un ultimo elenco buono.
+        assert!(!Decision::KeepLast(vec![pin("A", "C:/a.exe")]).is_reliable());
+        assert!(!Decision::KeepLast(vec![]).is_reliable());
+        assert!(!decide(Read::Failed, None).is_reliable());
+        assert!(decide(Read::Missing, None).is_reliable());
+    }
+
+    #[test]
+    fn the_settings_read_from_the_file_are_the_ones_remembered() {
+        // Prima la memoria teneva quelle precedenti (di default), non quelle lette.
+        let list = [pin("A", "C:/a.exe")];
+        let st = Settings { autohide: true, glass: 0.15, blur: false, reserve: false };
+        let (l, got) = parse_full(&serialize(&list, st)).expect("json valido");
+        assert_eq!(l, list.to_vec());
+        assert_eq!(got, st);
+        assert!(parse_full("{ rotto").is_none());
     }
 
     #[test]
