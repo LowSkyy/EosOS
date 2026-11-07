@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794089989.2103791,
-    "seen": 1794090005.2235572,
-    "ast_hash": "4edeed8d1ad68bf8057f9615b90a3dbb",
+    "mtime": 1794090111.886161,
+    "seen": 1794090113.4093125,
+    "ast_hash": "3fa503d1d3eab153433a11a157eef082",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -645,6 +645,12 @@
     "mtime": 1794089502.037892,
     "seen": 1794090005.2235143,
     "ast_hash": "ba33752305cc7ecf3091e027df2ca145",
+    "semantic_hash": ""
+  },
+  "docs/MISSION-CONTROL.md": {
+    "mtime": 1794090111.528698,
+    "seen": 1794090113.409318,
+    "ast_hash": "3d647c7dd987c4e9658de29ab9a48f18",
     "semantic_hash": ""
   },
   "package-lock.json": {
