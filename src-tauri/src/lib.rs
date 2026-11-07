@@ -62,6 +62,15 @@ pub fn run() {
         enable_taskbar_hiding();
     }
 
+    // Solo build debug: provoca un panic dopo 9 s per testare il panic hook.
+    #[cfg(debug_assertions)]
+    if std::env::var("EOSOS_TEST_PANIC").is_ok_and(|v| v == "1") {
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_secs(9));
+            panic!("panic di test (EOSOS_TEST_PANIC)");
+        });
+    }
+
     tauri::Builder::default()
         .build(tauri::generate_context!())
         .expect("errore durante l'avvio di EosOS")
