@@ -296,8 +296,27 @@ fn apply(window: &WebviewWindow, info: &MonitorInfo) -> Result<(), Box<dyn std::
     Ok(())
 }
 
+/// Ultimo handle noto della taskbar, per accorgersi del riavvio di Explorer.
+static LAST_TRAY: Mutex<Option<isize>> = Mutex::new(None);
+
+/// Quando Explorer si riavvia perde tutte le appbar registrate: si dimenticano
+/// le registrazioni (senza ABM_REMOVE, sono già sparite) così `apply` le rifà.
+fn handle_explorer_restart() {
+    let mut last = LAST_TRAY.lock().unwrap_or_else(|e| e.into_inner());
+    let (next, restarted) = crate::taskbar::detect_restart(*last, crate::taskbar::tray_handle());
+    *last = next;
+    if restarted {
+        registered().clear();
+        *APPLIED.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        if debug_enabled() {
+            eprintln!("appbar: Explorer riavviato, registrazioni da rifare");
+        }
+    }
+}
+
 /// Allinea le barre ai monitor presenti: crea, rimuove, riposiziona.
 pub fn reconcile(app: &AppHandle) {
+    handle_explorer_restart();
     let monitors = match monitors_of(app) {
         Ok(m) if !m.is_empty() => m,
         _ => return,

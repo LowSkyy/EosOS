@@ -154,3 +154,13 @@ fn watchdog_restores_immediately_if_parent_already_gone() {
     assert!(!observed);
     assert!(win.visible());
 }
+
+#[test]
+fn explorer_restart_detection() {
+    use crate::taskbar::detect_restart;
+    assert_eq!(detect_restart(None, Some(1)), (Some(1), false));
+    assert_eq!(detect_restart(Some(1), Some(1)), (Some(1), false));
+    // Durante il riavvio non c'è taskbar: nessun falso allarme e si ricorda il vecchio handle.
+    assert_eq!(detect_restart(Some(1), None), (Some(1), false));
+    assert_eq!(detect_restart(Some(1), Some(2)), (Some(2), true));
+}

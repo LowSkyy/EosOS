@@ -145,6 +145,23 @@ pub fn restore_autohide() {
     let _ = std::fs::remove_file(marker);
 }
 
+/// Handle della taskbar principale (cambia quando Explorer si riavvia).
+pub fn tray_handle() -> Option<isize> {
+    find(&["Shell_TrayWnd"]).first().map(|h| h.0 as isize)
+}
+
+/// Dato l'ultimo handle noto e quello attuale, dice se Explorer è stato
+/// riavviato e quale handle ricordare. Durante il riavvio (nessuna taskbar)
+/// l'ultimo handle noto resta quello vecchio.
+pub fn detect_restart(last: Option<isize>, now: Option<isize>) -> (Option<isize>, bool) {
+    match (last, now) {
+        (_, None) => (last, false),
+        (None, Some(n)) => (Some(n), false),
+        (Some(l), Some(n)) if l == n => (last, false),
+        (Some(_), Some(n)) => (Some(n), true),
+    }
+}
+
 /// Vero finché la taskbar va tenuta nascosta. Il lock serializza il thread di
 /// mantenimento e il ripristino: dopo `restore_real` nessuno la rinasconde.
 static KEEP_HIDDEN: std::sync::Mutex<bool> = std::sync::Mutex::new(false);
@@ -158,13 +175,25 @@ pub fn hide_real() -> usize {
         *keep = true;
         hide(&TASKBAR_CLASSES)
     };
-    std::thread::spawn(|| loop {
-        std::thread::sleep(std::time::Duration::from_millis(300));
-        let keep = KEEP_HIDDEN.lock().unwrap_or_else(|e| e.into_inner());
-        if !*keep {
-            break;
+    std::thread::spawn(|| {
+        let mut last = tray_handle();
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let keep = KEEP_HIDDEN.lock().unwrap_or_else(|e| e.into_inner());
+            if !*keep {
+                break;
+            }
+            // Explorer riavviato: la nuova taskbar ha un altro handle. Si riapplica
+            // l'auto-nascondi (se non è rimasto) e la si nasconde.
+            let now = tray_handle();
+            if now.is_some() && now != last {
+                enable_autohide();
+            }
+            if now.is_some() {
+                last = now;
+            }
+            hide(&TASKBAR_CLASSES);
         }
-        hide(&TASKBAR_CLASSES);
     });
     n
 }
