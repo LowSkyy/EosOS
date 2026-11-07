@@ -17,6 +17,48 @@ struct File {
     /// Il Dock scompare e ricompare toccando il bordo inferiore dello schermo.
     #[serde(default)]
     autohide: bool,
+    /// Opacità del vetro, da 0 (trasparente) a 1 (opaco). Come il cursore
+    /// "Liquid Glass" di macOS 27, ma a tre livelli.
+    #[serde(default = "default_glass")]
+    glass: f64,
+}
+
+fn default_glass() -> f64 {
+    GLASS_STANDARD
+}
+
+/// Livelli di vetro del menu: (id, etichetta, valore).
+pub const GLASS_LEVELS: [(&str, &str, f64); 3] = [
+    ("clear", "Vetro trasparente", 0.15),
+    ("standard", "Vetro standard", GLASS_STANDARD),
+    ("solid", "Vetro opaco", 1.0),
+];
+const GLASS_STANDARD: f64 = 0.7;
+
+/// Impostazioni del Dock, come le legge il frontend.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct Settings {
+    pub autohide: bool,
+    pub glass: f64,
+}
+
+/// Valore di un livello di vetro dall'id. Pura, testata.
+pub fn glass_value(id: &str) -> Option<f64> {
+    GLASS_LEVELS.iter().find(|(i, _, _)| *i == id).map(|(_, _, v)| *v)
+}
+
+/// Il livello più vicino a un valore salvato (per spuntare la voce giusta nel
+/// menu anche se il file è stato modificato a mano). Pura, testata.
+pub fn nearest_glass_id(v: f64) -> &'static str {
+    GLASS_LEVELS
+        .iter()
+        .min_by(|a, b| (a.2 - v).abs().total_cmp(&(b.2 - v).abs()))
+        .map_or("standard", |l| l.0)
+}
+
+/// Porta un valore letto dal file dentro 0..=1 (NaN compreso). Pura, testata.
+pub fn clamp_glass(v: f64) -> f64 {
+    if v.is_finite() { v.clamp(0.0, 1.0) } else { GLASS_STANDARD }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -29,15 +71,22 @@ fn store_path() -> Option<PathBuf> {
     Some(PathBuf::from(std::env::var_os("LOCALAPPDATA")?).join(r"EosOS\dock.json"))
 }
 
+/// Toglie l'eventuale BOM UTF-8 iniziale: il Blocco note e PowerShell 5 lo
+/// aggiungono quando si salva a mano. Pura, testata.
+pub fn strip_bom(text: &str) -> &str {
+    text.strip_prefix('\u{feff}').unwrap_or(text)
+}
+
 fn parse(text: &str) -> Option<Vec<Pinned>> {
-    let f: File = serde_json::from_str(text).ok()?;
+    let f: File = serde_json::from_str(strip_bom(text)).ok()?;
     Some(f.pinned.into_iter().map(|e| Pinned { name: e.name, path: PathBuf::from(e.path) }).collect())
 }
 
-fn serialize(pinned: &[Pinned], autohide: bool) -> String {
+fn serialize(pinned: &[Pinned], st: Settings) -> String {
     let f = File {
         version: 1,
-        autohide,
+        autohide: st.autohide,
+        glass: st.glass,
         pinned: pinned
             .iter()
             .map(|p| Entry { name: p.name.clone(), path: p.path.to_string_lossy().to_string() })
@@ -73,43 +122,63 @@ pub fn dedup(list: Vec<Pinned>) -> Vec<Pinned> {
 }
 
 fn save(pinned: &[Pinned]) {
-    save_with(pinned, autohide());
+    save_with(pinned, settings());
 }
 
-/// Impostazione "nascondi automaticamente" (falsa se il file manca o è illeggibile).
-pub fn autohide() -> bool {
+/// Impostazioni salvate (quelle di default se il file manca o è illeggibile).
+pub fn settings() -> Settings {
     store_path()
         .and_then(|p| std::fs::read_to_string(p).ok())
-        .and_then(|t| serde_json::from_str::<File>(&t).ok())
-        .is_some_and(|f| f.autohide)
+        .and_then(|t| serde_json::from_str::<File>(strip_bom(&t)).ok())
+        .map_or(Settings { autohide: false, glass: GLASS_STANDARD }, |f| Settings {
+            autohide: f.autohide,
+            glass: clamp_glass(f.glass),
+        })
+}
+
+/// Impostazione "nascondi automaticamente".
+pub fn autohide() -> bool {
+    settings().autohide
 }
 
 pub fn set_autohide(on: bool) {
-    save_with(&load(), on);
+    save_with(&load(), Settings { autohide: on, ..settings() });
 }
 
-fn save_with(pinned: &[Pinned], autohide: bool) {
+pub fn set_glass(v: f64) {
+    save_with(&load(), Settings { glass: clamp_glass(v), ..settings() });
+}
+
+fn save_with(pinned: &[Pinned], st: Settings) {
     let Some(path) = store_path() else { return };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
     // Scrittura atomica: un crollo a metà non lascia un file troncato.
     let tmp = path.with_extension("json.tmp");
-    if std::fs::write(&tmp, serialize(pinned, autohide)).is_ok() {
+    if std::fs::write(&tmp, serialize(pinned, st)).is_ok() {
         let _ = std::fs::rename(&tmp, &path);
     }
 }
 
-/// App fissate. Se il file manca o è illeggibile si riparte dalla taskbar.
+/// App fissate. Se il file manca si riparte dalla taskbar. Se esiste ma non si
+/// legge (per esempio un errore di battitura dopo una modifica a mano) lo si
+/// mette da parte come `dock.json.bad` prima di ripartire, invece di perderlo.
 pub fn load() -> Vec<Pinned> {
-    if let Some(text) = store_path().and_then(|p| std::fs::read_to_string(p).ok())
-        && let Some(list) = parse(&text)
+    let text = store_path().and_then(|p| std::fs::read_to_string(p).ok());
+    if let Some(text) = &text
+        && let Some(list) = parse(text)
     {
         let clean = dedup(list.clone());
         if clean.len() != list.len() {
             save(&clean); // ripulisce i file scritti prima che i doppioni fossero esclusi
         }
         return clean;
+    }
+    if text.is_some()
+        && let Some(path) = store_path()
+    {
+        let _ = std::fs::copy(&path, path.with_extension("json.bad"));
     }
     let seeded = dedup(crate::dock::read_pinned());
     save(&seeded);
@@ -141,7 +210,7 @@ mod tests {
     #[test]
     fn roundtrip_through_json() {
         let list = vec![pin("A", r"C:\x\a.exe"), pin("B", r"C:\y\b.exe")];
-        let back = parse(&serialize(&list, true)).expect("json valido");
+        let back = parse(&serialize(&list, Settings { autohide: true, glass: 0.4 })).expect("json valido");
         assert_eq!(back, list);
     }
 
@@ -150,8 +219,33 @@ mod tests {
         // File scritti prima dell'impostazione: nessun campo `autohide`.
         let f: File = serde_json::from_str(r#"{"version":1,"pinned":[]}"#).unwrap();
         assert!(!f.autohide);
-        let f: File = serde_json::from_str(&serialize(&[], true)).unwrap();
+        let f: File = serde_json::from_str(&serialize(&[], Settings { autohide: true, glass: 0.4 })).unwrap();
         assert!(f.autohide);
+    }
+
+    #[test]
+    fn glass_defaults_and_levels() {
+        // File vecchi senza il campo `glass`: vetro standard.
+        let f: File = serde_json::from_str(r#"{"version":1,"pinned":[]}"#).unwrap();
+        assert_eq!(f.glass, GLASS_STANDARD);
+        assert_eq!(glass_value("clear"), Some(0.15));
+        assert_eq!(glass_value("solid"), Some(1.0));
+        assert_eq!(glass_value("boh"), None);
+        // Valori scritti a mano: si spunta il livello più vicino e si limita il range.
+        assert_eq!(nearest_glass_id(0.0), "clear");
+        assert_eq!(nearest_glass_id(0.66), "standard");
+        assert_eq!(nearest_glass_id(0.9), "solid");
+        assert_eq!(clamp_glass(5.0), 1.0);
+        assert_eq!(clamp_glass(-2.0), 0.0);
+        assert_eq!(clamp_glass(f64::NAN), GLASS_STANDARD);
+    }
+
+    #[test]
+    fn a_leading_bom_is_tolerated() {
+        let text = format!("\u{feff}{}", serialize(&[pin("A", "C:/x/a.exe")], Settings { autohide: true, glass: 0.3 }));
+        assert_eq!(parse(&text).expect("json con BOM").len(), 1);
+        assert_eq!(strip_bom("\u{feff}abc"), "abc");
+        assert_eq!(strip_bom("abc"), "abc");
     }
 
     #[test]

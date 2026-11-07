@@ -79,11 +79,27 @@ fn dock_settings_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Re
         dockwin::autohide(),
         None::<&str>,
     )?;
-    let menu = Menu::with_items(&app, &[&hide])?;
+    let current = dockstore::nearest_glass_id(dockstore::settings().glass);
+    let sep = tauri::menu::PredefinedMenuItem::separator(&app)?;
+    let levels = dockstore::GLASS_LEVELS
+        .iter()
+        .map(|(id, label, _)| {
+            CheckMenuItem::with_id(&app, menu_id(MenuAction::SetGlass, id), *label, true, *id == current, None::<&str>)
+        })
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&hide, &sep];
+    items.extend(levels.iter().map(|l| l as &dyn tauri::menu::IsMenuItem<tauri::Wry>));
+    let menu = Menu::with_items(&app, &items)?;
     dockwin::set_menu_open(true);
     let r = window.popup_menu(&menu);
     dockwin::set_menu_open(false);
     r
+}
+
+/// Impostazioni del Dock (vetro e auto-nascondi) per il frontend.
+#[tauri::command]
+fn dock_settings() -> dockstore::Settings {
+    dockstore::settings()
 }
 
 #[tauri::command]
@@ -169,13 +185,18 @@ pub fn run() {
     }
 
     tauri::Builder::default()
-        .on_menu_event(|_app, event| {
+        .on_menu_event(|app, event| {
             if let Some((action, id)) = dockact::parse_menu_id(event.id().as_ref()) {
+                let app = app.clone();
                 // Fuori dal thread UI: le azioni enumerano finestre e avviano processi.
-                std::thread::spawn(move || dockact::run_menu_action(action, &id));
+                std::thread::spawn(move || {
+                    dockact::run_menu_action(action, &id);
+                    // Il frontend del Dock aggiorna subito vetro e impostazioni.
+                    let _ = tauri::Emitter::emit(&app, "dock-settings-changed", dockstore::settings());
+                });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

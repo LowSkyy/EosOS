@@ -25,6 +25,9 @@ use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoUninitialize, IPersistFile, CLSCTX_INPROC_SERVER,
     COINIT_APARTMENTTHREADED, STGM_READ,
 };
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 use windows::Win32::UI::Shell::{
     IShellItemImageFactory, IShellLinkW, SHCreateItemFromParsingName, ShellLink,
@@ -50,6 +53,9 @@ pub struct DockItem {
     pub path: String,
     pub pinned: bool,
     pub running: bool,
+    /// L'app è attiva ma senza finestre (es. ridotta nell'area di notifica): in
+    /// macOS 27 ha un puntino grigio chiaro. Mai vero se `running` lo è.
+    pub background: bool,
     /// `data:image/png;base64,...`, se l'icona è stata estratta.
     pub icon: Option<String>,
 }
@@ -107,6 +113,7 @@ pub fn merge(pinned: &[Pinned], running: &[Running]) -> Vec<DockItem> {
             name: p.name.clone(),
             path: p.path.to_string_lossy().to_string(),
             pinned: true,
+            background: false,
             icon: None,
         });
     }
@@ -120,6 +127,7 @@ pub fn merge(pinned: &[Pinned], running: &[Running]) -> Vec<DockItem> {
             path: r.path.to_string_lossy().to_string(),
             pinned: false,
             running: true,
+            background: false,
             icon: None,
         });
     }
@@ -406,6 +414,47 @@ fn cached_icon(path: &Path) -> Option<String> {
 
 // ------------------------------------------------------------- insieme
 
+/// Segna come "in background" le app fissate senza finestre il cui eseguibile ha
+/// un processo attivo (`background_paths`). Pura, testata.
+pub fn mark_background(items: &mut [DockItem], background_paths: &[PathBuf]) {
+    for it in items.iter_mut().filter(|i| !i.running) {
+        it.background = background_paths.iter().any(|p| same_app(p, Path::new(&it.path)));
+    }
+}
+
+/// Percorsi degli eseguibili con almeno un processo attivo, limitati ai file
+/// chiamati come uno di `names` (minuscoli): così si apre un handle solo per i
+/// pochi processi che interessano, non per tutti.
+pub fn processes_named(names: &[String]) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = Vec::new();
+    if names.is_empty() {
+        return out;
+    }
+    unsafe {
+        let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else { return out };
+        let mut e = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+        let mut ok = Process32FirstW(snap, &mut e).is_ok();
+        while ok {
+            let len = e.szExeFile.iter().position(|&c| c == 0).unwrap_or(e.szExeFile.len());
+            let exe = String::from_utf16_lossy(&e.szExeFile[..len]).to_lowercase();
+            if e.th32ProcessID != std::process::id()
+                && names.contains(&exe)
+                && let Ok(h) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, e.th32ProcessID)
+            {
+                if let Some(p) = image_path(h)
+                    && !out.iter().any(|x| key(x) == key(&p))
+                {
+                    out.push(p);
+                }
+                let _ = CloseHandle(h);
+            }
+            ok = Process32NextW(snap, &mut e).is_ok();
+        }
+        let _ = CloseHandle(snap);
+    }
+    out
+}
+
 /// Mantiene l'ordine di comparsa delle app aperte: quelle già note restano dove
 /// sono, le nuove si accodano nell'ordine dato, quelle chiuse spariscono. Senza
 /// questo le icone si riordinerebbero a ogni cambio di finestra (l'ordine Z).
@@ -442,6 +491,14 @@ pub fn items_basic() -> Vec<DockItem> {
         }
     }
     apply_run_order(&mut items);
+    // Fissate senza finestre ma con un processo attivo: puntino grigio.
+    let idle: Vec<String> = items
+        .iter()
+        .filter(|i| i.pinned && !i.running)
+        .filter_map(|i| Path::new(&i.path).file_name())
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .collect();
+    mark_background(&mut items, &processes_named(&idle));
     items
 }
 
@@ -495,6 +552,36 @@ mod tests {
         // stesso nome ma cartelle non annidate: sono app diverse
         assert!(!same_app(Path::new(r"C:\A\FiveM\FiveM.exe"), Path::new(r"C:\B\FiveM.exe")));
         assert!(!same_app(Path::new(r"C:\A\a.exe"), Path::new(r"C:\A\b.exe")));
+    }
+
+    #[test]
+    fn background_apps_get_the_grey_dot_only_when_pinned_and_without_windows() {
+        let mut items = merge(
+            &[pin("Discord", "C:/U/Discord/Discord.exe"), pin("Steam", "C:/S/steam.exe"), pin("Chrome", "C:/C/chrome.exe")],
+            &[run("C:/C/chrome.exe")],
+        );
+        // Discord ha un processo attivo (in una sottocartella versionata) ma niente finestre;
+        // Chrome ha finestre e un processo; Steam non è attivo.
+        mark_background(
+            &mut items,
+            &[PathBuf::from("C:/U/Discord/app-1.0/Discord.exe"), PathBuf::from("C:/C/chrome.exe")],
+        );
+        let by = |n: &str| items.iter().find(|i| i.name == n).unwrap();
+        assert!(by("Discord").background && !by("Discord").running);
+        assert!(!by("Steam").background);
+        assert!(by("Chrome").running && !by("Chrome").background, "con finestre vale il puntino normale");
+    }
+
+    #[test]
+    fn live_process_scan_excludes_self_and_finds_explorer() {
+        let me = std::env::current_exe().unwrap();
+        let name = me.file_name().unwrap().to_string_lossy().to_lowercase();
+        // Il processo corrente è escluso di proposito: non deve comparire.
+        assert!(!processes_named(&[name]).iter().any(|p| key(p) == key(&me)));
+        // Nessun nome: nessun lavoro.
+        assert!(processes_named(&[]).is_empty());
+        // Un processo che esiste sempre.
+        assert!(processes_named(&["explorer.exe".to_string()]).iter().any(|p| key(p).ends_with("explorer.exe")));
     }
 
     #[test]

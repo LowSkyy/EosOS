@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type React from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { magnifyScale, pruneBouncing, sameItems, splitDock, type DockItem } from "../lib/dock";
+import { listen } from "@tauri-apps/api/event";
+import {
+  clampGlass,
+  dotState,
+  magnifyScale,
+  pruneBouncing,
+  sameItems,
+  splitDock,
+  type DockItem,
+  type DockSettings,
+} from "../lib/dock";
 
 /** Ogni quanto si rilegge l'elenco delle app aperte. */
 const POLL_MS = 2000;
@@ -39,7 +49,7 @@ function Icon({
           {item.name.charAt(0).toUpperCase()}
         </div>
       )}
-      <span className="dock-dot" data-running={item.running} />
+      <span className="dock-dot" data-state={dotState(item)} />
     </div>
   );
 }
@@ -87,6 +97,24 @@ export default function Dock() {
         .catch(() => {}),
     [],
   );
+
+  // Vetro: la trasparenza scelta dal menu arriva da Rust, all'avvio e a ogni cambio.
+  useEffect(() => {
+    const apply = (st: Partial<DockSettings> | null) => {
+      if (st) document.documentElement.style.setProperty("--glass", String(clampGlass(st.glass)));
+    };
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    listen<DockSettings>("dock-settings-changed", (e) => apply(e.payload)).then((fn) => {
+      if (cancelled) fn();
+      else unlisten = fn;
+    });
+    invoke<DockSettings>("dock_settings").then(apply).catch(() => {});
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, []);
 
   // Legge l'elenco subito e poi a intervalli; aggiorna lo stato solo se cambia.
   useEffect(() => {

@@ -5,6 +5,8 @@ export type DockItem = {
   path: string;
   pinned: boolean;
   running: boolean;
+  /** Attiva ma senza finestre (es. ridotta nell'area di notifica). */
+  background: boolean;
   icon: string | null;
 };
 
@@ -27,6 +29,7 @@ export function sameItems(a: DockItem[], b: DockItem[]): boolean {
         x.name === y.name &&
         x.pinned === y.pinned &&
         x.running === y.running &&
+        x.background === y.background &&
         x.icon === y.icon
       );
     })
@@ -63,4 +66,18 @@ export function pruneBouncing(bouncing: ReadonlySet<string>, items: DockItem[]):
     if (it && !it.running) next.add(id);
   }
   return next;
+}
+
+/** Stato del puntino sotto un'icona: con finestre, solo in background, oppure nessuno. */
+export function dotState(item: Pick<DockItem, "running" | "background">): "running" | "background" | "none" {
+  if (item.running) return "running";
+  return item.background ? "background" : "none";
+}
+
+/** Impostazioni del Dock salvate da Rust. */
+export type DockSettings = { autohide: boolean; glass: number };
+
+/** Opacità del vetro valida (0..1), con ripiego sullo standard per valori assurdi. */
+export function clampGlass(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.7;
 }

@@ -50,7 +50,17 @@ Fonti sul comportamento di macOS 27: [MacRumors](https://www.macrumors.com/2026/
    - **Auto-nascondi** (impostazione `autohide` in `dock.json`, menu con il clic destro sullo sfondo della capsula): la finestra scorre sotto il bordo con uscita morbida; la parte fuori schermo è ritagliata, per non comparire su un monitor posto sotto. Il Dock non si nasconde mentre un menu è aperto.
    - **Rimbalzo**: parte al clic su un'app chiusa e continua finché non compare (massimo 8 s).
    - Menu nativo: la posizione dipende dal cursore; per provarlo senza tastiera si possono usare la porta di debug di WebView2 e UI Automation per trovare la voce, ma serve un clic vero del mouse sul suo centro.
-5. **D5 – Rifiniture**: puntino grigio per app senza finestre, DPI misti, riavvio di Explorer, cursore Liquid Glass, riserva di spazio opzionale.
+5. **D5 – Rifiniture** — IN PARTE (7 nov 2026). Fatte:
+   - **Puntino grigio (macOS 27)**: un'app fissata senza finestre ma con un processo attivo (es. Discord ridotto nell'area di notifica) mostra un puntino grigio chiaro (`DockItem.background`, `dock::processes_named`, `mark_background`). Si apre un handle solo per i processi che hanno lo stesso nome di file di un'app fissata, non per tutti. Misurato dal vivo: luminosità del puntino normale 222, di quello in background 122.
+   - **Livello del vetro** (la versione a menu del cursore "Liquid Glass"): clic destro sullo sfondo della capsula, "Vetro trasparente / standard / opaco" (0,15 / 0,7 / 1,0). Salvato in `dock.json`, aggiornato subito nel frontend con l'evento `dock-settings-changed`. Verificato leggendo il colore calcolato: opacità 0,8 → 0,525 → 0,95 → 0,8.
+   - **`dock.json` robusto**: tollera il BOM UTF-8 (Blocco note e PowerShell 5 lo aggiungono) e, se il file esiste ma non si legge, lo conserva come `dock.json.bad` invece di sovrascriverlo con l'elenco della taskbar. Trovato durante la prova: una mia modifica con PowerShell 5 cancellava le impostazioni.
+   Non fatte (decisione presa insieme alla specifica, con il motivo):
+   - **Sfocatura vera dello sfondo**: serve la Composition API di Windows (Visual layer con backdrop acrilico e ritaglio arrotondato). È un lavoro a sé, di dimensioni simili a tutto il resto del Dock.
+   - **App dello Store (UWP)**: i collegamenti fissati puntano a un AppUserModelID, non a un percorso; servono lettura dell'ID, avvio da `shell:AppsFolder`, icone e abbinamento delle finestre per ID.
+   - **Ordine reale delle fissate**: è nel registro (`Taskband`) in un formato binario non documentato. Ora sono in ordine alfabetico al primo avvio; trascinare per riordinare sarebbe la strada più sensata.
+   - **Riavvio di Explorer dal vivo con il Dock**: lo script esistente riavvia davvero Explorer sul PC (chiude anche le finestre di Esplora risorse) e non l'ho lanciato senza consenso. Il Dock non dipende da Explorer (processo e finestra propri, monitor e area di lavoro riletti ogni secondo).
+   - **DPI misti / scala diversa**: la geometria è testata a 100%, 125%, 150% e con origine negativa, ma non ho cambiato la scala del tuo schermo.
+   - Riserva di spazio opzionale (le finestre massimizzate si fermano sopra il Dock).
 
 ## Fuori scopo
 

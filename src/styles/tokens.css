@@ -12,10 +12,15 @@
   --bar-fg-muted: #3a3a3c;
 
   /* Dock: vetro chiaro, bordo interno luminoso, puntino delle app aperte. */
-  --dock-bg: rgba(255, 255, 255, 0.72);
+  /* Tinta del vetro: colore e due estremi di opacità; --glass (0..1) sceglie il punto in mezzo. */
+  --dock-rgb: 255, 255, 255;
+  --dock-alpha-lo: 0.38;
+  --dock-alpha-hi: 0.92;
   --dock-bg-solid: #e4e4e8;
   --dock-border: rgba(255, 255, 255, 0.55);
   --dock-dot: rgba(0, 0, 0, 0.62);
+  /* App attiva ma senza finestre (macOS 27): puntino grigio chiaro. */
+  --dock-dot-muted: rgba(0, 0, 0, 0.28);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -27,10 +32,13 @@
     --bar-fg: #f5f5f7;
     --bar-fg-muted: #c7c7cc;
 
-    --dock-bg: rgba(38, 38, 42, 0.8);
+    --dock-rgb: 38, 38, 42;
+  --dock-alpha-lo: 0.45;
+  --dock-alpha-hi: 0.95;
     --dock-bg-solid: #2a2a2e;
     --dock-border: rgba(255, 255, 255, 0.18);
     --dock-dot: rgba(255, 255, 255, 0.85);
+  --dock-dot-muted: rgba(255, 255, 255, 0.4);
   }
 }
 
@@ -42,10 +50,13 @@
   --bar-fg: #f5f5f7;
   --bar-fg-muted: #c7c7cc;
 
-  --dock-bg: rgba(38, 38, 42, 0.8);
+  --dock-rgb: 38, 38, 42;
+  --dock-alpha-lo: 0.45;
+  --dock-alpha-hi: 0.95;
   --dock-bg-solid: #2a2a2e;
   --dock-border: rgba(255, 255, 255, 0.18);
   --dock-dot: rgba(255, 255, 255, 0.85);
+  --dock-dot-muted: rgba(255, 255, 255, 0.4);
 }
 
 /* Valori indipendenti dal tema. */

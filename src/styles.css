@@ -60,7 +60,7 @@ body {
   height: calc(var(--dock-icon) + var(--dock-pad) * 2 + 4px);
   padding: 0 var(--dock-pad) calc(var(--dock-pad) - 2px);
   width: max-content;
-  background: var(--dock-bg);
+  background: rgba(var(--dock-rgb), calc(var(--dock-alpha-lo) + (var(--dock-alpha-hi) - var(--dock-alpha-lo)) * var(--glass, 0.7)));
   border-radius: var(--dock-radius);
   /* Bordo interno: la finestra nativa è ritagliata, quindi niente ombra esterna.
      Nessuna sfocatura dello sfondo (vedi dockwin.rs): la tinta è il vetro. */
@@ -117,7 +117,8 @@ body {
   background: var(--dock-dot);
   opacity: 0;
 }
-.dock-dot[data-running="true"] { opacity: 1; }
+.dock-dot[data-state="running"] { opacity: 1; }
+.dock-dot[data-state="background"] { opacity: 1; background: var(--dock-dot-muted); }
 
 .dock-separator {
   flex: none;
