@@ -1,4 +1,5 @@
 mod appbar;
+mod backdrop;
 mod dock;
 mod dockact;
 mod dockgeom;
@@ -66,6 +67,13 @@ fn dock_fit(app: tauri::AppHandle, fit: dockgeom::FitArgs) {
     }
 }
 
+/// Ultimo fotogramma dello sfondo da sfocare, se più recente di `since` (vuoto
+/// altrimenti). Risposta binaria: intestazione + pixel RGBA, vedi `backdrop::encode`.
+#[tauri::command(async)]
+fn dock_backdrop(since: u64) -> tauri::ipc::Response {
+    tauri::ipc::Response::new(backdrop::latest(since))
+}
+
 /// Trascinamento di un'icona: la mette nella posizione `index` tra le fissate
 /// (contata senza di essa). Un'app aperta non fissata viene fissata lì. Come
 /// sempre, il frontend manda solo l'`id` di una voce che il Dock sta mostrando.
@@ -99,7 +107,15 @@ fn dock_settings_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Re
             CheckMenuItem::with_id(&app, menu_id(MenuAction::SetGlass, id), *label, true, *id == current, None::<&str>)
         })
         .collect::<tauri::Result<Vec<_>>>()?;
-    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&hide, &sep];
+    let blur = CheckMenuItem::with_id(
+        &app,
+        menu_id(MenuAction::ToggleBlur, "-"),
+        "Sfocatura dello sfondo",
+        true,
+        dockwin::blur_enabled(),
+        None::<&str>,
+    )?;
+    let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&hide, &blur, &sep];
     items.extend(levels.iter().map(|l| l as &dyn tauri::menu::IsMenuItem<tauri::Wry>));
     let menu = Menu::with_items(&app, &items)?;
     dockwin::set_menu_open(true);
@@ -208,7 +224,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
@@ -220,6 +236,7 @@ pub fn run() {
         .setup(|app| {
             appbar::start(app.handle());
             dockwin::start(app.handle());
+            backdrop::start();
             foreground::start(app.handle().clone());
             Ok(())
         })

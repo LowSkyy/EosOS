@@ -28,6 +28,7 @@ pub enum MenuAction {
     ToggleAutoHide,
     /// L'id è il livello di vetro (`clear`, `standard`, `solid`).
     SetGlass,
+    ToggleBlur,
 }
 
 const PREFIX: &str = "dock";
@@ -41,6 +42,7 @@ pub fn menu_id(action: MenuAction, id: &str) -> String {
         MenuAction::Unpin => "unpin",
         MenuAction::ToggleAutoHide => "autohide",
         MenuAction::SetGlass => "glass",
+        MenuAction::ToggleBlur => "blur",
     };
     format!("{PREFIX}:{a}:{id}")
 }
@@ -58,6 +60,7 @@ pub fn parse_menu_id(raw: &str) -> Option<(MenuAction, String)> {
         "unpin" => MenuAction::Unpin,
         "autohide" => MenuAction::ToggleAutoHide,
         "glass" => MenuAction::SetGlass,
+        "blur" => MenuAction::ToggleBlur,
         _ => return None,
     };
     let id = parts.next()?;
@@ -169,6 +172,7 @@ pub fn quit(item: &DockItem) {
 pub fn run_menu_action(action: MenuAction, id: &str) {
     match action {
         MenuAction::ToggleAutoHide => return crate::dockwin::toggle_autohide(),
+        MenuAction::ToggleBlur => return crate::dockwin::toggle_blur(),
         MenuAction::SetGlass => {
             if let Some(v) = dockstore::glass_value(id) {
                 dockstore::set_glass(v);
@@ -183,7 +187,7 @@ pub fn run_menu_action(action: MenuAction, id: &str) {
         MenuAction::Quit => quit(&item),
         MenuAction::Pin => dockstore::pin(Pinned { name: item.name.clone(), path: item.path.clone().into() }),
         MenuAction::Unpin => dockstore::unpin(Path::new(&item.path)),
-        MenuAction::ToggleAutoHide | MenuAction::SetGlass => {} // gestite sopra: non riguardano una voce
+        MenuAction::ToggleAutoHide | MenuAction::SetGlass | MenuAction::ToggleBlur => {} // gestite sopra: non riguardano una voce
     }
 }
 
@@ -201,7 +205,7 @@ mod tests {
 
     #[test]
     fn menu_id_roundtrip_with_colons_in_the_id() {
-        for a in [MenuAction::Open, MenuAction::Quit, MenuAction::Pin, MenuAction::Unpin, MenuAction::ToggleAutoHide, MenuAction::SetGlass] {
+        for a in [MenuAction::Open, MenuAction::Quit, MenuAction::Pin, MenuAction::Unpin, MenuAction::ToggleAutoHide, MenuAction::SetGlass, MenuAction::ToggleBlur] {
             let raw = menu_id(a, r"c:\program files\app\app.exe");
             assert_eq!(parse_menu_id(&raw), Some((a, r"c:\program files\app\app.exe".to_string())));
         }

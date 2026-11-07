@@ -53,6 +53,9 @@ body {
 
 .dock {
   box-sizing: border-box;
+  position: relative;
+  /* Contesto di impilamento proprio: sotto le icone stanno lo sfondo sfocato e la tinta. */
+  isolation: isolate;
   display: flex;
   align-items: flex-end;
   gap: var(--dock-gap);
@@ -60,13 +63,40 @@ body {
   height: calc(var(--dock-icon) + var(--dock-pad) * 2 + 4px);
   padding: 0 var(--dock-pad) calc(var(--dock-pad) - 2px);
   width: max-content;
-  background: rgba(var(--dock-rgb), calc(var(--dock-alpha-lo) + (var(--dock-alpha-hi) - var(--dock-alpha-lo)) * var(--glass, 0.7)));
   border-radius: var(--dock-radius);
-  /* Bordo interno: la finestra nativa è ritagliata, quindi niente ombra esterna.
-     Nessuna sfocatura dello sfondo (vedi dockwin.rs): la tinta è il vetro. */
+}
+/* Opacità della tinta: due estremi, e --glass (0..1) sceglie il punto in mezzo. */
+:root { --a-lo: var(--dock-alpha-lo); --a-hi: var(--dock-alpha-hi); }
+:root[data-blur="on"] { --a-lo: var(--dock-blur-alpha-lo); --a-hi: var(--dock-blur-alpha-hi); }
+
+/* Tinta e bordo luminoso: sopra lo sfondo sfocato, sotto le icone. */
+.dock::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: rgba(var(--dock-rgb), calc(var(--a-lo) + (var(--a-hi) - var(--a-lo)) * var(--glass, 0.7)));
   box-shadow: inset 0 0 0 1px var(--dock-border);
 }
-:root[data-glass="none"] .dock { background: var(--dock-bg-solid); }
+:root[data-glass="none"] .dock::before { background: var(--dock-bg-solid); }
+
+/* Sfondo sfocato: lo schermo dietro la capsula, disegnato dal componente e sfocato
+   qui. Il ritaglio arrotondato (con bordi lisci) lo dà il CSS: nessun effetto di
+   Windows lo sa fare (vedi dockwin.rs e backdrop.rs). */
+.dock-blur {
+  position: absolute;
+  z-index: -2;
+  left: calc(var(--dock-blur-margin) * -1);
+  top: calc(var(--dock-blur-margin) * -1);
+  width: calc(100% + var(--dock-blur-margin) * 2);
+  height: calc(100% + var(--dock-blur-margin) * 2);
+  pointer-events: none;
+  display: none;
+  filter: blur(var(--dock-blur-radius)) saturate(1.8);
+  clip-path: inset(var(--dock-blur-margin) round var(--dock-radius));
+}
+:root[data-blur="on"] .dock-blur { display: block; }
 
 /* Copia invisibile a riposo: serve solo a misurare. */
 .dock-ghost {

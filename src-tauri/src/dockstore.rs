@@ -21,6 +21,14 @@ struct File {
     /// "Liquid Glass" di macOS 27, ma a tre livelli.
     #[serde(default = "default_glass")]
     glass: f64,
+    /// Sfocatura dello sfondo (vedi `backdrop.rs`): acquisisce lo schermo dietro il
+    /// Dock ed esclude il Dock da screenshot e registrazioni.
+    #[serde(default = "default_blur")]
+    blur: bool,
+}
+
+fn default_blur() -> bool {
+    true
 }
 
 fn default_glass() -> f64 {
@@ -40,6 +48,7 @@ const GLASS_STANDARD: f64 = 0.7;
 pub struct Settings {
     pub autohide: bool,
     pub glass: f64,
+    pub blur: bool,
 }
 
 /// Valore di un livello di vetro dall'id. Pura, testata.
@@ -87,6 +96,7 @@ fn serialize(pinned: &[Pinned], st: Settings) -> String {
         version: 1,
         autohide: st.autohide,
         glass: st.glass,
+        blur: st.blur,
         pinned: pinned
             .iter()
             .map(|p| Entry { name: p.name.clone(), path: p.path.to_string_lossy().to_string() })
@@ -130,19 +140,19 @@ pub fn settings() -> Settings {
     store_path()
         .and_then(|p| std::fs::read_to_string(p).ok())
         .and_then(|t| serde_json::from_str::<File>(strip_bom(&t)).ok())
-        .map_or(Settings { autohide: false, glass: GLASS_STANDARD }, |f| Settings {
+        .map_or(Settings { autohide: false, glass: GLASS_STANDARD, blur: true }, |f| Settings {
             autohide: f.autohide,
             glass: clamp_glass(f.glass),
+            blur: f.blur,
         })
-}
-
-/// Impostazione "nascondi automaticamente".
-pub fn autohide() -> bool {
-    settings().autohide
 }
 
 pub fn set_autohide(on: bool) {
     save_with(&load(), Settings { autohide: on, ..settings() });
+}
+
+pub fn set_blur(on: bool) {
+    save_with(&load(), Settings { blur: on, ..settings() });
 }
 
 pub fn set_glass(v: f64) {
@@ -235,7 +245,7 @@ mod tests {
     #[test]
     fn roundtrip_through_json() {
         let list = vec![pin("A", r"C:\x\a.exe"), pin("B", r"C:\y\b.exe")];
-        let back = parse(&serialize(&list, Settings { autohide: true, glass: 0.4 })).expect("json valido");
+        let back = parse(&serialize(&list, Settings { autohide: true, glass: 0.4, blur: false })).expect("json valido");
         assert_eq!(back, list);
     }
 
@@ -244,8 +254,16 @@ mod tests {
         // File scritti prima dell'impostazione: nessun campo `autohide`.
         let f: File = serde_json::from_str(r#"{"version":1,"pinned":[]}"#).unwrap();
         assert!(!f.autohide);
-        let f: File = serde_json::from_str(&serialize(&[], Settings { autohide: true, glass: 0.4 })).unwrap();
+        let f: File = serde_json::from_str(&serialize(&[], Settings { autohide: true, glass: 0.4, blur: false })).unwrap();
         assert!(f.autohide);
+    }
+
+    #[test]
+    fn blur_is_on_by_default_and_roundtrips() {
+        let f: File = serde_json::from_str(r#"{"version":1,"pinned":[]}"#).unwrap();
+        assert!(f.blur, "file vecchi senza il campo: sfocatura attiva");
+        let off: File = serde_json::from_str(&serialize(&[], Settings { autohide: false, glass: 0.7, blur: false })).unwrap();
+        assert!(!off.blur);
     }
 
     #[test]
@@ -267,7 +285,7 @@ mod tests {
 
     #[test]
     fn a_leading_bom_is_tolerated() {
-        let text = format!("\u{feff}{}", serialize(&[pin("A", "C:/x/a.exe")], Settings { autohide: true, glass: 0.3 }));
+        let text = format!("\u{feff}{}", serialize(&[pin("A", "C:/x/a.exe")], Settings { autohide: true, glass: 0.3, blur: true }));
         assert_eq!(parse(&text).expect("json con BOM").len(), 1);
         assert_eq!(strip_bom("\u{feff}abc"), "abc");
         assert_eq!(strip_bom("abc"), "abc");

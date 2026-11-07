@@ -75,7 +75,7 @@ export function dotState(item: Pick<DockItem, "running" | "background">): "runni
 }
 
 /** Impostazioni del Dock salvate da Rust. */
-export type DockSettings = { autohide: boolean; glass: number };
+export type DockSettings = { autohide: boolean; glass: number; blur: boolean };
 
 /** Opacità del vetro valida (0..1), con ripiego sullo standard per valori assurdi. */
 export function clampGlass(v: unknown): number {

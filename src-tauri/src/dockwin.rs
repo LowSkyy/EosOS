@@ -34,12 +34,13 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, GWL_STYLE,
-    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_CAPTION,
+    SetWindowDisplayAffinity, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+    WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WS_CAPTION,
     WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU,
 };
 
 use crate::dockgeom::{
-    at_bottom_edge, capsule_rect, is_active, slide_y, step_visibility, visible_height,
+    at_bottom_edge, capsule_rect, capture_rect, is_active, slide_y, step_visibility, visible_height,
     window_rect, Fit, Rect, HIDE_DELAY_SECONDS, SHRINK_GRACE_SECONDS,
 };
 use crate::glass;
@@ -50,6 +51,8 @@ const NO_ACTIVATE_STYLES: isize = (WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0) as i
 /// Stili di una finestra con cornice: il Dock non ne deve avere.
 const CHROME_STYLES: isize =
     (WS_CAPTION.0 | WS_SYSMENU.0 | WS_MINIMIZEBOX.0 | WS_MAXIMIZEBOX.0) as isize;
+/// Contorno (px fisici) catturato attorno al Dock: la sfocatura ne ha bisogno.
+const CAPTURE_MARGIN: i32 = 48;
 const TICK: Duration = Duration::from_millis(16);
 /// Ogni quanti cicli si ricontrolla monitor e area di lavoro (~1 s).
 const RECONCILE_EVERY: u32 = 60;
@@ -57,6 +60,7 @@ const RECONCILE_EVERY: u32 = 60;
 /// Un menu contestuale è aperto: il Dock non deve nascondersi sotto di esso.
 static MENU_OPEN: AtomicBool = AtomicBool::new(false);
 static AUTOHIDE: AtomicBool = AtomicBool::new(false);
+static BLUR: AtomicBool = AtomicBool::new(true);
 
 pub fn set_menu_open(open: bool) {
     MENU_OPEN.store(open, Ordering::Relaxed);
@@ -71,6 +75,31 @@ pub fn toggle_autohide() {
     let on = !autohide();
     AUTOHIDE.store(on, Ordering::Relaxed);
     crate::dockstore::set_autohide(on);
+}
+
+pub fn blur_enabled() -> bool {
+    BLUR.load(Ordering::Relaxed)
+}
+
+/// Inverte la sfocatura dello sfondo e la salva.
+pub fn toggle_blur() {
+    let on = !blur_enabled();
+    BLUR.store(on, Ordering::Relaxed);
+    crate::dockstore::set_blur(on);
+}
+
+/// Cosa catturare per la sfocatura: (finestra del Dock, rettangolo da catturare),
+/// entrambi in pixel fisici. `None` se la sfocatura è spenta o il Dock è nascosto.
+pub fn capture_info() -> Option<(Rect, Rect)> {
+    if !blur_enabled() {
+        return None;
+    }
+    let st = lock();
+    let (win, geo) = (st.cur_win?, st.geo?);
+    if st.p < 0.02 {
+        return None;
+    }
+    capture_rect(win, geo.monitor, CAPTURE_MARGIN).map(|c| (win, c))
 }
 
 /// Monitor primario, come serve al ciclo (si ricontrolla ogni secondo).
@@ -93,6 +122,10 @@ struct State {
     active: bool,
     left_at: Option<Instant>,
     idle_since: Option<Instant>,
+    /// Rettangolo attuale della finestra (cambia durante lo scorrimento).
+    cur_win: Option<Rect>,
+    /// L'esclusione dalla cattura è già applicata (per la sfocatura).
+    affinity: bool,
     /// Visibilità: 0 = nascosto, 1 = mostrato.
     p: f64,
     last_tick: Option<Instant>,
@@ -109,6 +142,8 @@ static STATE: Mutex<State> = Mutex::new(State {
     active: false,
     left_at: None,
     idle_since: None,
+    cur_win: None,
+    affinity: false,
     p: 1.0,
     last_tick: None,
     applied_pos: None,
@@ -255,6 +290,25 @@ fn tick() {
     st.p = step_visibility(st.p, target, dt);
 
     let y = slide_y(shown.y, hidden_y, st.p);
+    st.cur_win = Some(Rect { y, ..shown });
+    // Con la sfocatura la finestra è esclusa dalla cattura (altrimenti si sfocherebbe da sola).
+    let want_affinity = blur_enabled();
+    if st.affinity != want_affinity {
+        let applied = unsafe {
+            SetWindowDisplayAffinity(
+                hwnd_of(st.hwnd),
+                if want_affinity { WDA_EXCLUDEFROMCAPTURE } else { WDA_NONE },
+            )
+        };
+        if want_affinity && applied.is_err() {
+            // Windows più vecchio della versione 2004: senza l'esclusione il Dock
+            // sfocherebbe se stesso. Meglio niente sfocatura (non si salva: è un limite
+            // del sistema, non una scelta).
+            BLUR.store(false, Ordering::Relaxed);
+        } else {
+            st.affinity = want_affinity;
+        }
+    }
     if st.applied_pos != Some((shown.x, y)) {
         unsafe {
             let _ = SetWindowPos(
@@ -350,7 +404,9 @@ pub fn fit(app: &AppHandle, fit: Fit) {
 
 /// Crea la finestra e avvia il ciclo di animazione.
 pub fn start(app: &AppHandle) {
-    AUTOHIDE.store(crate::dockstore::autohide(), Ordering::Relaxed);
+    let saved = crate::dockstore::settings();
+    AUTOHIDE.store(saved.autohide, Ordering::Relaxed);
+    BLUR.store(saved.blur, Ordering::Relaxed);
     if let Err(e) = create(app) {
         eprintln!("EosOS: creazione del Dock fallita: {e}");
         return;

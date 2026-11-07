@@ -16,6 +16,12 @@ import {
   type DockItem,
   type DockSettings,
 } from "../lib/dock";
+import { parseFrame, sourceRect, type Frame } from "../lib/backdrop";
+
+/** Contorno (px CSS) di sfondo disegnato oltre la capsula: la sfocatura ne ha bisogno ai bordi. */
+const BLUR_MARGIN = 28;
+/** Ogni quanto si chiede un nuovo fotogramma dello sfondo. */
+const BACKDROP_MS = 40;
 
 /** Ogni quanto si rilegge l'elenco delle app aperte. */
 const POLL_MS = 2000;
@@ -96,6 +102,10 @@ export default function Dock() {
   const pill = useRef<HTMLDivElement>(null);
   const ghost = useRef<HTMLDivElement>(null);
   const alive = useRef(true);
+  const blurCanvas = useRef<HTMLCanvasElement>(null);
+  const source = useRef<HTMLCanvasElement | null>(null);
+  const frame = useRef<Frame | null>(null);
+  const [blur, setBlur] = useState(false);
 
   const load = useCallback(
     () =>
@@ -115,7 +125,9 @@ export default function Dock() {
   // Vetro: la trasparenza scelta dal menu arriva da Rust, all'avvio e a ogni cambio.
   useEffect(() => {
     const apply = (st: Partial<DockSettings> | null) => {
-      if (st) document.documentElement.style.setProperty("--glass", String(clampGlass(st.glass)));
+      if (!st) return;
+      document.documentElement.style.setProperty("--glass", String(clampGlass(st.glass)));
+      setBlur(st.blur === true);
     };
     let unlisten: (() => void) | undefined;
     let cancelled = false;
@@ -129,6 +141,72 @@ export default function Dock() {
       unlisten?.();
     };
   }, []);
+
+  // Sfondo sfocato: disegna nel canvas della capsula la parte di schermo che sta
+  // dietro di lei. Il CSS lo sfoca e lo ritaglia con la forma della capsula.
+  const paint = useCallback(() => {
+    const f = frame.current;
+    const src = source.current;
+    const dst = blurCanvas.current;
+    const el = pill.current;
+    if (!f || !src || !dst || !el) return;
+    const r = el.getBoundingClientRect();
+    const k = window.devicePixelRatio / f.factor;
+    const w = Math.max(1, Math.round((r.width + 2 * BLUR_MARGIN) * k));
+    const h = Math.max(1, Math.round((r.height + 2 * BLUR_MARGIN) * k));
+    if (dst.width !== w) dst.width = w;
+    if (dst.height !== h) dst.height = h;
+    const s = sourceRect(r, BLUR_MARGIN, window.devicePixelRatio, f);
+    const ctx = dst.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(src, s.sx, s.sy, s.sw, s.sh, 0, 0, w, h);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (!blur) {
+      root.removeAttribute("data-blur");
+      frame.current = null;
+      return;
+    }
+    if (!source.current) source.current = document.createElement("canvas");
+    let seq = 0;
+    let busy = false;
+    let stopped = false;
+    const t = setInterval(() => {
+      if (busy) return;
+      busy = true;
+      invoke<ArrayBuffer>("dock_backdrop", { since: seq })
+        .then((buf) => {
+          const f = stopped ? null : parseFrame(buf);
+          if (!f || !source.current) return;
+          seq = f.seq;
+          const s = source.current;
+          s.width = f.w;
+          s.height = f.h;
+          s.getContext("2d")?.putImageData(new ImageData(f.data, f.w, f.h), 0, 0);
+          frame.current = f;
+          root.setAttribute("data-blur", "on");
+          paint();
+        })
+        .catch(() => {})
+        .finally(() => (busy = false));
+    }, BACKDROP_MS);
+    return () => {
+      stopped = true;
+      clearInterval(t);
+    };
+  }, [blur, paint]);
+
+  // La capsula cambia misura con l'ingrandimento: lo sfondo va ridisegnato.
+  useEffect(() => {
+    const el = pill.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => paint());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [paint]);
 
   // Legge l'elenco subito e poi a intervalli; aggiorna lo stato solo se cambia.
   useEffect(() => {
@@ -339,6 +417,7 @@ export default function Dock() {
       onContextMenu={background}
     >
       <div className="dock" ref={pill}>
+        <canvas className="dock-blur" ref={blurCanvas} aria-hidden />
         {pinned.map(icon)}
         {pinned.length > 0 && others.length > 0 && <div className="dock-separator" />}
         {others.map(icon)}

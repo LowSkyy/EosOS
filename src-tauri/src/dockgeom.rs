@@ -126,6 +126,17 @@ pub fn slide_y(shown_y: i32, hidden_y: i32, p: f64) -> i32 {
     hidden_y + ((shown_y - hidden_y) as f64 * eased).round() as i32
 }
 
+/// Rettangolo da catturare per la sfocatura: la finestra allargata di `margin` px
+/// per lato (la sfocatura ha bisogno di contorno), ritagliata al monitor. `None`
+/// se non resta nulla. Pura, testata.
+pub fn capture_rect(window: Rect, monitor: Rect, margin: i32) -> Option<Rect> {
+    let l = (window.x - margin).max(monitor.x);
+    let t = (window.y - margin).max(monitor.y);
+    let r = (window.x + window.w + margin).min(monitor.x + monitor.w);
+    let b = (window.y + window.h + margin).min(monitor.y + monitor.h);
+    (r > l && b > t).then_some(Rect { x: l, y: t, w: r - l, h: b - t })
+}
+
 /// Altezza della finestra ancora dentro lo schermo (il resto va ritagliato, o
 /// comparirebbe su un monitor posto sotto). Pura, testata.
 pub fn visible_height(window_y: i32, window_h: i32, screen_bottom: i32) -> i32 {
@@ -222,6 +233,21 @@ mod tests {
         // Ease-out: a metà tempo è già oltre metà strada.
         assert!(slide_y(900, 1080, 0.5) < 990);
         assert_eq!(slide_y(900, 1080, 2.0), 900, "p fuori scala viene limitato");
+    }
+
+    #[test]
+    fn capture_adds_context_and_stays_on_the_monitor() {
+        let mon = Rect { x: 0, y: 0, w: 1920, h: 1080 };
+        let win = Rect { x: 400, y: 880, w: 1100, h: 160 };
+        // Margine pieno a sinistra, a destra e sopra; in basso si ferma al bordo dello schermo.
+        let c = capture_rect(win, mon, 40).unwrap();
+        assert_eq!((c.x, c.y, c.w, c.h), (360, 840, 1180, 240));
+        // Dock quasi scomparso sotto il bordo: resta solo la fascia visibile, piu' il contorno.
+        let low = Rect { y: 1075, ..win };
+        let c = capture_rect(low, mon, 40).unwrap();
+        assert_eq!(c.y + c.h, 1080);
+        // Completamente fuori dal monitor e oltre il margine: nulla da catturare.
+        assert!(capture_rect(Rect { y: 1200, ..win }, mon, 40).is_none());
     }
 
     #[test]

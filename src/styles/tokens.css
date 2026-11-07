@@ -16,6 +16,9 @@
   --dock-rgb: 255, 255, 255;
   --dock-alpha-lo: 0.38;
   --dock-alpha-hi: 0.92;
+  /* Con la sfocatura reale la tinta può essere molto più leggera. */
+  --dock-blur-alpha-lo: 0.16;
+  --dock-blur-alpha-hi: 0.8;
   --dock-bg-solid: #e4e4e8;
   --dock-border: rgba(255, 255, 255, 0.55);
   --dock-dot: rgba(0, 0, 0, 0.62);
@@ -35,6 +38,8 @@
     --dock-rgb: 38, 38, 42;
   --dock-alpha-lo: 0.45;
   --dock-alpha-hi: 0.95;
+  --dock-blur-alpha-lo: 0.14;
+  --dock-blur-alpha-hi: 0.82;
     --dock-bg-solid: #2a2a2e;
     --dock-border: rgba(255, 255, 255, 0.18);
     --dock-dot: rgba(255, 255, 255, 0.85);
@@ -53,6 +58,8 @@
   --dock-rgb: 38, 38, 42;
   --dock-alpha-lo: 0.45;
   --dock-alpha-hi: 0.95;
+  --dock-blur-alpha-lo: 0.14;
+  --dock-blur-alpha-hi: 0.82;
   --dock-bg-solid: #2a2a2e;
   --dock-border: rgba(255, 255, 255, 0.18);
   --dock-dot: rgba(255, 255, 255, 0.85);
@@ -76,4 +83,7 @@
   /* Margini della finestra intorno alla capsula: sopra (icone ingrandite e rimbalzo) e ai lati. */
   --dock-head: 90px;
   --dock-side: 72px;
+  /* Sfondo sfocato: contorno disegnato oltre la capsula e raggio della sfocatura. */
+  --dock-blur-margin: 28px;
+  --dock-blur-radius: 16px;
 }
