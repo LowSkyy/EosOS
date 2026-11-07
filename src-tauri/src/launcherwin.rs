@@ -233,6 +233,9 @@ pub fn hide(app: &AppHandle) {
     if let Some(win) = win_of(app) {
         let _ = win.hide();
     }
+    // La pagina butta via ciò che mostrava (anche le voci degli Appunti): alla riapertura non deve
+    // lampeggiare nulla della sessione precedente.
+    let _ = app.emit_to(LABEL, "launcher-close", ());
 }
 
 pub fn toggle(app: &AppHandle) {

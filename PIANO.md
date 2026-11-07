@@ -68,7 +68,7 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 ## Roadmap (FUORI SCOPE per ora)
 
 - Dock: FATTO (7 nov 2026), vedi `docs/DOCK.md`
-- Launcher stile Spotlight: specifica scritta (7 nov 2026), vedi `docs/LAUNCHER.md`; L1-L5 (dati, finestra, azioni, calcolatrice, file e appunti) fatte, resta L6
+- Launcher stile Spotlight: specifica scritta (7 nov 2026), vedi `docs/LAUNCHER.md`; L1-L6 fatte (vedi `docs/LAUNCHER.md`); manca solo la prova del riavvio di Explorer con il Launcher attivo (`scripts\test-launcher.ps1 -WithExplorerRestart`)
 - Indicatori di sistema (batteria, rete, volume, ecc.)
 - Mission Control
 - Menu globale per app

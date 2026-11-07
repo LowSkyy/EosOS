@@ -14,7 +14,7 @@ use windows::core::{w, HSTRING};
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-use crate::launcherrank::match_score;
+use crate::launcherrank::match_score_strict;
 
 /// Entro quanto la seconda pressione conferma.
 const CONFIRM_WINDOW: Duration = Duration::from_secs(10);
@@ -164,8 +164,8 @@ pub fn search(query: &str) -> Vec<(&'static Action, i32)> {
     ACTIONS
         .iter()
         .filter_map(|a| {
-            let by_name = match_score(query, a.name);
-            let by_kw = a.keywords.iter().filter_map(|k| match_score(query, k)).max().map(|s| s - 40);
+            let by_name = match_score_strict(query, a.name);
+            let by_kw = a.keywords.iter().filter_map(|k| match_score_strict(query, k)).max().map(|s| s - 40);
             by_name.into_iter().chain(by_kw).max().map(|s| (a, s))
         })
         .collect()
@@ -355,6 +355,13 @@ mod tests {
         assert_eq!(names("settings")[0], "action:settings");
         assert!(names("download").contains(&"action:downloads"));
         assert!(names("scriv").contains(&"action:desktop"));
+    }
+
+    #[test]
+    fn scattered_letters_do_not_surface_actions() {
+        // "cal" non e' una parola di nessuna azione: prima compariva "Scorciatoia ... Ctrl+Alt+Spazio".
+        assert!(search("cal").is_empty(), "{:?}", names("cal"));
+        assert!(search("clt").is_empty());
     }
 
     #[test]

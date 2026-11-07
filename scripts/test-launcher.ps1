@@ -2,8 +2,10 @@
 # si digita con tasti veri; Esc lo chiude; Invio avvia un'app (la Calcolatrice, app di prova);
 # la perdita di focus lo nasconde; la stessa scorciatoia lo chiude. Non usa SendKeys e non fa clic.
 #
-# Uso: powershell -File scripts\test-launcher.ps1 [-Exe percorso\eosos.exe]
-param([string]$Exe)
+# Uso: powershell -File scripts\test-launcher.ps1 [-Exe percorso\eosos.exe] [-WithExplorerRestart]
+#   -WithExplorerRestart: in piu' riavvia davvero explorer.exe (desktop e taskbar spariscono per qualche secondo)
+#   e controlla che la scorciatoia e il Launcher continuino a funzionare.
+param([string]$Exe, [switch]$WithExplorerRestart)
 $ErrorActionPreference = 'Stop'
 if ($Exe) { $exe = Resolve-Path $Exe } else { $exe = Join-Path $PSScriptRoot '..\src-tauri\target\fast\release\eosos.exe' | Resolve-Path }
 Add-Type @'
@@ -314,6 +316,10 @@ try {
   $logHit = (Test-Path $actionLog) -and ((Get-Content $actionLog -Raw) -match 'eosos-clip-test')
   Check 'il testo copiato non e su disco (dati di EosOS, profilo WebView2, log)' (($scan.Found.Count -eq 0) -and -not $logHit) ("trovato in: " + ($scan.Found -join ', ') + " | non leggibili: " + $scan.Unreadable)
 
+  # 5b. alla chiusura la pagina dimentica le voci mostrate (nessun lampo alla riapertura)
+  Start-Sleep -Milliseconds 400
+  Check 'dopo la chiusura la pagina non conserva righe (nemmeno degli Appunti)' (-not ((ClipRows) -like '*clip|*') -and -not ((ClipRows) -like "*$tag*"))
+
   # 6. disattivare svuota la memoria
   [LT]::AltSpace(); Start-Sleep -Milliseconds 900
   PressCtrl 0x33; Start-Sleep -Milliseconds 300
@@ -335,6 +341,7 @@ try {
   Check 'sfocatura attiva nella pagina' ((Js "document.documentElement.getAttribute('data-blur')") -eq 'on')
   $cv = Js "(function(){var c=document.querySelector('.launcher-blur');var x=c.getContext('2d').getImageData(0,0,c.width,c.height).data;var mn=255,mx=0;for(var i=0;i<x.length;i+=4){var v=x[i]+x[i+1]+x[i+2];mn=Math.min(mn,v);mx=Math.max(mx,v)}return c.width+'x'+c.height+' '+(mx-mn)})()"
   Check 'il canvas contiene lo schermo dietro (dimensioni e contrasto)' (($cv -match '^\d+x\d+ \d+$') -and ([int]($cv.Split(' ')[1]) -gt 0) -and ([int]($cv.Split('x')[0]) -ge 300)) $cv
+  if ($env:LAUNCHER_LIGHT) { [void](Js "(document.documentElement.setAttribute('data-theme','light'),1)"); Start-Sleep -Milliseconds 600 }
   if ($env:LAUNCHER_SHOT) { $env:CDP_VIEW = 'launcher'; node (Join-Path $PSScriptRoot 'cdp-dock.mjs') shot $env:LAUNCHER_SHOT | Out-Null }
   [LT]::Key(0x1B); Start-Sleep -Milliseconds 500
   Check 'chiuso' (-not (IsOpen))
@@ -420,8 +427,29 @@ public static class HH {
   Check 'file nella cartella extra trovato' $foundExtra
   [LT]::Key(0x1B); Start-Sleep -Milliseconds 400
   Remove-Item $extra -Recurse -Force -ErrorAction SilentlyContinue
+
+  if ($WithExplorerRestart) {
+    Write-Host 'Q. riavvio di Explorer: la scorciatoia e il Launcher sopravvivono'
+    [void][LT]::SetCursorPos($pw.X + [int]($pw.Width / 2), $pw.Y + [int]($pw.Height / 2))
+    Stop-Process -Name explorer -Force
+    $t0 = Get-Date
+    while (-not (Get-Process explorer -ErrorAction SilentlyContinue) -and ((Get-Date) - $t0).TotalSeconds -lt 20) { Start-Sleep -Milliseconds 500 }
+    if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) { Start-Process explorer }
+    Start-Sleep -Seconds 8
+    Check 'Explorer di nuovo attivo' ([bool](Get-Process explorer -ErrorAction SilentlyContinue))
+    Check 'il processo EosOS e ancora vivo' ([bool](Get-Process eosos -ErrorAction SilentlyContinue))
+    [LT]::AltSpace(); Start-Sleep -Milliseconds 1200
+    Check 'Alt+Spazio apre ancora il Launcher' (IsOpen)
+    Check 'in primo piano' (Focused)
+    TypeText 'calc'; Start-Sleep -Milliseconds 1000
+    Check 'si digita e compare il risultato' ((Js "document.querySelector('.launcher-name') && document.querySelector('.launcher-name').textContent") -eq 'Calcolatrice')
+    Check 'sfondo sfocato ancora attivo' ((Js "document.documentElement.getAttribute('data-blur')") -eq 'on')
+    [LT]::Key(0x1B); Start-Sleep -Milliseconds 500
+    Check 'chiuso' (-not (IsOpen))
+  }
 }
 finally {
+  if ($WithExplorerRestart -and -not (Get-Process explorer -ErrorAction SilentlyContinue)) { Start-Process explorer }
   Cleanup
   if ($holderProc) { Stop-Process -Id $holderProc.Id -Force -ErrorAction SilentlyContinue }
   if ($testFile) { Remove-Item $testFile -ErrorAction SilentlyContinue }

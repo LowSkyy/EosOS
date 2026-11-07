@@ -109,6 +109,20 @@ fn subsequence_score(q: &str, n: &str) -> Option<i32> {
 /// Quanto `name` corrisponde a `query`, o `None`. Una query vuota corrisponde a tutto con 0. Con
 /// una sola lettera contano solo l'inizio del nome e delle parole. Pura, testata.
 pub fn match_score(query: &str, name: &str) -> Option<i32> {
+    match_tiers(query, name).or_else(|| {
+        let (q, n) = (fold(query.trim()), fold(name));
+        (q.chars().count() >= 2).then(|| subsequence_score(&q, &n)).flatten()
+    })
+}
+
+/// Come `match_score` ma senza l'ultimo ripiego per lettere sparse: solo nome identico, inizio del
+/// nome o di una parola, sigla e sottostringa. Per elenchi corti di nomi lunghi (le azioni), dove le
+/// lettere sparse darebbero solo rumore ("cal" dentro "Ctrl+Alt"). Pura, testata.
+pub fn match_score_strict(query: &str, name: &str) -> Option<i32> {
+    match_tiers(query, name)
+}
+
+fn match_tiers(query: &str, name: &str) -> Option<i32> {
     let q = fold(query.trim());
     if q.is_empty() {
         return Some(0);
@@ -130,10 +144,7 @@ pub fn match_score(query: &str, name: &str) -> Option<i32> {
     if ini.starts_with(&q) {
         return Some(750 - (ini.len() - q.len()).min(50) as i32);
     }
-    if let Some(pos) = n.find(&q) {
-        return Some(600 - pos.min(100) as i32);
-    }
-    subsequence_score(&q, &n)
+    n.find(&q).map(|pos| 600 - pos.min(100) as i32)
 }
 
 /// Peso di un'app in base a quanto e quando è stata usata: cresce piano con il numero di usi
@@ -251,6 +262,19 @@ mod tests {
         assert!(match_score("c", "Calcolatrice").is_some());
         assert_eq!(match_score("t", "Calcolatrice"), None);
         assert_eq!(match_score("x", ""), None);
+    }
+
+    #[test]
+    fn strict_matching_has_no_scattered_letters_fallback() {
+        // Stessi livelli di match_score...
+        assert_eq!(match_score_strict("calc", "Calcolatrice"), match_score("calc", "Calcolatrice"));
+        assert_eq!(match_score_strict("vsc", "Visual Studio Code"), match_score("vsc", "Visual Studio Code"));
+        assert!(match_score_strict("tutto", "Spegni tutto").is_some());
+        // ...ma niente sottosequenza.
+        assert!(match_score("visal", "Visual Studio Code").is_some());
+        assert_eq!(match_score_strict("visal", "Visual Studio Code"), None);
+        assert_eq!(match_score_strict("cal", "Scorciatoia: Ctrl+Alt+Spazio"), None);
+        assert_eq!(match_score_strict("", "x"), Some(0));
     }
 
     #[test]

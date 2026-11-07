@@ -55,6 +55,7 @@ export default function Launcher() {
   const cache = useRef<IconCache>(new Map());
   // Numero della ricerca più recente: una risposta in ritardo non deve sovrascrivere la nuova.
   const epoch = useRef(0);
+  const fileEpoch = useRef(0);
 
   const search = useCallback(async (q: string, f: Filter) => {
     const mine = ++epoch.current;
@@ -78,7 +79,6 @@ export default function Launcher() {
   }, [query, filter, search]);
 
   // I file arrivano a parte, dopo una breve pausa nella digitazione (la ricerca nell'indice costa di più).
-  const fileEpoch = useRef(0);
   useEffect(() => {
     const mine = ++fileEpoch.current;
     setFileItems([]);
@@ -111,9 +111,21 @@ export default function Launcher() {
       void search("", null);
       input.current?.focus();
     });
+    // Alla chiusura la pagina dimentica tutto ciò che mostrava (voci degli Appunti comprese).
+    const unClose = listen("launcher-close", () => {
+      epoch.current++;
+      fileEpoch.current++;
+      setQuery("");
+      setSel(0);
+      setFilter(null);
+      setConfirming(null);
+      setFast([]);
+      setFileItems([]);
+    });
     input.current?.focus();
     return () => {
       void un.then((f) => f());
+      void unClose.then((f) => f());
     };
   }, [search]);
 
