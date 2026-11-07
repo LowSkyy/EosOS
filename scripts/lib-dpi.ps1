@@ -50,6 +50,29 @@ public static class DS {
     return false;
   }
 
+  [StructLayout(LayoutKind.Sequential)] public struct RC { public int L, T, R, B; }
+  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] public struct MIX { public int cb; public RC mon; public RC work; public uint flags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst=32)] public string dev; }
+  delegate bool MP(IntPtr h, IntPtr dc, ref RC r, IntPtr d);
+  [DllImport("user32.dll")] static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clip, MP p, IntPtr d);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern bool GetMonitorInfo(IntPtr h, ref MIX mi);
+
+  // Un monitor per riga: "nome GDI|scala%|sinistra,alto,destra,basso|primario(0/1)|area di lavoro" (pixel fisici).
+  public static string[] Monitors() {
+    var o = new System.Collections.Generic.List<string>();
+    EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (IntPtr h, IntPtr dc, ref RC r, IntPtr d) => {
+      var mi = new MIX(); mi.cb = Marshal.SizeOf(typeof(MIX)); GetMonitorInfo(h, ref mi);
+      uint x, y; GetDpiForMonitor(h, 0, out x, out y);
+      o.Add(mi.dev + "|" + (x * 100 / 96) + "|" + mi.mon.L + "," + mi.mon.T + "," + mi.mon.R + "," + mi.mon.B + "|" + ((mi.flags & 1) != 0 ? 1 : 0) + "|" + mi.work.L + "," + mi.work.T + "," + mi.work.R + "," + mi.work.B);
+      return true; }, IntPtr.Zero);
+    return o.ToArray();
+  }
+
+  // Scala (percentuale) del monitor con questo nome GDI, o 0 se non c'e'.
+  public static int PercentOf(string gdi) {
+    foreach (var line in Monitors()) { var f = line.Split('|'); if (f[0] == gdi) return int.Parse(f[1]); }
+    return 0;
+  }
+
   // Scala corrente (percentuale) del monitor che contiene il punto (0,0), cioe' il primario.
   public static int CurrentPercent() {
     uint x, y; GetDpiForMonitor(MonitorFromPoint(0, 0, 1), 0, out x, out y); return (int)(x * 100 / 96);
@@ -74,31 +97,42 @@ public static class DS {
 
 function Get-PrimaryGdi { [System.Windows.Forms.Screen]::PrimaryScreen.DeviceName }
 
-function Get-PrimaryScale { [DS]::CurrentPercent() }
+# Tutti i monitor attivi: Gdi, Scala, rettangolo (L, T, R, B), Primario e area di lavoro (WorkL..WorkB), in pixel fisici.
+function Get-Monitors {
+  [DS]::Monitors() | ForEach-Object {
+    $f = $_ -split '\|'; $r = $f[2] -split ','; $w = $f[4] -split ','
+    [pscustomobject]@{ Gdi = $f[0]; Scala = [int]$f[1]; L = [int]$r[0]; T = [int]$r[1]; R = [int]$r[2]; B = [int]$r[3]; Primario = ($f[3] -eq '1'); WorkL = [int]$w[0]; WorkT = [int]$w[1]; WorkR = [int]$w[2]; WorkB = [int]$w[3] }
+  }
+}
 
-# Scale supportate dal monitor primario (percentuali), o $null se la configurazione non e' leggibile.
-function Get-PrimaryScaleRange {
-  $rel = [DS]::Rel((Get-PrimaryGdi)); if (-not $rel) { return $null }
-  $cur = [DS]::CurrentPercent(); $curIdx = [Array]::IndexOf([DS]::Steps, $cur)
+function Get-MonitorScale([string]$Gdi) { [DS]::PercentOf($Gdi) }
+
+# Scale supportate da un monitor (percentuali), o $null se la configurazione non e' leggibile.
+function Get-MonitorScaleRange([string]$Gdi) {
+  $rel = [DS]::Rel($Gdi); if (-not $rel) { return $null }
+  $cur = [DS]::PercentOf($Gdi); $curIdx = [Array]::IndexOf([DS]::Steps, $cur)
   if ($curIdx -lt 0) { return $null }
   $rec = $curIdx - $rel[1]                       # indice della scala raccomandata
   ($rel[0]..$rel[2]) | ForEach-Object { $i = $rec + $_; if ($i -ge 0 -and $i -lt [DS]::Steps.Length) { [DS]::Steps[$i] } }
 }
 
-# Imposta la scala del monitor primario. Restituisce la scala effettiva dopo il cambio.
-function Set-PrimaryScale([int]$Percent) {
-  $gdi = Get-PrimaryGdi
-  $rel = [DS]::Rel($gdi); if (-not $rel) { throw 'configurazione dello schermo non leggibile' }
-  $cur = [DS]::CurrentPercent(); $curIdx = [Array]::IndexOf([DS]::Steps, $cur)
+# Imposta la scala di un monitor. Restituisce la scala effettiva dopo il cambio.
+function Set-MonitorScale([string]$Gdi, [int]$Percent) {
+  $rel = [DS]::Rel($Gdi); if (-not $rel) { throw "configurazione dello schermo non leggibile ($Gdi)" }
+  $cur = [DS]::PercentOf($Gdi); $curIdx = [Array]::IndexOf([DS]::Steps, $cur)
   $tgtIdx = [Array]::IndexOf([DS]::Steps, $Percent)
   if ($curIdx -lt 0 -or $tgtIdx -lt 0) { throw "scala non gestita ($cur% -> $Percent%)" }
   $rec = $curIdx - $rel[1]
   $want = $tgtIdx - $rec
-  if ($want -lt $rel[0] -or $want -gt $rel[2]) { throw "il monitor non supporta il $Percent%" }
+  if ($want -lt $rel[0] -or $want -gt $rel[2]) { throw "il monitor $Gdi non supporta il $Percent%" }
   if ($want -ne $rel[1]) {
-    if (-not [DS]::SetRel($gdi, $want)) { throw "impostazione del $Percent% rifiutata" }
+    if (-not [DS]::SetRel($Gdi, $want)) { throw "impostazione del $Percent% rifiutata" }
     $t0 = Get-Date
-    while ([DS]::CurrentPercent() -ne $Percent -and ((Get-Date) - $t0).TotalSeconds -lt 10) { Start-Sleep -Milliseconds 300 }
+    while ([DS]::PercentOf($Gdi) -ne $Percent -and ((Get-Date) - $t0).TotalSeconds -lt 10) { Start-Sleep -Milliseconds 300 }
   }
-  [DS]::CurrentPercent()
+  [DS]::PercentOf($Gdi)
 }
+
+function Get-PrimaryScale { [DS]::CurrentPercent() }
+function Get-PrimaryScaleRange { Get-MonitorScaleRange (Get-PrimaryGdi) }
+function Set-PrimaryScale([int]$Percent) { Set-MonitorScale (Get-PrimaryGdi) $Percent }
