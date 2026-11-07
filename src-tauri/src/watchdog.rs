@@ -1,48 +1,108 @@
-//! Watchdog: processo separato (lo stesso exe lanciato con `--watchdog <pid>`)
-//! che ripristina la taskbar se EosOS muore in qualunque modo, e gestisce la
-//! scorciatoia globale di emergenza Ctrl+Alt+Shift+Esc.
+//! Watchdog: processo separato (lo stesso exe lanciato con
+//! `--watchdog <pid> <nome-evento>`) che ripristina la taskbar se EosOS muore in
+//! qualunque modo, e gestisce la scorciatoia globale di emergenza
+//! Ctrl+Alt+Shift+Esc.
+//!
+//! Sicurezza:
+//! - il watchdog apre UN handle al genitore all'avvio e lo tiene: finché è
+//!   aperto il PID non può essere riciclato, quindi il kill colpisce sempre il
+//!   processo giusto;
+//! - rifiuta di sorvegliare un processo che non sia questo stesso eseguibile;
+//! - segnala "pronto" al genitore solo dopo aver registrato la scorciatoia: il
+//!   genitore nasconde la taskbar solo dopo quel segnale.
 
 use std::io::Write;
 use std::os::windows::process::CommandExt;
+use std::path::PathBuf;
 use std::process::{Child, Command};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0};
+use windows::core::{HSTRING, PWSTR};
+use windows::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0, WAIT_TIMEOUT};
 use windows::Win32::System::Threading::{
-    OpenProcess, TerminateProcess, WaitForSingleObject, INFINITE, PROCESS_SYNCHRONIZE,
-    PROCESS_TERMINATE,
+    CreateEventW, OpenEventW, OpenProcess, QueryFullProcessImageNameW, SetEvent,
+    TerminateProcess, WaitForSingleObject, EVENT_MODIFY_STATE, INFINITE, PROCESS_NAME_WIN32,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     RegisterHotKey, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, MOD_SHIFT, VK_ESCAPE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetMessageW, MSG, WM_HOTKEY};
 
-use crate::taskbar;
+use crate::{appbar, taskbar};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 const HOTKEY_ID: i32 = 0x0E05;
+const READY_TIMEOUT: Duration = Duration::from_secs(5);
+const LOG_MAX_BYTES: u64 = 1_000_000;
+
+/// Percorso del log: %LOCALAPPDATA%\EosOS\logs\watchdog.log (con rotazione).
+pub fn log_path() -> PathBuf {
+    let base = std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    base.join("EosOS").join("logs").join("watchdog.log")
+}
 
 fn log(msg: &str) {
-    let path = std::env::temp_dir().join("eosos-watchdog.log");
+    let path = log_path();
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if std::fs::metadata(&path).is_ok_and(|m| m.len() > LOG_MAX_BYTES) {
+        let _ = std::fs::rename(&path, path.with_extension("log.old"));
+    }
     if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
         let _ = writeln!(f, "[pid {}] {msg}", std::process::id());
     }
 }
 
-/// Avvia il watchdog come processo figlio staccato.
-pub fn spawn() -> std::io::Result<Child> {
+fn ready_event_name(parent_pid: u32) -> String {
+    format!("Local\\EosOS-watchdog-ready-{parent_pid}")
+}
+
+/// Avvia il watchdog e aspetta che sia davvero operativo (scorciatoia
+/// registrata). Errore se non parte, muore o non diventa pronto entro 5 s.
+pub fn spawn_ready() -> std::io::Result<Child> {
+    let pid = std::process::id();
+    let name = HSTRING::from(ready_event_name(pid));
+    let event = unsafe { CreateEventW(None, true, false, &name) }
+        .map_err(|e| std::io::Error::other(format!("CreateEventW: {e}")))?;
+
     let exe = std::env::current_exe()?;
-    Command::new(exe)
+    let mut child = Command::new(exe)
         .arg("--watchdog")
-        .arg(std::process::id().to_string())
+        .arg(pid.to_string())
         .creation_flags(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP)
-        .spawn()
+        .spawn()?;
+
+    let start = Instant::now();
+    let result = loop {
+        if unsafe { WaitForSingleObject(event, 0) } == WAIT_OBJECT_0 {
+            break Ok(());
+        }
+        if let Ok(Some(status)) = child.try_wait() {
+            break Err(std::io::Error::other(format!("watchdog terminato subito ({status})")));
+        }
+        if start.elapsed() > READY_TIMEOUT {
+            break Err(std::io::Error::other("watchdog non pronto entro 5 s"));
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    };
+    unsafe {
+        let _ = CloseHandle(event);
+    }
+    if result.is_err() {
+        let _ = child.kill();
+    }
+    result.map(|()| child)
 }
 
 /// Blocca finché il processo `pid` termina; poi ripristina le finestre
 /// indicate. Ritorna false se il processo non si poteva osservare (già morto
 /// o accesso negato): in quel caso ripristina comunque.
+#[cfg(test)]
 pub fn wait_and_restore(pid: u32, classes: &[&str]) -> bool {
     let handle: Option<HANDLE> = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, false, pid).ok() };
     let observed = match handle {
@@ -60,43 +120,92 @@ pub fn wait_and_restore(pid: u32, classes: &[&str]) -> bool {
     observed
 }
 
-fn kill_process(pid: u32) {
+/// Percorso dell'eseguibile di un processo aperto.
+fn image_path(h: HANDLE) -> Option<PathBuf> {
+    let mut buf = [0u16; 1024];
+    let mut len = buf.len() as u32;
     unsafe {
-        if let Ok(h) = OpenProcess(PROCESS_TERMINATE, false, pid) {
-            let _ = TerminateProcess(h, 1);
-            let _ = CloseHandle(h);
-        }
+        QueryFullProcessImageNameW(h, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), &mut len).ok()?;
     }
+    Some(PathBuf::from(String::from_utf16_lossy(&buf[..len as usize])))
+}
+
+fn same_exe(a: &PathBuf, b: &PathBuf) -> bool {
+    a.to_string_lossy().eq_ignore_ascii_case(&b.to_string_lossy())
+}
+
+fn restore_everything() {
+    let n = taskbar::restore_real();
+    appbar::remove_if_registered();
+    log(&format!("ripristino eseguito (taskbar nascoste: {n})"));
 }
 
 /// Entry point del processo watchdog. Non ritorna.
 pub fn run(parent_pid: u32) -> ! {
     log(&format!("watchdog avviato per il processo {parent_pid}"));
 
-    // Thread che aspetta la morte del genitore e ripristina la taskbar.
+    // Un solo handle, tenuto aperto: impedisce il riciclo del PID.
+    let access = PROCESS_SYNCHRONIZE | PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION;
+    let parent = match unsafe { OpenProcess(access, false, parent_pid) } {
+        Ok(h) => h,
+        Err(e) => {
+            log(&format!("genitore non apribile ({e}): ripristino e uscita"));
+            restore_everything();
+            std::process::exit(2);
+        }
+    };
+
+    // Rifiuta PID che non sono questo stesso eseguibile.
+    let me = std::env::current_exe().ok();
+    match (image_path(parent), me) {
+        (Some(p), Some(m)) if same_exe(&p, &m) => {}
+        other => {
+            log(&format!("il processo {parent_pid} non è EosOS ({other:?}): rifiuto"));
+            std::process::exit(3);
+        }
+    }
+
+    // Thread che aspetta la morte del genitore e ripristina tutto.
+    let parent_raw = parent.0 as isize;
     std::thread::spawn(move || {
-        wait_and_restore(parent_pid, &taskbar::TASKBAR_CLASSES);
+        let h = HANDLE(parent_raw as *mut _);
+        unsafe { WaitForSingleObject(h, INFINITE) };
+        log(&format!("processo {parent_pid} terminato"));
+        restore_everything();
         std::process::exit(0);
     });
 
-    // Thread principale: scorciatoia globale di emergenza.
+    // Scorciatoia globale: se non si registra, il watchdog non è utile come
+    // rete di sicurezza completa -> esce con errore e il genitore non nasconde nulla.
     let mods = MOD_CONTROL | MOD_ALT | MOD_SHIFT | MOD_NOREPEAT;
     if let Err(e) = unsafe { RegisterHotKey(None, HOTKEY_ID, mods, VK_ESCAPE.0 as u32) } {
         log(&format!("registrazione scorciatoia fallita: {e}"));
-        // Senza scorciatoia il watchdog resta comunque utile.
-        loop {
-            std::thread::sleep(Duration::from_secs(3600));
-        }
+        std::process::exit(4);
     }
     log("scorciatoia Ctrl+Alt+Shift+Esc registrata");
+
+    // Segnala "pronto" al genitore.
+    let name = HSTRING::from(ready_event_name(parent_pid));
+    match unsafe { OpenEventW(EVENT_MODIFY_STATE, false, &name) } {
+        Ok(ev) => unsafe {
+            let _ = SetEvent(ev);
+            let _ = CloseHandle(ev);
+        },
+        Err(e) => log(&format!("evento 'pronto' non apribile: {e}")),
+    }
 
     let mut msg = MSG::default();
     while unsafe { GetMessageW(&mut msg, None, 0, 0) }.as_bool() {
         if msg.message == WM_HOTKEY && msg.wParam.0 as i32 == HOTKEY_ID {
             log("scorciatoia di emergenza premuta");
-            let n = taskbar::restore_real();
-            log(&format!("taskbar ripristinata ({n}); chiudo EosOS"));
-            kill_process(parent_pid);
+            restore_everything();
+            // Uccide il genitore solo se è ancora vivo (handle ancora nostro).
+            if unsafe { WaitForSingleObject(parent, 0) } == WAIT_TIMEOUT {
+                unsafe {
+                    let _ = TerminateProcess(parent, 1);
+                }
+                log("EosOS terminato");
+            }
             std::process::exit(0);
         }
     }

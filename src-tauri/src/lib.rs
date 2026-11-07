@@ -1,3 +1,4 @@
+mod appbar;
 mod taskbar;
 mod watchdog;
 
@@ -13,8 +14,15 @@ fn hide_requested() -> bool {
     std::env::var("EOSOS_HIDE_TASKBAR").is_ok_and(|v| v == "1")
 }
 
-unsafe extern "system" fn on_ctrl(_event: u32) -> BOOL {
+/// Annulla tutto ciò che EosOS ha cambiato nel sistema. Idempotente, chiamabile
+/// da qualunque percorso di uscita (uscita normale, panic, Ctrl+C...).
+fn cleanup() {
+    appbar::remove_if_registered();
     taskbar::restore_if_hidden();
+}
+
+unsafe extern "system" fn on_ctrl(_event: u32) -> BOOL {
+    cleanup();
     false.into() // lascia proseguire la gestione di default
 }
 
@@ -22,7 +30,7 @@ unsafe extern "system" fn on_ctrl(_event: u32) -> BOOL {
 fn install_local_safety_nets() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        taskbar::restore_if_hidden();
+        cleanup();
         default_hook(info);
     }));
     unsafe {
@@ -30,21 +38,22 @@ fn install_local_safety_nets() {
     }
 }
 
-/// Nasconde la taskbar solo se il watchdog è partito: senza rete di sicurezza
-/// non si nasconde nulla.
+/// Nasconde la taskbar solo se il watchdog è PRONTO (scorciatoia registrata):
+/// senza rete di sicurezza non si nasconde nulla.
 fn enable_taskbar_hiding() {
-    match watchdog::spawn() {
+    match watchdog::spawn_ready() {
         Ok(mut child) => {
             let hidden = taskbar::hide_real();
-            eprintln!("EosOS: taskbar nascosta ({hidden} finestre), watchdog attivo");
+            eprintln!("EosOS: taskbar nascosta ({hidden} finestre), watchdog pronto");
             // Se il watchdog muore la rete di sicurezza non c'è più: ripristina ed esci.
             std::thread::spawn(move || {
                 let _ = child.wait();
+                cleanup();
                 taskbar::restore_real();
                 std::process::exit(1);
             });
         }
-        Err(e) => eprintln!("EosOS: watchdog non avviabile ({e}); la taskbar NON viene nascosta"),
+        Err(e) => eprintln!("EosOS: watchdog non pronto ({e}); la taskbar NON viene nascosta"),
     }
 }
 
@@ -53,7 +62,10 @@ pub fn run() {
     // Modalità watchdog: niente Tauri, solo sorveglianza.
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("--watchdog") {
-        let pid = args.get(2).and_then(|s| s.parse().ok()).expect("pid mancante");
+        let pid = args.get(2).and_then(|s| s.parse().ok()).unwrap_or_else(|| {
+            eprintln!("uso: --watchdog <pid>");
+            std::process::exit(64)
+        });
         watchdog::run(pid);
     }
 
@@ -72,11 +84,16 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .setup(|app| {
+            let window = appbar::main_window(app).ok_or("finestra principale mancante")?;
+            appbar::setup(&window)?;
+            Ok(())
+        })
         .build(tauri::generate_context!())
         .expect("errore durante l'avvio di EosOS")
         .run(|_app, event| {
             if let tauri::RunEvent::Exit = event {
-                taskbar::restore_if_hidden();
+                cleanup();
             }
         });
 }

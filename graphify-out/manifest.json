@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794021688.832838,
-    "seen": 1794021694.1359158,
-    "ast_hash": "abf2d9f5f9d6971777db94143701bd21",
+    "mtime": 1794022360.0704381,
+    "seen": 1794022360.958628,
+    "ast_hash": "4fe60ee006c5db99d13d33907f135cc0",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794022012.807305,
-    "seen": 1794022049.1279242,
-    "ast_hash": "e30565f112c7512b77fb9fccd50ddaec",
+    "mtime": 1794022295.8156,
+    "seen": 1794022360.9586155,
+    "ast_hash": "a46eca8f5c0e593e6183f85c5db385ff",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -207,6 +207,12 @@
     "mtime": 1794021974.8813617,
     "seen": 1794022049.1279283,
     "ast_hash": "879b5a592b4a8f5ce11046c0178e76a8",
+    "semantic_hash": ""
+  },
+  "scripts/test-taskbar.ps1": {
+    "mtime": 1794022295.8804283,
+    "seen": 1794022360.95861,
+    "ast_hash": "3f0c93eb42015568b4ead8a387db19ee",
     "semantic_hash": ""
   },
   "package-lock.json": {
