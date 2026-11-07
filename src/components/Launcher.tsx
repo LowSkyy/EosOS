@@ -3,11 +3,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
   clampSelection,
-  fallbackLetter,
+  filterForKey,
+  glyphFor,
+  kindLabel,
   knownIds,
   mergeIcons,
   moveSelection,
+  toggleFilter,
   windowHeight,
+  type Filter,
   type IconCache,
   type LauncherItem,
 } from "../lib/launcher";
@@ -21,15 +25,23 @@ export default function Launcher() {
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<LauncherItem[]>([]);
   const [sel, setSel] = useState(0);
+  const [filter, setFilter] = useState<Filter>(null);
+  // Azione che aspetta la conferma (Riavvia, Spegni): la conferma vera la gestisce Rust.
+  const [confirming, setConfirming] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const cache = useRef<IconCache>(new Map());
   // Numero della ricerca più recente: una risposta in ritardo non deve sovrascrivere la nuova.
   const epoch = useRef(0);
 
-  const search = useCallback(async (q: string) => {
+  const search = useCallback(async (q: string, f: Filter) => {
     const mine = ++epoch.current;
+    setConfirming(null);
     try {
-      const found = await invoke<LauncherItem[]>("launcher_search", { query: q, have: knownIds(cache.current) });
+      const found = await invoke<LauncherItem[]>("launcher_search", {
+        query: q,
+        have: knownIds(cache.current),
+        filter: f,
+      });
       if (mine !== epoch.current) return;
       const merged = mergeIcons(found, cache.current);
       setItems(merged);
@@ -40,15 +52,17 @@ export default function Launcher() {
   }, []);
 
   useEffect(() => {
-    void search(query);
-  }, [query, search]);
+    void search(query, filter);
+  }, [query, filter, search]);
 
   // All'apertura: campo vuoto e a fuoco, elenco delle app più usate.
   useEffect(() => {
     const un = listen("launcher-open", () => {
       setQuery("");
       setSel(0);
-      void search("");
+      setFilter(null);
+      setConfirming(null);
+      void search("", null);
       input.current?.focus();
     });
     input.current?.focus();
@@ -66,20 +80,45 @@ export default function Launcher() {
 
   const launch = async (item: LauncherItem | undefined) => {
     if (!item) return;
-    hide();
-    await invoke("launcher_launch", { id: item.id });
+    if (item.kind === "calc") {
+      // Copia il risultato: il Launcher è a fuoco, quindi la pagina può scrivere negli appunti.
+      try {
+        await navigator.clipboard.writeText(item.name);
+      } catch {
+        /* appunti non disponibili: si chiude comunque */
+      }
+      hide();
+    } else if (item.kind === "action") {
+      const r = await invoke<string>("launcher_action", { id: item.id });
+      if (r === "confirm") setConfirming(item.id);
+      else hide();
+    } else {
+      hide();
+      await invoke("launcher_launch", { id: item.id });
+    }
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     // Durante la composizione (IME) Invio e frecce appartengono all'editor di metodo di input.
     if (e.nativeEvent.isComposing) return;
+    if (e.ctrlKey && !e.altKey && !e.metaKey) {
+      const wanted = filterForKey(e.key);
+      if (wanted) {
+        e.preventDefault();
+        setFilter((f) => toggleFilter(f, wanted));
+        setSel(0);
+        return;
+      }
+    }
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
+        setConfirming(null);
         setSel((s) => moveSelection(s, 1, items.length));
         break;
       case "ArrowUp":
         e.preventDefault();
+        setConfirming(null);
         setSel((s) => moveSelection(s, -1, items.length));
         break;
       case "Enter":
@@ -109,7 +148,7 @@ export default function Launcher() {
             setQuery(e.target.value);
             setSel(0);
           }}
-          placeholder="Cerca app"
+          placeholder={filter === "action" ? "Cerca azioni" : filter === "app" ? "Cerca app" : "Cerca app, azioni, calcoli"}
           spellCheck={false}
           autoComplete="off"
           autoFocus
@@ -118,6 +157,7 @@ export default function Launcher() {
           aria-controls="launcher-list"
           aria-activedescendant={items[sel] ? `launcher-item-${sel}` : undefined}
         />
+        {filter && <span className="launcher-chip">{filter === "app" ? "App" : "Azioni"}</span>}
       </div>
       {(items.length > 0 || hasQuery) && (
         <ul className="launcher-list" id="launcher-list" role="listbox">
@@ -130,16 +170,24 @@ export default function Launcher() {
               aria-selected={i === sel}
               className="launcher-item"
               data-selected={i === sel}
-              onMouseMove={() => i !== sel && setSel(i)}
+              data-kind={it.kind}
+              data-confirming={confirming === it.id}
+              onMouseMove={() => {
+                if (i !== sel) {
+                  setSel(i);
+                  setConfirming(null);
+                }
+              }}
               onClick={() => void launch(it)}
             >
               {it.icon ? (
                 <img className="launcher-icon" src={it.icon} alt="" draggable={false} />
               ) : (
-                <span className="launcher-icon launcher-icon-fallback">{fallbackLetter(it.name)}</span>
+                <span className="launcher-icon launcher-icon-fallback">{glyphFor(it)}</span>
               )}
               <span className="launcher-name">{it.name}</span>
-              <span className="launcher-kind">App</span>
+              {it.detail && <span className="launcher-detail">{it.detail}</span>}
+              <span className="launcher-kind">{kindLabel(it, confirming === it.id)}</span>
             </li>
           ))}
         </ul>

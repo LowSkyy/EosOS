@@ -8,6 +8,8 @@ mod dockwin;
 mod foreground;
 mod glass;
 mod launcher;
+mod launchercalc;
+mod launcheract;
 mod launcherrank;
 mod launcherstore;
 mod launcherwin;
@@ -82,8 +84,21 @@ fn dock_backdrop(since: u64) -> tauri::ipc::Response {
 /// Ricerca del Launcher tra le app. `have`: gli id di cui il frontend ha già l'icona. Lavoro
 /// bloccante (shell, icone): fuori dal thread UI.
 #[tauri::command(async)]
-fn launcher_search(query: String, have: Option<Vec<String>>) -> Vec<launcher::LauncherItem> {
-    launcher::search(&query, &have.unwrap_or_default())
+fn launcher_search(query: String, have: Option<Vec<String>>, filter: Option<String>) -> Vec<launcher::LauncherItem> {
+    launcher::search(&query, &have.unwrap_or_default(), filter.as_deref())
+}
+
+/// Esegue un'azione del Launcher. Le azioni che spengono o riavviano rispondono "confirm" alla
+/// prima richiesta ed eseguono alla seconda (stessa azione, entro 10 secondi): la conferma è di
+/// Rust, non della pagina. Risposte: "done", "confirm", "unknown", "failed".
+#[tauri::command(async)]
+fn launcher_action(id: String) -> &'static str {
+    match launcheract::run(&id) {
+        launcheract::Outcome::Done => "done",
+        launcheract::Outcome::Confirm => "confirm",
+        launcheract::Outcome::Unknown => "unknown",
+        launcheract::Outcome::Failed => "failed",
+    }
 }
 
 /// Avvia un'app del Launcher. Il frontend manda solo l'`id` di un risultato che ha ricevuto;
@@ -96,6 +111,7 @@ fn launcher_launch(id: String) -> bool {
 /// Nasconde il Launcher (Esc, o dopo aver avviato qualcosa).
 #[tauri::command]
 fn launcher_hide(app: tauri::AppHandle) {
+    launcheract::cancel_pending();
     launcherwin::hide(&app);
 }
 
@@ -263,7 +279,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_hide, launcher_fit])
+        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_action, launcher_hide, launcher_fit])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

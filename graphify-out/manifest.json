@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794083855.3444326,
-    "seen": 1794083856.5499182,
-    "ast_hash": "f1e0e78c618942818e9baa9cabd924ef",
+    "mtime": 1794084246.4399133,
+    "seen": 1794084248.887676,
+    "ast_hash": "798f4fb23e6be240b223e11231b64a2a",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794083373.2206135,
-    "seen": 1794083856.5498893,
-    "ast_hash": "7a5fff25ef1619743fd14c83cef52e87",
+    "mtime": 1794084045.0472975,
+    "seen": 1794084248.8876488,
+    "ast_hash": "b0dd2cdea4d7c0f2bdd5cfd14abd6a44",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -474,21 +474,21 @@
     "semantic_hash": ""
   },
   "docs/LAUNCHER.md": {
-    "mtime": 1794083855.3434324,
-    "seen": 1794083856.549921,
-    "ast_hash": "19ed3a3fc985bbfddb3eafd1d7f86534",
+    "mtime": 1794084246.4399133,
+    "seen": 1794084248.8876784,
+    "ast_hash": "4fe7ad4ef68e325cead4ecbf916854d5",
     "semantic_hash": ""
   },
   "src-tauri/src/launcher.rs": {
-    "mtime": 1794082987.2605722,
-    "seen": 1794083080.0856035,
-    "ast_hash": "c92eb71460678275a9b64ea9967461a5",
+    "mtime": 1794084086.0524957,
+    "seen": 1794084248.8876429,
+    "ast_hash": "de500359835c6ccc2afd4cbdfdf2c284",
     "semantic_hash": ""
   },
   "src-tauri/src/launcherrank.rs": {
-    "mtime": 1794083036.818473,
-    "seen": 1794083080.0856047,
-    "ast_hash": "e074cd99e66195a4895da3bd865670f7",
+    "mtime": 1794084103.8031082,
+    "seen": 1794084248.8876462,
+    "ast_hash": "44f0e57f5cb88eb6537a37783cdc4274",
     "semantic_hash": ""
   },
   "src-tauri/src/launcherstore.rs": {
@@ -498,9 +498,9 @@
     "semantic_hash": ""
   },
   "scripts/test-launcher.ps1": {
-    "mtime": 1794083512.874302,
-    "seen": 1794083856.5498693,
-    "ast_hash": "78c6d2afc8f925b1a4afe3f77046cbeb",
+    "mtime": 1794084183.3354695,
+    "seen": 1794084248.8876271,
+    "ast_hash": "3c78d69c6c3b005cc810b2bd26b0c9ea",
     "semantic_hash": ""
   },
   "src-tauri/src/launcherwin.rs": {
@@ -510,21 +510,33 @@
     "semantic_hash": ""
   },
   "src/components/Launcher.tsx": {
-    "mtime": 1794083440.838648,
-    "seen": 1794083856.5498993,
-    "ast_hash": "7f289f7afc4e87c870a7c84bdbd04e95",
+    "mtime": 1794084137.061248,
+    "seen": 1794084248.8876586,
+    "ast_hash": "9a2cf5ed3bf4a4865c6bf83f110d73d4",
     "semantic_hash": ""
   },
   "src/lib/launcher.test.ts": {
-    "mtime": 1794083401.4812393,
-    "seen": 1794083856.5499072,
-    "ast_hash": "f88edb56ebfeb88fd9e44055ee9861ea",
+    "mtime": 1794084122.9661062,
+    "seen": 1794084248.8876657,
+    "ast_hash": "c3dd123167877e404377557f11cc347c",
     "semantic_hash": ""
   },
   "src/lib/launcher.ts": {
-    "mtime": 1794083401.467661,
-    "seen": 1794083856.5499082,
-    "ast_hash": "7ce0830d7a45f0dcfe3c6adaf3b9ca1a",
+    "mtime": 1794084122.9651058,
+    "seen": 1794084248.8876667,
+    "ast_hash": "77777b65dc4cd0ae15ad6f45cd4fd393",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/launcheract.rs": {
+    "mtime": 1794084086.0524957,
+    "seen": 1794084248.887644,
+    "ast_hash": "b2e1353d42f594205af3d9c9cd8725f3",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/launchercalc.rs": {
+    "mtime": 1794084103.8041072,
+    "seen": 1794084248.8876452,
+    "ast_hash": "819d448a243ea0d1f6687c44cde11fa1",
     "semantic_hash": ""
   },
   "package-lock.json": {

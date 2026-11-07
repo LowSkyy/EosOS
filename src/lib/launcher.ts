@@ -1,7 +1,16 @@
+export type ItemKind = "app" | "action" | "calc";
+
+/** Scheda attiva: solo le app, solo le azioni, o tutto (`null`). */
+export type Filter = "app" | "action" | null;
+
 /** Un risultato del Launcher, come lo manda Rust (`launcher_search`). */
 export type LauncherItem = {
   id: string;
   name: string;
+  /** "app", "action" (azione di sistema) o "calc" (risultato di un calcolo). */
+  kind: ItemKind;
+  /** Testo secondario: per il calcolo, l'espressione digitata. */
+  detail?: string | null;
   /** Data URL dell'icona; `null` se il frontend l'ha già (vedi `mergeIcons`). */
   icon: string | null;
 };
@@ -60,4 +69,39 @@ export function knownIds(cache: IconCache): string[] {
 export function fallbackLetter(name: string): string {
   const c = [...name.trim()][0];
   return c ? c.toUpperCase() : "?";
+}
+
+/**
+ * Scheda dopo aver premuto la scorciatoia `wanted` (Ctrl+1 = app, Ctrl+2 = azioni): ripremere
+ * quella già attiva torna a "tutto". Pura, testata.
+ */
+export function toggleFilter(current: Filter, wanted: Exclude<Filter, null>): Filter {
+  return current === wanted ? null : wanted;
+}
+
+/** Scheda associata a un tasto numerico con Ctrl, o `undefined` se non è una scheda. Pura, testata. */
+export function filterForKey(key: string): Exclude<Filter, null> | undefined {
+  return key === "1" ? "app" : key === "2" ? "action" : undefined;
+}
+
+/** Simbolo al posto dell'icona per le voci che non hanno un'icona di app. Pura, testata. */
+export function glyphFor(item: Pick<LauncherItem, "id" | "kind" | "name">): string {
+  if (item.kind === "calc") return "=";
+  const byId: Record<string, string> = {
+    "action:lock": "🔒",
+    "action:sleep": "🌙",
+    "action:restart": "↻",
+    "action:shutdown": "⏻",
+    "action:settings": "⚙",
+    "action:downloads": "⬇",
+    "action:documents": "📄",
+    "action:desktop": "🖥",
+  };
+  return byId[item.id] ?? fallbackLetter(item.name);
+}
+
+/** Etichetta a destra della riga. Pura, testata. */
+export function kindLabel(item: Pick<LauncherItem, "kind">, confirming: boolean): string {
+  if (confirming) return "Invio per confermare";
+  return item.kind === "calc" ? "Invio per copiare" : item.kind === "action" ? "Azione" : "App";
 }

@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   clampSelection,
   fallbackLetter,
+  filterForKey,
+  glyphFor,
+  kindLabel,
+  toggleFilter,
   INPUT_HEIGHT,
   knownIds,
   LauncherItem,
@@ -12,7 +16,7 @@ import {
   windowHeight,
 } from "./launcher";
 
-const item = (id: string, icon: string | null = null): LauncherItem => ({ id, name: id, icon });
+const item = (id: string, icon: string | null = null): LauncherItem => ({ id, name: id, kind: "app", icon });
 
 describe("moveSelection", () => {
   it("wraps in both directions", () => {
@@ -84,5 +88,33 @@ describe("fallbackLetter", () => {
   it("falls back to a question mark", () => {
     expect(fallbackLetter("")).toBe("?");
     expect(fallbackLetter("   ")).toBe("?");
+  });
+});
+
+describe("filters", () => {
+  it("toggles a tab on and off", () => {
+    expect(toggleFilter(null, "app")).toBe("app");
+    expect(toggleFilter("app", "app")).toBeNull();
+    expect(toggleFilter("app", "action")).toBe("action");
+  });
+  it("maps Ctrl+digit to a tab", () => {
+    expect(filterForKey("1")).toBe("app");
+    expect(filterForKey("2")).toBe("action");
+    expect(filterForKey("3")).toBeUndefined();
+    expect(filterForKey("a")).toBeUndefined();
+  });
+});
+
+describe("glyphFor and kindLabel", () => {
+  it("uses symbols for calc and known actions, a letter otherwise", () => {
+    expect(glyphFor({ id: "calc", kind: "calc", name: "84" })).toBe("=");
+    expect(glyphFor({ id: "action:shutdown", kind: "action", name: "Spegni" })).toBe("⏻");
+    expect(glyphFor({ id: "action:nuova", kind: "action", name: "Nuova" })).toBe("N");
+  });
+  it("labels each kind and the confirmation step", () => {
+    expect(kindLabel({ kind: "app" }, false)).toBe("App");
+    expect(kindLabel({ kind: "action" }, false)).toBe("Azione");
+    expect(kindLabel({ kind: "calc" }, false)).toBe("Invio per copiare");
+    expect(kindLabel({ kind: "action" }, true)).toBe("Invio per confermare");
   });
 });

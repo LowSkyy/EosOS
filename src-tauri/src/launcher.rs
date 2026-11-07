@@ -17,6 +17,8 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 use crate::dock::{aumid_path, cached_icon, ComScope};
+use crate::launcheract;
+use crate::launchercalc;
 use crate::launcherrank::{fold, rank};
 use crate::launcherstore;
 
@@ -37,6 +39,10 @@ pub struct AppEntry {
 pub struct LauncherItem {
     pub id: String,
     pub name: String,
+    /// "app", "action" o "calc".
+    pub kind: &'static str,
+    /// Testo secondario (per il calcolo: l'espressione).
+    pub detail: Option<String>,
     /// Data URL dell'icona, solo se il frontend non l'ha già.
     pub icon: Option<String>,
 }
@@ -132,20 +138,54 @@ pub fn warm_up() {
     });
 }
 
-/// Cerca `query` tra le app. `have`: gli id di cui il frontend ha già l'icona.
-pub fn search(query: &str, have: &[String]) -> Vec<LauncherItem> {
-    let index = apps();
-    let usage = launcherstore::load();
-    let entries: Vec<(String, String)> = index.iter().map(|e| (e.id.clone(), e.name.clone())).collect();
-    let have: HashSet<String> = have.iter().map(|h| fold(h)).collect();
-    rank(&entries, &usage, query, now_secs(), LIMIT)
-        .into_iter()
-        .map(|r| {
+/// Cerca `query` tra calcolo, app e azioni. `have`: gli id di cui il frontend ha già l'icona.
+/// `filter`: solo "app" o solo "action" (le schede); `None` = tutto. Il risultato del calcolo, se
+/// c'è, sta sempre in cima. Qualunque ricerca annulla una conferma in sospeso.
+pub fn search(query: &str, have: &[String], filter: Option<&str>) -> Vec<LauncherItem> {
+    launcheract::cancel_pending();
+    let (want_apps, want_actions, want_calc) = match filter {
+        None => (true, true, true),
+        Some("app") => (true, false, false),
+        Some("action") => (false, true, false),
+        Some(_) => (false, false, false),
+    };
+    let mut out: Vec<LauncherItem> = Vec::new();
+    if want_calc
+        && let Some(v) = launchercalc::evaluate(query)
+    {
+        out.push(LauncherItem {
+            id: "calc".into(),
+            name: launchercalc::format(v),
+            kind: "calc",
+            detail: Some(query.trim().to_string()),
+            icon: None,
+        });
+    }
+    let mut scored: Vec<(i32, LauncherItem)> = Vec::new();
+    if want_apps {
+        let index = apps();
+        let usage = launcherstore::load();
+        let entries: Vec<(String, String)> = index.iter().map(|e| (e.id.clone(), e.name.clone())).collect();
+        let have: HashSet<String> = have.iter().map(|h| fold(h)).collect();
+        for r in rank(&entries, &usage, query, now_secs(), LIMIT) {
             let e = &index[r.index];
             let icon = (!have.contains(&fold(&e.id))).then(|| cached_icon(&aumid_path(&e.id))).flatten();
-            LauncherItem { id: e.id.clone(), name: e.name.clone(), icon }
-        })
-        .collect()
+            scored.push((r.score, LauncherItem { id: e.id.clone(), name: e.name.clone(), kind: "app", detail: None, icon }));
+        }
+    }
+    if want_actions {
+        for (a, score) in launcheract::search(query) {
+            scored.push((score, LauncherItem { id: a.id.into(), name: a.name.into(), kind: "action", detail: None, icon: None }));
+        }
+    }
+    // Ordine stabile: a pari punteggio restano prima le app (inserite per prime).
+    scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
+    // Un'azione con lo stesso nome di un'app (Impostazioni) non si mostra due volte: vince l'app.
+    let app_names: HashSet<String> = scored.iter().filter(|(_, i)| i.kind == "app").map(|(_, i)| fold(&i.name)).collect();
+    scored.retain(|(_, i)| i.kind != "action" || !app_names.contains(&fold(&i.name)));
+    out.extend(scored.into_iter().map(|(_, it)| it));
+    out.truncate(LIMIT);
+    out
 }
 
 /// Avvia l'app con questo `id`, se è nell'indice, e ne registra l'uso. `false` se l'id è
@@ -201,8 +241,8 @@ mod tests {
     /// Ricerche vere sull'indice reale (sola lettura, nessun avvio).
     #[test]
     fn real_search_examples() {
-        for q in ["calc", "cal", "note", "paint", "vsc", "chr", "terminal", "zzzzqq", ""] {
-            let r = search(q, &["__nessuna__".into()]);
+        for q in ["calc", "cal", "note", "paint", "vsc", "chr", "terminal", "zzzzqq", "", "12*7", "20% di 340", "riavvia", "impost", "7-zip"] {
+            let r = search(q, &["__nessuna__".into()], None);
             let names: Vec<_> = r.iter().map(|x| format!("{}{}", x.name, if x.icon.is_some() { "*" } else { "" })).collect();
             println!("[{q}] -> {names:?}");
         }
@@ -218,7 +258,7 @@ mod tests {
         assert!(launch(&calc.id));
         let usage = launcherstore::load();
         assert_eq!(usage.get(&calc.id).map(|u| u.count), Some(1));
-        let top = search("", &[]);
+        let top = search("", &[], None);
         assert_eq!(top.first().map(|x| x.id.clone()), Some(calc.id.clone()));
         println!("avviata {} e registrata", calc.name);
     }

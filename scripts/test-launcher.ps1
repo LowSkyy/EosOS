@@ -20,7 +20,10 @@ public static class LT {
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
   [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr h, int i);
   public static IntPtr Find(string title) { IntPtr f = IntPtr.Zero; EnumWindows((h, l) => { var sb = new StringBuilder(256); GetWindowText(h, sb, 256); if (sb.ToString() == title) { f = h; return false; } return true; }, IntPtr.Zero); return f; }
+  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+  public static bool PostClose(IntPtr h) { return PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero); }
   public static void Key(byte vk) { keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); }
+  public static void Ctrl(byte vk) { keybd_event(0x11, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 0, UIntPtr.Zero); keybd_event(vk, 0, 2, UIntPtr.Zero); keybd_event(0x11, 0, 2, UIntPtr.Zero); }
   public static void AltSpace() { keybd_event(0x12, 0, 0, UIntPtr.Zero); keybd_event(0x20, 0, 0, UIntPtr.Zero); keybd_event(0x20, 0, 2, UIntPtr.Zero); keybd_event(0x12, 0, 2, UIntPtr.Zero); }
 }
 '@
@@ -35,12 +38,21 @@ function IsOpen { $h = Launcher; $h -ne [IntPtr]::Zero -and [LT]::IsWindowVisibl
 function Focused { $h = Launcher; $h -ne [IntPtr]::Zero -and [LT]::GetForegroundWindow() -eq $h }
 function Press($vk) { if (Focused) { [LT]::Key([byte]$vk) } else { Write-Host '  (tasto saltato: il Launcher non e in primo piano)' -ForegroundColor Yellow } }
 function TypeText($text) { foreach ($c in $text.ToCharArray()) { Press ([int][char]$c.ToString().ToUpper()); Start-Sleep -Milliseconds 60 } }
+function PressCtrl($vk) { if (Focused) { [LT]::Ctrl([byte]$vk) } else { Write-Host '  (tasto saltato: il Launcher non e in primo piano)' -ForegroundColor Yellow } }
 function Cleanup {
   Get-Process | Where-Object { $_.ProcessName -like 'Calculator*' } | ForEach-Object { [void]$_.CloseMainWindow() }
   Start-Sleep 1
   Get-Process | Where-Object { $_.ProcessName -like 'Calculator*' } | Stop-Process -Force -ErrorAction SilentlyContinue
   Get-CimInstance Win32_Process -Filter "Name='eosos.exe'" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
+# Le prove di conferma premono Invio su Riavvia/Spegni: SOLO con una build di prova, che le registra
+# in %TEMP%\eosos-actions.log invece di eseguirle. Si controlla che l'eseguibile contenga quella protezione.
+$bytes = [System.IO.File]::ReadAllBytes($exe)
+$text = [System.Text.Encoding]::GetEncoding(28591).GetString($bytes)
+if (-not $text.Contains('eosos-actions.log')) { Write-Host 'Questo eseguibile non e una build di prova (feature test-hooks): rifiuto di provare Riavvia/Spegni.'; exit 2 }
+$actionLog = Join-Path $env:TEMP 'eosos-actions.log'
+Remove-Item $actionLog -ErrorAction SilentlyContinue
+$savedClip = $null; try { $savedClip = Get-Clipboard -Raw -ErrorAction Stop } catch {}
 $calcBefore = @(Get-Process | Where-Object { $_.ProcessName -like 'Calculator*' }).Count
 if ($calcBefore -gt 0) { Write-Host 'La Calcolatrice e gia aperta: chiudila e riprova (non e mia).'; exit 2 }
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
@@ -104,6 +116,70 @@ try {
   Check 'aperta' (IsOpen)
   [LT]::AltSpace(); Start-Sleep -Milliseconds 700
   Check 'chiusa dalla stessa scorciatoia' (-not (IsOpen))
+
+  Write-Host 'I. calcolatrice nel campo'
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  Check 'aperta' (IsOpen)
+  # '*' con il tasto del tastierino numerico (VK_MULTIPLY = 0x6A): nessuna dipendenza dal layout.
+  TypeText '12'; Press 0x6A; TypeText '7'; Start-Sleep -Milliseconds 800
+  Check 'campo = 12*7' ((Js "document.querySelector('.launcher-input').value") -eq '12*7') ((Js "document.querySelector('.launcher-input').value"))
+  Check 'primo risultato e il calcolo' ((Js "document.querySelector('.launcher-item').dataset.kind") -eq 'calc')
+  Check 'risultato 84' ((Js "document.querySelector('.launcher-name').textContent") -eq '84')
+  Press 0x0D; Start-Sleep -Milliseconds 800
+  Check 'Launcher chiuso dopo la copia' (-not (IsOpen))
+  Check 'risultato negli appunti' ((Get-Clipboard -Raw).Trim() -eq '84')
+
+  Write-Host 'J. schede con Ctrl+1 / Ctrl+2'
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  TypeText 'impost'; Start-Sleep -Milliseconds 700
+  $kindsAll = Js "Array.from(document.querySelectorAll('.launcher-item')).map(function(e){return e.dataset.kind}).join(',')"
+  Check 'senza scheda: azione Impostazioni presente (o app omonima)' ($kindsAll -match 'action|app') $kindsAll
+  PressCtrl 0x32; Start-Sleep -Milliseconds 700
+  Check 'chip Azioni visibile' ((Js "!!document.querySelector('.launcher-chip') && document.querySelector('.launcher-chip').textContent") -eq 'Azioni')
+  $kinds = Js "Array.from(document.querySelectorAll('.launcher-item')).map(function(e){return e.dataset.kind}).join(',')"
+  Check 'solo azioni' ($kinds -eq 'action') $kinds
+  PressCtrl 0x32; Start-Sleep -Milliseconds 600
+  Check 'secondo Ctrl+2 toglie la scheda' ((Js "!document.querySelector('.launcher-chip')") -eq $true)
+  PressCtrl 0x31; Start-Sleep -Milliseconds 600
+  $kinds = Js "Array.from(document.querySelectorAll('.launcher-item')).map(function(e){return e.dataset.kind}).join(',')"
+  Check 'Ctrl+1: solo app' (($kinds -eq 'app') -or ($kinds -eq '')) "kinds=$kinds"
+
+  Write-Host 'K. conferma di Riavvia (build di prova: non esegue)'
+  PressCtrl 0x31; Start-Sleep -Milliseconds 400   # toglie la scheda App
+  foreach ($i in 1..6) { Press 0x08 }
+  TypeText 'riavvia'; Start-Sleep -Milliseconds 800
+  Check 'primo risultato e Riavvia' ((Js "document.querySelector('.launcher-item').id") -eq 'launcher-item-0' -and (Js "document.querySelector('.launcher-item').dataset.kind") -eq 'action')
+  Press 0x0D; Start-Sleep -Milliseconds 600
+  Check 'primo Invio: chiede conferma' ((Js "document.querySelector('.launcher-item').dataset.confirming") -eq 'true')
+  Check 'ancora aperto e nulla eseguito' ((IsOpen) -and -not (Test-Path $actionLog))
+  TypeText 'a'; Start-Sleep -Milliseconds 700   # digitare annulla la conferma
+  Check 'digitare annulla la conferma' ((Js "document.querySelector('.launcher-item') ? document.querySelector('.launcher-item').dataset.confirming : 'x'") -ne 'true')
+  foreach ($i in 1..1) { Press 0x08 }; Start-Sleep -Milliseconds 700
+  Press 0x0D; Start-Sleep -Milliseconds 500
+  Check 'dopo l''annullamento serve di nuovo la conferma e nulla e eseguito' ((Js "document.querySelector('.launcher-item').dataset.confirming") -eq 'true' -and -not (Test-Path $actionLog))
+  Press 0x0D; Start-Sleep -Milliseconds 800
+  Check 'secondo Invio: Launcher chiuso' (-not (IsOpen))
+  $log = if (Test-Path $actionLog) { Get-Content $actionLog -Raw } else { '' }
+  Check 'azione registrata (non eseguita) una sola volta' (([regex]::Matches($log, 'action:restart')).Count -eq 1) $log.Trim()
+
+  Write-Host 'L. Impostazioni (azione normale, senza conferma)'
+  $settingsBefore = [LT]::Find('Impostazioni')
+  if ($settingsBefore -ne [IntPtr]::Zero) { Write-Host '  (Impostazioni gia aperta: provo solo che il Launcher si chiuda)' }
+  [LT]::AltSpace(); Start-Sleep -Milliseconds 900
+  PressCtrl 0x32; Start-Sleep -Milliseconds 300
+  TypeText 'impost'; Start-Sleep -Milliseconds 700
+  Press 0x0D; Start-Sleep -Seconds 3
+  Check 'Launcher chiuso' (-not (IsOpen))
+  if ($settingsBefore -eq [IntPtr]::Zero) {
+    $sw = [LT]::Find('Impostazioni')
+    Check 'finestra Impostazioni aperta' ($sw -ne [IntPtr]::Zero)
+    if ($sw -ne [IntPtr]::Zero) { [void][LT]::PostClose($sw) }
+  }
+  Check 'nessuna nuova azione di alimentazione' ((Get-Content $actionLog -Raw) -notmatch 'settings|lock|sleep|shutdown')
 }
-finally { Cleanup }
+finally {
+  Cleanup
+  if ($savedClip) { Set-Clipboard -Value $savedClip }
+  Remove-Item $actionLog -ErrorAction SilentlyContinue
+}
 if ($script:fail -eq 0) { Write-Host 'TUTTO OK' -ForegroundColor Green } else { Write-Host "$($script:fail) controlli falliti" -ForegroundColor Red; exit 1 }

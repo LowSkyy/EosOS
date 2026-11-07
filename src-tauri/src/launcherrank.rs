@@ -17,8 +17,6 @@ pub struct Usage {
 
 /// Dopo quanti giorni il peso di un uso si dimezza.
 const HALF_LIFE_DAYS: f64 = 14.0;
-/// Quanto possono distare, al massimo, le lettere di una sottosequenza (multiplo della query).
-const MAX_SPAN_FACTOR: usize = 3;
 /// Tetto del bonus di frecency, nell'unità dei punteggi di corrispondenza.
 const MAX_BONUS: i32 = 120;
 
@@ -62,43 +60,50 @@ fn words(folded: &str) -> Vec<&str> {
     folded.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect()
 }
 
-/// Punteggio di una sottosequenza: tutte le lettere di `q` in ordine dentro `n`, con premi per
-/// lettere consecutive e per inizi di parola e una piccola penalità per i salti. Per evitare
-/// rumore ("paint" dentro "Pannello di controllo") la prima lettera deve cadere a inizio parola e
-/// le lettere trovate devono stare vicine: al più `MAX_SPAN_FACTOR` volte la lunghezza della
-/// query. `None` se non c'è una corrispondenza così.
+/// Punteggio di una sottosequenza: tutte le lettere di `q` in ordine dentro `n`. Per evitare rumore
+/// ("paint" dentro "Pannello di controllo", "calc" dentro "Cartella Scrivania") la prima lettera
+/// deve cadere a inizio parola e ogni lettera seguente deve essere consecutiva alla precedente,
+/// oppure cadere a inizio parola ("vscode" in "Visual Studio Code"), oppure essere l'unico salto
+/// di una sola lettera della query (un refuso: "clcolatrice"). Si cerca la scelta migliore tra
+/// le posizioni possibili, non solo la prima. `None` se non c'è una corrispondenza così.
 fn subsequence_score(q: &str, n: &str) -> Option<i32> {
     let nc: Vec<char> = n.chars().collect();
-    let qlen = q.chars().count();
-    let mut pos = 0usize;
-    let mut score = 300i32;
-    let mut first_hit: Option<usize> = None;
-    let mut prev_hit: Option<usize> = None;
-    for qc in q.chars() {
-        let hit = (pos..nc.len()).find(|&i| nc[i] == qc)?;
-        let word_start = hit == 0 || !nc[hit - 1].is_alphanumeric();
-        if first_hit.is_none() {
-            if !word_start {
-                return None;
+    let qc: Vec<char> = q.chars().collect();
+    fn go(qc: &[char], nc: &[char], qi: usize, prev: Option<usize>, jump_used: bool) -> Option<i32> {
+        if qi == qc.len() {
+            return Some(0);
+        }
+        let from = prev.map_or(0, |p| p + 1);
+        let mut best: Option<i32> = None;
+        for hit in from..nc.len() {
+            if nc[hit] != qc[qi] {
+                continue;
             }
-            first_hit = Some(hit);
+            let word_start = hit == 0 || !nc[hit - 1].is_alphanumeric();
+            let consecutive = prev.is_some_and(|p| p + 1 == hit);
+            let gap1 = prev.is_some_and(|p| p + 2 == hit);
+            let (bonus, jump) = if prev.is_none() {
+                if !word_start {
+                    continue;
+                }
+                (15, jump_used)
+            } else if consecutive {
+                (12, jump_used)
+            } else if word_start {
+                (15, jump_used)
+            } else if gap1 && !jump_used {
+                (-4, true)
+            } else {
+                continue;
+            };
+            if let Some(rest) = go(qc, nc, qi + 1, Some(hit), jump) {
+                let total = bonus + rest;
+                best = Some(best.map_or(total, |b| b.max(total)));
+            }
         }
-        if prev_hit.is_some_and(|p| p + 1 == hit) {
-            score += 12; // consecutiva
-        } else if let Some(p) = prev_hit {
-            score -= ((hit - p - 1) as i32).min(8); // salto
-        }
-        if word_start {
-            score += 15;
-        }
-        prev_hit = Some(hit);
-        pos = hit + 1;
+        best
     }
-    let span = prev_hit? + 1 - first_hit?;
-    if span > MAX_SPAN_FACTOR * qlen {
-        return None;
-    }
-    Some(score.clamp(100, 560))
+    go(&qc, &nc, 0, None, false).map(|b| (300 + b).clamp(100, 560))
 }
 
 /// Quanto `name` corrisponde a `query`, o `None`. Una query vuota corrisponde a tutto con 0. Con
@@ -225,7 +230,7 @@ mod tests {
         let word = match_score("studio", "Visual Studio Code").unwrap();
         let acronym = match_score("vsc", "Visual Studio Code").unwrap();
         let contains = match_score("latr", "Calcolatrice").unwrap();
-        let subseq = match_score("vual", "Visual Studio Code").unwrap();
+        let subseq = match_score("visal", "Visual Studio Code").unwrap();
         assert!(exact > prefix && prefix > word && word > acronym && acronym > contains && contains > subseq);
         assert!(subseq >= 100);
     }
@@ -257,7 +262,7 @@ mod tests {
         // La prima lettera deve stare a inizio parola.
         assert_eq!(match_score("chr", "Tastiera su schermo"), None);
         // Ma una sottosequenza vicina e ben ancorata si', anche per refusi comuni.
-        assert!(match_score("vual", "Visual Studio Code").is_some());
+        assert!(match_score("visal", "Visual Studio Code").is_some());
         assert!(match_score("calclatrice", "Calcolatrice").is_some(), "un refuso (manca una o) si perdona");
         assert!(match_score("calcxlatrice", "Calcolatrice").is_none(), "una lettera estranea no");
         assert!(match_score("clcolatrice", "Calcolatrice").is_some(), "una lettera saltata si perdona");
@@ -266,8 +271,9 @@ mod tests {
     #[test]
     fn subsequence_prefers_consecutive_letters_and_word_starts() {
         let a = subsequence_score("abc", "abc xyz").unwrap();
-        let b = subsequence_score("abc", "axbxc").unwrap();
-        assert!(a > b, "consecutive battono sparse ({a} vs {b})");
+        let b = subsequence_score("abc", "abxc").unwrap();
+        assert!(a > b, "consecutive battono un salto ({a} vs {b})");
+        assert_eq!(subsequence_score("abc", "axbxc"), None, "un solo salto e' perdonato");
     }
 
     #[test]

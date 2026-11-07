@@ -73,6 +73,21 @@ Verifica dal vivo (`scripts/test-launcher.ps1`, build di prova, **tasti veri** e
 
 Non provati: più monitor con scale diverse e riavvio di Explorer (previsti in L6), tastiere con editor di metodo di input, schermo con il tema scuro.
 
+## L3 — Azioni e calcolatrice: FATTA (7 nov 2026)
+
+- **Calcolatrice** (`launchercalc.rs`, parser a discesa ricorsiva, 10 test): `+ - * / ^`, parentesi, `x`/`×`/`÷`, decimali con virgola o punto, `sqrt()`, `abs()`, `pi`, e percentuali come Spotlight (`20% di 340` = 68, `340 + 10%` = 374). Nessun `eval`: legge solo numeri, operatori e due funzioni; profondità e lunghezza limitate (input ostile di 5000 parentesi o segni meno non manda in crisi nulla). Serve almeno un operatore o una funzione, quindi `42`, `50%`, `7-zip`, `chrome` non producono un "risultato". Divisione per zero, radice di negativi e risultati non finiti: nessun risultato. Il risultato si mostra con la virgola decimale (`84,5`), al massimo 10 decimali, notazione scientifica oltre 1e15; **Invio lo copia negli appunti** e chiude. Le conversioni di unità restano fuori (non richieste per ora).
+- **Azioni** (`launcheract.rs`, 10 test): tabella fissa in Rust: Blocca lo schermo, Sospendi, Riavvia il computer, Spegni il computer, Impostazioni, cartelle Download/Documenti/Scrivania; cercabili per nome o parola chiave, in italiano e inglese (`reboot`, `settings`). La pagina manda solo l'id; comando e argomenti sono fissi nella tabella (un id sconosciuto o un percorso non si esegue).
+- **Conferma gestita da Rust**, non dalla pagina: Riavvia e Spegni rispondono "confirm" al primo Invio e eseguono al secondo, solo se è la stessa azione ed entro 10 secondi. Si annulla se si digita, si cambia riga o si esegue un'altra azione; una conferma scaduta, un'altra azione o un orologio che torna indietro non confermano. La riga diventa rossa con "Invio per confermare".
+- **Schede**: Ctrl+1 = solo App, Ctrl+2 = solo Azioni; ripremere la scheda attiva torna a tutto. Un'etichetta accanto al campo mostra la scheda attiva. (File e Appunti avranno le loro in L4 e L5.)
+- **Ordine dei risultati**: il calcolo prima, poi app e azioni per punteggio; un'azione con lo stesso nome di un'app (Impostazioni) non compare due volte.
+- **Sottosequenza più rigorosa** (`launcherrank.rs`): trovando rumore nell'indice reale (`calc` → "Cartella Scrivania", `chr` → "Crosshair X") la regola è ora: prima lettera a inizio parola e ogni lettera successiva consecutiva, oppure a inizio parola, oppure l'unico salto di una lettera (refuso); si cerca la combinazione migliore. `vscode` → Visual Studio Code e `clcolatrice` → Calcolatrice funzionano, `calc` non trova più cartelle.
+
+**Sicurezza delle prove**: nelle build con la feature `test-hooks` le azioni di alimentazione (blocca, sospendi, riavvia, spegni) NON si eseguono mai: scrivono una riga in `%TEMP%\eosos-actions.log`. `scripts/test-launcher.ps1` rifiuta di partire se l'eseguibile non contiene quella protezione; i test unitari non chiamano mai l'esecuzione reale di azioni di alimentazione. Il comando reale è verificato solo come dato (tabella testata).
+
+Verifica dal vivo (tasti veri, 50 controlli totali con L2): `12*7` → 84 copiato negli appunti (poi ripristinati); Ctrl+2 mostra solo azioni con l'etichetta, Ctrl+2 di nuovo la toglie, Ctrl+1 solo app; "riavvia" + Invio → riga rossa di conferma e nulla eseguito; digitare annulla la conferma e serve di nuovo; il secondo Invio registra l'azione una sola volta (non eseguita, build di prova); "Impostazioni" si apre senza conferma e la finestra è stata chiusa. Test: 131 Rust, 63 pagina, clippy a 0 avvisi.
+
+Non provato dal vivo: l'esecuzione reale di blocca/sospendi/riavvia/spegni (volutamente: i comandi sono fissi e testati come dati); `Sospendi` usa `SetSuspendState` e su PC con ibernazione attiva può ibernare invece di sospendere (limite noto di quel comando).
+
 ## Fuori scopo
 
 Anteprime dei file (Quick Look), Siri/IA, ricerca nel contenuto dei file, sincronizzazione degli appunti tra dispositivi, plugin di terze parti.
