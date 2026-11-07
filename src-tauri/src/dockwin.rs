@@ -33,7 +33,7 @@ use windows::Win32::Graphics::Gdi::{
     RGN_AND,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetCursorPos, GetWindowLongPtrW, IsWindowVisible, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    GetCursorPos, GetWindowLongPtrW, GetWindowRect, IsWindowVisible, SetWindowLongPtrW, SetWindowPos, ShowWindow,
     GWL_EXSTYLE, GWL_STYLE, SW_SHOWNOACTIVATE,
     SetWindowDisplayAffinity, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
     WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WS_CAPTION,
@@ -56,8 +56,8 @@ const CHROME_STYLES: isize =
 /// Contorno (px fisici) catturato attorno al Dock: la sfocatura ne ha bisogno.
 const CAPTURE_MARGIN: i32 = 48;
 const TICK: Duration = Duration::from_millis(16);
-/// Ogni quanti cicli si ricontrolla monitor e area di lavoro (~1 s).
-const RECONCILE_EVERY: u32 = 60;
+/// Ogni quanto si ricontrollano monitor, scala e area di lavoro.
+const RECONCILE_EVERY: Duration = Duration::from_secs(1);
 
 /// Un menu contestuale è aperto: il Dock non deve nascondersi sotto di esso.
 static MENU_OPEN: AtomicBool = AtomicBool::new(false);
@@ -345,7 +345,11 @@ fn tick() {
             st.affinity = want_affinity;
         }
     }
-    if st.applied_pos != Some((shown.x, y)) {
+    // Si guarda la posizione REALE: quando cambia la scala il sistema sposta le finestre
+    // per conto suo, e la cache di quanto già ordinato (`applied_pos`) non se ne accorge.
+    let mut actual = RECT::default();
+    let actual_pos = unsafe { GetWindowRect(hwnd_of(st.hwnd), &mut actual).ok() }.map(|_| (actual.left, actual.top));
+    if st.applied_pos != Some((shown.x, y)) || actual_pos.is_some_and(|p| p != (shown.x, y)) {
         unsafe {
             let _ = SetWindowPos(
                 hwnd_of(st.hwnd),
@@ -417,10 +421,15 @@ pub fn reconcile(app: &AppHandle) {
     }
     let rect = window_rect(work, scale, &fit);
 
+    // Si guarda anche la dimensione REALE della finestra, non solo quella già ordinata
+    // (`st.size`): un cambio di scala o un'altra operazione di Tauri può lasciare la
+    // finestra della misura vecchia senza che il Dock se ne accorga. Così si autoripara
+    // entro un secondo, qualunque sia la causa.
+    let actual = win.outer_size().ok().map(|s| (s.width as i32, s.height as i32));
     let (size_changed, first) = {
         let mut st = lock();
         st.geo = Some(Geometry { work, monitor, scale });
-        let changed = st.size != (rect.w, rect.h);
+        let changed = st.size != (rect.w, rect.h) || actual.is_some_and(|a| a != (rect.w, rect.h));
         st.size = (rect.w, rect.h);
         if changed {
             // Nuova dimensione: posizione e zona vanno riapplicate.
@@ -468,17 +477,18 @@ pub fn start(app: &AppHandle) {
         eprintln!("EosOS: creazione del Dock fallita: {e}");
         return;
     }
-    let app = app.clone();
-    std::thread::spawn(move || {
-        let mut n = 0u32;
-        loop {
-            std::thread::sleep(TICK);
-            n = n.wrapping_add(1);
-            if n.is_multiple_of(RECONCILE_EVERY) {
-                reconcile(&app);
-            }
-            // Un panic nel ciclo non deve fermare il Dock.
-            let _ = std::panic::catch_unwind(tick);
-        }
+    // Due thread distinti. `reconcile` parla con la shell di Windows (appbar, monitor) e può
+    // restare bloccato per secondi: per esempio `ABM_SETPOS` avvisa tutte le finestre del
+    // cambio dell'area di lavoro e aspetta quelle lente. Se girasse nello stesso thread del
+    // ciclo veloce, in quel tempo si fermerebbero anche la zona cliccabile e lo scorrimento.
+    let slow = app.clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(RECONCILE_EVERY);
+        // Un panic non deve fermare il Dock.
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| reconcile(&slow)));
+    });
+    std::thread::spawn(|| loop {
+        std::thread::sleep(TICK);
+        let _ = std::panic::catch_unwind(tick);
     });
 }
