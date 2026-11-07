@@ -9,3 +9,8 @@ dist-ssr
 # Graphify: cache rigenerabile
 graphify-out/cache/
 graphify-out/.rebuild.lock
+
+# Prova in Windows Sandbox: file generati
+sandbox/in/
+sandbox/out/
+sandbox/EosOS.wsb

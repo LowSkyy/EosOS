@@ -67,6 +67,24 @@ Per la prima prova con la taskbar nascosta, meglio un ambiente isolato:
 - **VM Hyper-V** (Windows 11 Pro): crea una VM con "Creazione rapida" → Windows 11, installa i prerequisiti o copia `eosos.exe` costruito, esegui lì. Fai un checkpoint prima. Nota: in VM l'effetto Acrylic può non essere disponibile; il ripiego (fondo opaco) è previsto.
 - **Secondo utente Windows**: crea un utente locale di prova, accedi con "Cambia utente" ed esegui lì. Se qualcosa va storto, esci dalla sessione: `explorer.exe` dell'altro utente non è toccato.
 
+### Windows Sandbox (consigliato, usa e getta)
+
+Ambiente Windows temporaneo incluso in Windows 11 Pro/Enterprise: si cancella alla chiusura, quindi non può lasciare tracce sul tuo PC.
+
+1. Abilitalo una volta (PowerShell **come amministratore**), poi riavvia:
+   ```powershell
+   Enable-WindowsOptionalFeature -Online -FeatureName "Containers-DisposableClientVM" -All
+   ```
+2. Costruisci la release e prepara la cartella di prova:
+   ```powershell
+   npm run tauri build
+   powershell -ExecutionPolicy Bypass -File scripts\prepare-sandbox.ps1
+   ```
+3. Apri `sandbox\EosOS.wsb` (doppio clic). Dentro la Sandbox parte da sola la prova automatica (`test-workarea` e `test-taskbar -SkipPanic` sulla build release, con la taskbar nascosta). I risultati compaiono in `sandbox\out\risultati.txt`.
+4. A fine prova EosOS resta avviato con la taskbar nascosta: prova a mano la scorciatoia `Ctrl+Alt+Shift+Esc`, la chiusura e il kill dal Task Manager, e il ripristino manuale. Poi chiudi la Sandbox.
+
+La Sandbox ha un solo monitor e nessuna rete (`Networking` disattivato nel `.wsb`).
+
 Poi segui `docs/TEST-MANUALI.md`.
 
 ## Test automatici

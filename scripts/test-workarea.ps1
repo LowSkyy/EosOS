@@ -1,8 +1,9 @@
 # Verifica che con la taskbar nascosta non resti la fascia vuota (auto-nascondi temporaneo)
 # e che l'impostazione dell'utente venga ripristinata in ogni scenario.
 # ATTENZIONE: nasconde la vera taskbar e cambia temporaneamente l'auto-nascondi. Richiede `cargo build`.
+param([string]$Exe)   # -Exe: percorso di un eosos.exe (es. release)
 $ErrorActionPreference = 'Stop'
-$exe = Join-Path $PSScriptRoot '..\src-tauri\target\debug\eosos.exe' | Resolve-Path
+if ($Exe) { $exe = Resolve-Path $Exe } else { $exe = Join-Path $PSScriptRoot '..\src-tauri\target\debug\eosos.exe' | Resolve-Path }
 $marker = Join-Path $env:LOCALAPPDATA 'EosOS\autohide-pending'
 Add-Type @'
 using System; using System.Runtime.InteropServices;
