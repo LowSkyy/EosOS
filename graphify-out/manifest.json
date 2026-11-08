@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794176154.5745866,
-    "seen": 1794177775.754192,
-    "ast_hash": "b064f917c01990991410fa5fabb8d76f",
+    "mtime": 1794179428.829684,
+    "seen": 1794179644.8249226,
+    "ast_hash": "12dc5af161d2d1d867598c24d2bb79c1",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -1170,9 +1170,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/updates.rs": {
-    "mtime": 1794176933.3772292,
-    "seen": 1794177775.7542126,
-    "ast_hash": "14e2adc86887bba9163d9aea11835332",
+    "mtime": 1794179448.558351,
+    "seen": 1794179644.8249426,
+    "ast_hash": "7c379837a042c77a5c8c5d6d5639f2ec",
     "semantic_hash": ""
   },
   "src/components/UpdateBox.tsx": {
@@ -1194,9 +1194,9 @@
     "semantic_hash": ""
   },
   "scripts/sandbox-update.ps1": {
-    "mtime": 1794179179.186378,
-    "seen": 1794179180.9569592,
-    "ast_hash": "0ccf3f3fd5e98522b84fa547c4ce14c8",
+    "mtime": 1794179448.558351,
+    "seen": 1794179644.8248503,
+    "ast_hash": "63a255d3773c6e9bae0afdb7e90b67e2",
     "semantic_hash": ""
   },
   "package-lock.json": {

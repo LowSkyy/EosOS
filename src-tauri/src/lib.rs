@@ -930,15 +930,13 @@ pub fn run() {
                 let handle = app.handle().clone();
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_secs(15));
+                    // Fuori dalla cartella di installazione: l'aggiornamento la sostituisce e il registro andrebbe perso.
                     let log = |m: String| {
-                        if let Some(dir) = std::env::var_os("LOCALAPPDATA") {
-                            let path = std::path::Path::new(&dir).join("EosOS").join("autoupdate.log");
-                            let _ = std::fs::create_dir_all(path.parent().unwrap());
-                            let _ = std::fs::OpenOptions::new().create(true).append(true).open(path).and_then(|mut f| {
-                                use std::io::Write;
-                                writeln!(f, "{m}")
-                            });
-                        }
+                        let path = std::env::temp_dir().join("eosos-autoupdate.log");
+                        let _ = std::fs::OpenOptions::new().create(true).append(true).open(path).and_then(|mut f| {
+                            use std::io::Write;
+                            writeln!(f, "{m}")
+                        });
                     };
                     let st = tauri::async_runtime::block_on(updates::check(&handle));
                     log(format!("check: {} ({})", st.state, st.text));

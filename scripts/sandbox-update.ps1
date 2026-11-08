@@ -94,7 +94,7 @@ try {
   # La 0.1.0 di questa prova e' una build di prova (test-hooks): con EOSOS_TEST_AUTOUPDATE cerca e installa da sola,
   # passando dalle STESSE funzioni dei pulsanti (updates::check / updates::install: scarica, verifica la firma, installa).
   $env:EOSOS_TEST_AUTOUPDATE = '1'
-  $alog = Join-Path $env:LOCALAPPDATA 'EosOSutoupdate.log'
+  $alog = Join-Path $env:TEMP 'eosos-autoupdate.log'
   Remove-Item $alog -ErrorAction SilentlyContinue
   Start-Process $exe
   Start-Sleep 25
