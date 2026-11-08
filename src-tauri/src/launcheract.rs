@@ -150,6 +150,22 @@ pub const ACTIONS: &[Action] = &[
         run: Run::Internal("mc-wintab"),
     },
     Action {
+        id: "action:menu-toggle",
+        name: "Menu globale: attiva o disattiva",
+        keywords: &["menu globale", "barra dei menu", "menu bar", "menu dell app"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("menu-toggle"),
+    },
+    Action {
+        id: "action:menu-exclude",
+        name: "Menu globale: escludi o includi l'app in primo piano",
+        keywords: &["menu globale", "escludi", "includi", "eccezione"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("menu-exclude"),
+    },
+    Action {
         id: "action:vd-report",
         name: "Mission Control: rapporto dei desktop virtuali",
         keywords: &["desktop virtuali", "diagnostica", "rapporto", "report", "spaces"],
@@ -262,6 +278,14 @@ static MC_CORNER: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
 /// Funzione che cambia Alt+Tab / Win+Tab fra Windows e Mission Control ("alt" o "win"), registrata all'avvio.
 static MC_KEYS: std::sync::OnceLock<fn(&str) -> bool> = std::sync::OnceLock::new();
 
+/// Funzione del menu globale ("toggle" o "exclude"), registrata all'avvio dell'app.
+static MENU_ACT: std::sync::OnceLock<fn(&str) -> bool> = std::sync::OnceLock::new();
+
+/// Registra la funzione del menu globale (la chiama l'avvio dell'app).
+pub fn set_menu_actions(f: fn(&str) -> bool) {
+    let _ = MENU_ACT.set(f);
+}
+
 /// Registra la funzione di Alt+Tab e Win+Tab (la chiama l'avvio dell'app).
 pub fn set_mc_keys(f: fn(&str) -> bool) {
     let _ = MC_KEYS.set(f);
@@ -300,6 +324,8 @@ fn execute(action: &Action) -> bool {
             MC_OPEN.get().map(|f| f()).is_some()
         }
         Run::Internal("vd-report") => crate::vdreport::write_and_open(),
+        Run::Internal("menu-toggle") => MENU_ACT.get().is_some_and(|f| f("toggle")),
+        Run::Internal("menu-exclude") => MENU_ACT.get().is_some_and(|f| f("exclude")),
         Run::Internal("mc-alttab") => MC_KEYS.get().is_some_and(|f| f("alt")),
         Run::Internal("mc-wintab") => MC_KEYS.get().is_some_and(|f| f("win")),
         Run::Internal("mc-corner") => {

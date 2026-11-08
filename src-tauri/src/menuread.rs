@@ -3,6 +3,7 @@
 //! viene invocata e il risultato contiene solo conteggi, tempi e la lunghezza massima dei titoli: mai i testi.
 //! Serve a decidere (con numeri) quanto è praticabile il menu globale; la parte pura è testata.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
@@ -22,6 +23,36 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use crate::menumodel::{RawItem, RawMenu};
+
+/// Letture UI Automation ancora in corso (anche quelle abbandonate dopo il tempo massimo): se un'app non risponde
+/// il suo thread resta bloccato, e non se ne accumulano all'infinito.
+static INFLIGHT: AtomicUsize = AtomicUsize::new(0);
+/// Oltre questo numero di letture in corso non se ne avviano altre (si considera "nessun menu").
+pub const MAX_INFLIGHT: usize = 4;
+
+/// Si può avviare un'altra lettura? Pura, testata.
+pub fn may_start_read(inflight: usize) -> bool {
+    inflight < MAX_INFLIGHT
+}
+
+/// Conta una lettura in corso finché il guard vive.
+struct Inflight;
+impl Inflight {
+    fn enter() -> Option<Inflight> {
+        let n = INFLIGHT.fetch_add(1, Ordering::SeqCst);
+        if may_start_read(n) {
+            Some(Inflight)
+        } else {
+            INFLIGHT.fetch_sub(1, Ordering::SeqCst);
+            None
+        }
+    }
+}
+impl Drop for Inflight {
+    fn drop(&mut self) {
+        INFLIGHT.fetch_sub(1, Ordering::SeqCst);
+    }
+}
 
 /// Tempo massimo per leggere una finestra con UI Automation (una finestra bloccata non deve fermarci).
 pub const UIA_TIMEOUT: Duration = Duration::from_millis(1500);
@@ -199,8 +230,10 @@ pub fn read_menus(hwnd_id: usize) -> Option<Vec<RawMenu>> {
             return Some(top);
         }
     }
+    let guard = Inflight::enter()?;
     let (tx, rx) = channel();
     std::thread::spawn(move || {
+        let _guard = guard; // si libera quando la lettura finisce davvero, anche se nessuno la aspetta più
         let _ = tx.send(read_uia(hwnd_id));
     });
     match rx.recv_timeout(UIA_TIMEOUT) {
@@ -459,6 +492,12 @@ mod tests {
 
     fn p(h: Option<usize>, bar: bool, items: usize, timeout: bool) -> Probe {
         Probe { hmenu_items: h, uia_menubar: bar, uia_items: items, uia_timed_out: timeout, ..Probe::default() }
+    }
+
+    #[test]
+    fn abandoned_reads_are_capped() {
+        assert!(may_start_read(0) && may_start_read(MAX_INFLIGHT - 1));
+        assert!(!may_start_read(MAX_INFLIGHT));
     }
 
     #[test]

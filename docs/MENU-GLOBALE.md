@@ -2,7 +2,7 @@
 
 Obiettivo: come su macOS, i menu dell'app in primo piano (File, Modifica, Visualizza...) compaiono **nella barra in alto di EosOS**, accanto al nome dell'app, invece che dentro la finestra. Un clic su una voce apre il menu a tendina e sceglierne una voce esegue il comando nell'app.
 
-Stato: specifica (8 nov 2026) e **G1-G5 fatte**. **Scelta dell'utente: opzione 1, ibrido.** Resta G6.
+Stato: specifica (8 nov 2026) e **G1-G6 fatte: il menu globale è completo.** **Scelta dell'utente: opzione 1, ibrido.**
 
 ## Cosa fa macOS (da replicare)
 
@@ -128,6 +128,27 @@ Scegliere una voce dell'app dalla tendina la **esegue nell'app**. Solo su clic d
 **Verifica dal vivo** (`scripts/test-menuinvoke.ps1`, 23 controlli, **solo su due app di prova mie** che scrivono una riga in un log quando una voce viene eseguita): menu classico → scegliere «Apri» scrive la riga; la tendina si chiude e il primo piano torna all'app; una voce **dentro un sottomenu** («Recenti» → «uno», percorso di tre livelli) si esegue; la voce **disattivata** non si può scegliere (pulsante disattivato) **né chiamando il comando a mano** e non si esegue mai; **un'app che rinomina da sola una voce mentre la tendina è aperta**: scegliere la vecchia voce non esegue niente, cambiando finestra la barra rilegge, e la voce col nome nuovo si esegue; barra `MenuStrip` (UI Automation) → «Seconda voce» e poi «Prima voce» si eseguono ognuna una volta, l'app resta viva. Regressioni: tendina 40, barra 17, tutti OK. Rust 302 test (3 a richiesta), clippy a 0 avvisi.
 
 **Non provato:** app vere (Blocco note di Windows 11, Visual Studio Code, Office): la lettura funziona, ma **non ho invocato voci di app dell'utente** (nessuna esecuzione su finestre vere, per la regola di non toccarle); come reagiscono le app a un `WM_COMMAND` senza apertura del menu (alcune app Win32 molto vecchie controllano lo stato in `WM_INITMENUPOPUP`); app con privilegi più alti (UIPI: il messaggio non arriva e `PostMessage` non lo segnala).
+
+## G6 — Impostazioni, protezioni e revisione: FATTA (8 nov 2026)
+
+**Impostazioni** (in `mission.json`, stesso archivio robusto delle altre; valgono subito, senza riavvio):
+- **Acceso o spento** (`menuOff`, di default acceso): spento, la barra mostra solo il nome dell'app, come prima del menu globale, e **non si legge più niente**. Azione del Launcher «Menu globale: attiva o disattiva».
+- **App escluse** (`menuExcluded`): l'azione «Menu globale: escludi o includi l'app in primo piano» aggiunge o toglie l'app corrente. L'esclusione è **per programma**, non per finestra (con due finestre di PowerShell si escludono entrambe), senza distinguere maiuscole e minuscole, al massimo 100 voci. Un'app esclusa non viene letta.
+
+**Cosa ho trovato rivedendo il codice (e corretto):**
+1. **«Esci da ...» poteva chiudere molte app insieme.** Chiudeva tutte le finestre visibili del processo: per le app dello Store (ospitate da `ApplicationFrameHost`, che è uno solo per tutte) o per Esplora risorse sarebbero state **tutte le app dello Store** o le finestre della shell. Ora, per i programmi che ospitano finestre di molte app o la shell (`quits_only_this_window`), si chiude **solo la finestra scelta**; per gli altri (verificato sull'app di prova) tutte le sue finestre, con `WM_CLOSE`.
+2. **Leggere i menu con l'accessibilità fa lavorare di più i browser.** Interrogare Chromium con UI Automation lo porta in modalità di accessibilità completa (più lavoro e memoria), per un risultato inutile: Chrome e Discord non espongono menu (misurato in G1). Ora i browser basati su Chromium, Firefox e Discord (`never_read`) non vengono mai interrogati: solo il nome. È una lista fissa; per altre app c'è l'esclusione.
+3. **Letture abbandonate si accumulavano.** Se un'app non risponde, la lettura UI Automation resta bloccata nel suo thread dopo il tempo massimo. Ora al massimo 4 letture alla volta (`MAX_INFLIGHT`): oltre, si considera «nessun menu» finché non si liberano.
+4. (Già corretti nelle fasi precedenti) l'hook del primo piano non deve mai aspettare; la tendina non si chiude mentre l'app apre il suo menu; il menu cambiato dopo la lettura non esegue la voce sbagliata.
+
+**Verifica dal vivo** (`scripts/test-menusettings.ps1`, 15 controlli): di default acceso; spegnerlo dal Launcher mostra solo il nome (anche per altre app) e lo salva; riaccenderlo riporta i menu; escludere l'app in primo piano la riduce al nome (e, essendo per programma, anche la sua gemella), si salva il **nome del programma e non i titoli delle finestre**, **dopo il riavvio vale ancora**; reincluderla riporta i menu. Il file `mission.json` dell'utente viene salvato e ripristinato. Insieme alle altre suite del menu: misura 10, barra 17, tendina 40, invocazione 23, e le regressioni dell'hook di tastiera (41) e del pannello degli indicatori: tutte OK. Rust 309 test (3 a richiesta), pagina 108, clippy a 0 avvisi.
+
+**Cosa NON è provato in tutto il menu globale (riassunto onesto):**
+- **App vere dell'utente:** nessuna voce di menu è stata *eseguita* in app vere (regola: solo finestre di prova). La *lettura* è provata su Blocco note, Visual Studio Code e le finestre di prova; le voci di VS Code non sono state lette (si aprirebbe il suo menu).
+- **Più monitor:** una barra per monitor mostra la stessa riga (stesso evento), la tendina si apre sotto il titolo cliccato col calcolo del pannello (già provato in I3 su due monitor), ma non ho cliccato la barra del secondo monitor.
+- **Sottomenu delle app UI Automation** (solo il primo livello), **menu molto lunghi**, **tema chiaro**, **scale diverse dal 100% e riavvio di Explorer dopo il menu globale** (servono il tuo OK e, per Explorer, che lo lanci tu).
+- **App con privilegi più alti (UIPI):** la lettura e il `WM_COMMAND` potrebbero non arrivare; non provato.
+- **Lampo del menu** nelle app UI Automation quando si apre la loro tendina: è inevitabile con questa tecnica; non l'ho potuto «vedere» (nessuno schermo da guardare), l'ho solo dedotto dal comportamento.
 
 ## Fuori scopo
 

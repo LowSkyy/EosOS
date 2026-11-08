@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794104827.3282838,
-    "seen": 1794104829.5888972,
-    "ast_hash": "0b0396603e0f55fa65d112cff6cc1c3c",
+    "mtime": 1794105135.4273698,
+    "seen": 1794105137.5398617,
+    "ast_hash": "8b9da553245d917f90eedf2d49ad091f",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794104371.8219655,
-    "seen": 1794104829.588843,
-    "ast_hash": "3a227fafc0c9ffd358d4f2f0bff41576",
+    "mtime": 1794104923.6863713,
+    "seen": 1794105137.5398042,
+    "ast_hash": "75edf74d0ea38415c318914351bd6626",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -786,9 +786,9 @@
     "semantic_hash": ""
   },
   "docs/MENU-GLOBALE.md": {
-    "mtime": 1794104827.3272839,
-    "seen": 1794104829.588902,
-    "ast_hash": "dad88faedeceb92f0d74c57bf1059e1c",
+    "mtime": 1794105135.4273698,
+    "seen": 1794105137.5398667,
+    "ast_hash": "baac7430d7b7a0fcbcebee2cb2166d2a",
     "semantic_hash": ""
   },
   "scripts/test-menu-probe.ps1": {
@@ -798,9 +798,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/menuread.rs": {
-    "mtime": 1794103809.36212,
-    "seen": 1794104829.5888526,
-    "ast_hash": "877d9d6a42e9db665f2aae6149aa665b",
+    "mtime": 1794104881.433659,
+    "seen": 1794105137.539815,
+    "ast_hash": "8bf6502b99fd3f91414826cb41aa0545",
     "semantic_hash": ""
   },
   "src-tauri/src/menumodel.rs": {
@@ -816,9 +816,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/menubar.rs": {
-    "mtime": 1794104371.8229651,
-    "seen": 1794104829.5888512,
-    "ast_hash": "1f38a451f00268bbccffdeb4719f1b78",
+    "mtime": 1794104881.433659,
+    "seen": 1794105137.5398128,
+    "ast_hash": "e6a0d530250d6319f39de73a89597005",
     "semantic_hash": ""
   },
   "src/components/AppMenus.tsx": {
@@ -849,6 +849,12 @@
     "mtime": 1794103901.4101257,
     "seen": 1794104829.5888715,
     "ast_hash": "e1c0215ecc0052229724bb463eae700c",
+    "semantic_hash": ""
+  },
+  "scripts/test-menuinvoke.ps1": {
+    "mtime": 1794104980.9115655,
+    "seen": 1794105137.5397751,
+    "ast_hash": "5205fefb17ba64f8953bad2cbe3f0a69",
     "semantic_hash": ""
   },
   "package-lock.json": {

@@ -609,6 +609,14 @@ pub fn run() {
             launcheract::set_mc_open(mcwin::open_soon);
             launcheract::set_mc_corner(mcwin::toggle_corner);
             launcheract::set_mc_keys(mcwin::toggle_key);
+            launcheract::set_menu_actions(|which| match which {
+                "toggle" => {
+                    menubar::toggle_menu_off();
+                    true
+                }
+                "exclude" => menubar::toggle_current_excluded(),
+                _ => false,
+            });
             menubar::start(app.handle().clone());
             foreground::start(app.handle().clone());
             Ok(())

@@ -28,6 +28,12 @@ pub struct Settings {
     /// Win+Tab resta la Visualizzazione attività di Windows (di default apre Mission Control).
     #[serde(rename = "windowsWinTab")]
     pub windows_win_tab: bool,
+    /// Menu globale spento: la barra mostra solo il nome dell'app, come prima (di default è acceso).
+    #[serde(rename = "menuOff")]
+    pub menu_off: bool,
+    /// App di cui non si legge né si mostra il menu (nome come appare nella barra).
+    #[serde(rename = "menuExcluded")]
+    pub menu_excluded: Vec<String>,
 }
 
 fn store_path() -> Option<PathBuf> {
@@ -162,6 +168,16 @@ pub fn set_windows_alt_tab(keep: bool) -> Settings {
     update(|s| s.windows_alt_tab = keep)
 }
 
+/// Accende o spegne il menu globale e salva.
+pub fn set_menu_off(off: bool) -> Settings {
+    update(|s| s.menu_off = off)
+}
+
+/// Mette l'elenco delle app escluse dal menu globale e salva.
+pub fn set_menu_excluded(list: Vec<String>) -> Settings {
+    update(|s| s.menu_excluded = list)
+}
+
 /// Sceglie se Win+Tab resta quello di Windows e salva.
 pub fn set_windows_win_tab(keep: bool) -> Settings {
     update(|s| s.windows_win_tab = keep)
@@ -188,6 +204,15 @@ mod tests {
     }
 
     #[test]
+    fn the_global_menu_is_on_by_default_with_no_exclusions() {
+        let d = Settings::default();
+        assert!(!d.menu_off && d.menu_excluded.is_empty());
+        let s = parse(r#"{"menuOff":true,"menuExcluded":["Chrome","Discord"]}"#).unwrap();
+        assert!(s.menu_off && s.menu_excluded == vec!["Chrome".to_string(), "Discord".to_string()]);
+        assert!(parse(r#"{"menuExcluded":"Chrome"}"#).is_none(), "una lista che non e una lista e' un file non valido");
+    }
+
+    #[test]
     fn parse_tolerates_bom_and_rejects_garbage() {
         let with_bom = format!("{}{}", char::from_u32(0xfeff).unwrap(), r#"{"hotCorner":true}"#);
         assert!(parse(&with_bom).unwrap().hot_corner);
@@ -198,7 +223,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()] }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

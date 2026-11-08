@@ -202,6 +202,54 @@ pub fn raw_to_top(raw: &[RawMenu]) -> Vec<TopMenu> {
         .collect()
 }
 
+/// Programmi che ospitano finestre di MOLTE app diverse (o la shell stessa): «Esci da ...» qui chiude solo la
+/// finestra scelta, mai tutte quelle del processo (chiuderebbe ogni app dello Store, o il desktop). Nome del file
+/// eseguibile senza estensione, minuscolo. Pura, testata.
+pub fn quits_only_this_window(exe_stem: &str) -> bool {
+    matches!(
+        exe_stem.trim().to_lowercase().as_str(),
+        "applicationframehost" | "explorer" | "dwm" | "shellexperiencehost" | "startmenuexperiencehost" | "searchhost"
+            | "textinputhost" | "sihost" | "runtimebroker" | "svchost" | "taskhostw" | "systemsettings" | "lockapp" | "ctfmon"
+    )
+}
+
+/// Applicazioni di cui NON si prova a leggere il menu: i browser basati su Chromium e le chat. Misurato (Chrome,
+/// Discord) o per costruzione: non espongono una barra dei menu, e interrogarli con l'accessibilità fa attivare
+/// in loro la modalità di accessibilità completa (più lavoro e più memoria). Nome come appare nella barra, minuscolo.
+/// Pura, testata.
+pub fn never_read(app_name: &str) -> bool {
+    matches!(
+        app_name.trim().to_lowercase().as_str(),
+        "google chrome" | "microsoft edge" | "brave" | "vivaldi" | "opera" | "opera gx" | "discord" | "firefox" | "mozilla firefox"
+    )
+}
+
+/// Massimo di app escluse (il file non deve poter crescere senza limiti).
+pub const MAX_EXCLUDED: usize = 100;
+
+/// L'app `name` è nell'elenco delle escluse? Senza distinguere maiuscole e minuscole. Pura, testata.
+pub fn is_excluded(list: &[String], name: &str) -> bool {
+    let n = name.trim().to_lowercase();
+    !n.is_empty() && list.iter().any(|x| x.trim().to_lowercase() == n)
+}
+
+/// Aggiunge `name` all'elenco se non c'è, lo toglie se c'è. Nomi vuoti ignorati, tutto limitato a
+/// `MAX_EXCLUDED`. Pura, testata.
+pub fn toggle_excluded(list: &[String], name: &str) -> Vec<String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return list.to_vec();
+    }
+    if is_excluded(list, name) {
+        return list.iter().filter(|x| x.trim().to_lowercase() != name.to_lowercase()).cloned().collect();
+    }
+    let mut out = list.to_vec();
+    if out.len() < MAX_EXCLUDED {
+        out.push(limit_title(name));
+    }
+    out
+}
+
 /// Lo stato della finestra che serve ai menu di EosOS.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WinState {
@@ -411,6 +459,41 @@ mod tests {
         assert_eq!(m.items.last().unwrap().action, Some(Action::Eos(Cmd::Quit)));
         assert_eq!(app_menu("   ").title, "App");
         assert!(app_menu(&"x".repeat(500)).title.chars().count() <= MAX_TITLE);
+    }
+
+    #[test]
+    fn shared_hosts_quit_only_the_chosen_window() {
+        for h in ["ApplicationFrameHost", "explorer", "Explorer", "dwm", "svchost"] {
+            assert!(quits_only_this_window(h), "{h}");
+        }
+        for a in ["notepad", "Code", "chrome", "powershell", ""] {
+            assert!(!quits_only_this_window(a), "{a:?}");
+        }
+    }
+
+    #[test]
+    fn browsers_and_chats_are_never_queried() {
+        assert!(never_read("Google Chrome") && never_read(" microsoft edge ") && never_read("Discord"));
+        assert!(!never_read("Visual Studio Code") && !never_read("Blocco note") && !never_read(""));
+    }
+
+    #[test]
+    fn exclusions_ignore_case_and_toggle() {
+        let l = vec!["Chrome".to_string()];
+        assert!(is_excluded(&l, "chrome") && is_excluded(&l, " CHROME ") && !is_excluded(&l, "Discord") && !is_excluded(&l, ""));
+        let added = toggle_excluded(&l, "Discord");
+        assert_eq!(added, vec!["Chrome".to_string(), "Discord".to_string()]);
+        assert_eq!(toggle_excluded(&added, "chrome"), vec!["Discord".to_string()], "la seconda volta la toglie");
+        assert_eq!(toggle_excluded(&l, "   "), l, "un nome vuoto non fa niente");
+    }
+
+    #[test]
+    fn the_exclusion_list_cannot_grow_forever() {
+        let mut l: Vec<String> = Vec::new();
+        for i in 0..(MAX_EXCLUDED + 20) {
+            l = toggle_excluded(&l, &format!("app{i}"));
+        }
+        assert_eq!(l.len(), MAX_EXCLUDED);
     }
 
     #[test]

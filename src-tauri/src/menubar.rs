@@ -4,7 +4,7 @@
 //! emette la riga completa. Le letture si tengono in una cache a tempo; una nuova richiesta scavalca le vecchie.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -12,13 +12,14 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use windows::Win32::Foundation::HWND;
-use windows::Win32::Foundation::{LPARAM, WPARAM};
+use windows::Win32::Foundation::{CloseHandle, LPARAM, WPARAM};
+use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, IsZoomed, PostMessageW, ShowWindow,
     SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, WM_CLOSE,
 };
 
-use crate::menumodel::{compose, item_at, name_only, normalize, raw_items, raw_to_top, Action, Cmd, TopMenu, WinState};
+use crate::menumodel::{never_read, quits_only_this_window, is_excluded, toggle_excluded, compose, item_at, name_only, normalize, raw_items, raw_to_top, Action, Cmd, TopMenu, WinState};
 
 pub const EVENT_NAME: &str = "menubar-row";
 
@@ -41,6 +42,8 @@ struct Req {
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
 static TX: OnceLock<Mutex<Sender<Req>>> = OnceLock::new();
+static MENU_OFF: AtomicBool = AtomicBool::new(false);
+static EXCLUDED: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static CURRENT: AtomicUsize = AtomicUsize::new(0);
 static LAST: Mutex<Option<Row>> = Mutex::new(None);
 type Cache = HashMap<usize, (Instant, Option<Vec<TopMenu>>)>;
@@ -81,8 +84,69 @@ pub fn current() -> Option<Row> {
     LAST.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
+/// Rilegge le impostazioni (menu acceso o spento, app escluse) dal file.
+pub fn reload_settings() {
+    let s = crate::mcstore::load();
+    MENU_OFF.store(s.menu_off, Ordering::Relaxed);
+    *EXCLUDED.lock().unwrap_or_else(|e| e.into_inner()) = s.menu_excluded;
+}
+
+/// Il menu di quest'app non va letto né mostrato: menu globale spento o app esclusa. Pura nella decisione
+/// (`off` e `excluded` arrivano da fuori), testata.
+pub fn skip_menu(off: bool, excluded: &[String], name: &str) -> bool {
+    off || is_excluded(excluded, name)
+}
+
+fn skipped(name: &str) -> bool {
+    never_read(name) || skip_menu(MENU_OFF.load(Ordering::Relaxed), &EXCLUDED.lock().unwrap_or_else(|e| e.into_inner()), name)
+}
+
+/// Il nome del file eseguibile (senza estensione) che possiede la finestra, se lo si trova.
+fn exe_stem_of(hwnd: HWND) -> Option<String> {
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 {
+        return None;
+    }
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?;
+    let path = crate::util::image_path(handle);
+    unsafe {
+        let _ = CloseHandle(handle);
+    }
+    path?.file_stem().map(|s| s.to_string_lossy().to_string())
+}
+
+/// Azione del Launcher: accende o spegne il menu globale. Ridisegna la barra per la finestra in primo piano.
+pub fn toggle_menu_off() {
+    let off = !MENU_OFF.load(Ordering::Relaxed);
+    crate::mcstore::set_menu_off(off);
+    reload_settings();
+    refresh_current();
+}
+
+/// Azione del Launcher: esclude dal menu globale l'app in primo piano, o la reincluge se era esclusa.
+pub fn toggle_current_excluded() -> bool {
+    let Some(row) = current() else { return false };
+    let list = toggle_excluded(&crate::mcstore::load().menu_excluded, &row.name);
+    crate::mcstore::set_menu_excluded(list);
+    reload_settings();
+    refresh_current();
+    true
+}
+
+/// Rimanda alla barra la finestra corrente (dopo un cambio di impostazioni).
+fn refresh_current() {
+    let id = CURRENT.load(Ordering::Relaxed);
+    let name = current().map(|r| r.name);
+    if let (true, Some(name), Some(tx)) = (id != 0, name, TX.get()) {
+        *CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        let _ = tx.lock().unwrap_or_else(|e| e.into_inner()).send(Req { hwnd: id, name });
+    }
+}
+
 /// Avvia il thread che legge i menu. Si chiama una volta all'avvio.
 pub fn start(app: AppHandle) {
+    reload_settings();
     let _ = APP.set(app);
     let (tx, rx) = channel::<Req>();
     let _ = TX.set(Mutex::new(tx));
@@ -114,6 +178,11 @@ fn worker(rx: Receiver<Req>) {
         }
         let desktop = req.name == "Desktop";
         let state = win_state(req.hwnd);
+        // Menu globale spento o app esclusa: solo il nome, e nessuna lettura.
+        if !desktop && skipped(&req.name) {
+            publish(Row { hwnd: req.hwnd as u64, name: req.name.clone(), menus: build_row(&req.name, None, state, true), read: true });
+            continue;
+        }
         // Dalla cache, se fresca: nessun lampo di ripiego.
         let cached = {
             let g = CACHE.lock().unwrap_or_else(|e| e.into_inner());
@@ -187,6 +256,13 @@ fn forget_cache(hwnd: usize) {
 /// Chiude con WM_CLOSE tutte le finestre visibili di primo livello del processo di `hwnd` (esci dall'app nel
 /// modo gentile: ogni finestra può chiedere di salvare). Mai si termina un processo.
 fn quit_app(hwnd: HWND) {
+    // Un programma che ospita finestre di molte app (o la shell): si chiude solo la finestra scelta.
+    if exe_stem_of(hwnd).as_deref().is_none_or(quits_only_this_window) {
+        unsafe {
+            let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
+        }
+        return;
+    }
     let mut pid = 0u32;
     unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
     if pid == 0 {
@@ -296,6 +372,15 @@ mod tests {
         assert!(!cache_fresh(Duration::from_secs(6), true));
         assert!(cache_fresh(Duration::from_secs(2), false));
         assert!(!cache_fresh(Duration::from_secs(4), false));
+    }
+
+    #[test]
+    fn off_or_excluded_apps_are_not_read() {
+        let l = vec!["Chrome".to_string()];
+        assert!(skip_menu(true, &[], "Qualsiasi"));
+        assert!(skip_menu(false, &l, "chrome"));
+        assert!(!skip_menu(false, &l, "Blocco note"));
+        assert!(!skip_menu(false, &[], ""));
     }
 
     #[test]
