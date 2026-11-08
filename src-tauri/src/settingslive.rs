@@ -58,6 +58,8 @@ impl Backend for Live {
             "general.autostart" => b(crate::autostart::is_enabled(&crate::autostart::real_keys(), crate::autostart::NAME)),
             "general.language" => Some(Value::Text("it".into())),
             "notif.read" => b(mc().notif_read),
+            "oggi.weather" => b(mc().weather_on),
+            "oggi.city" => Some(Value::Text(mc().weather_city.unwrap_or_default())),
             "general.update_auto" => b(mc().update_auto),
             "notif.dnd" => b(mc().notif_dnd),
             "calendar.week_start" => Some(Value::Text(if mc().calendar_sunday { "sun" } else { "mon" }.to_string())),
@@ -120,6 +122,13 @@ impl Backend for Live {
             }
             "general.update_auto" => {
                 crate::mcstore::set_update_auto(want_bool(value)?);
+            }
+            "oggi.weather" => {
+                crate::mcstore::set_weather_on(want_bool(value)?);
+            }
+            "oggi.city" => {
+                let c = want_text(value)?;
+                crate::mcstore::set_weather_city((!c.is_empty()).then(|| c.to_string()));
             }
             "notif.read" => {
                 crate::mcstore::set_notif_read(want_bool(value)?);

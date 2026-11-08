@@ -208,6 +208,7 @@ function Row({ entry, error, note, onSet, onAction, showSection }: { entry: Sett
           </select>
         )}
         {kind.type === "names" && <NameList id={id} items={asList(value)} max={kind.max} onChange={onSet} />}
+        {kind.type === "text" && <TextField id={id} value={String(value ?? "")} max={kind.max} onSet={(v) => onSet(v)} />}
         {kind.type === "hotkey" && <HotkeyField id={id} value={String(value ?? "")} onSet={(v) => onSet(v)} />}
         {kind.type === "folders" && <FolderList id={id} items={asList(value)} max={kind.max} onChange={onSet} />}
         {kind.type === "pinned" && <PinnedList id={id} items={asList(value)} onChange={onSet} />}
@@ -262,6 +263,16 @@ function NameList({ id, items, max, onChange }: { id: string; items: string[]; m
 }
 
 /** Scorciatoia: si preme «Cambia», poi la nuova combinazione; Esc annulla. Rust la valida e la prova davvero. */
+/** Un testo breve (per esempio la città del meteo): si salva con Invio o quando si esce dal campo. */
+function TextField({ id, value, max, onSet }: { id: string; value: string; max: number; onSet: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  const commit = () => {
+    if (draft.trim() !== value) onSet(draft.trim());
+  };
+  return <input id={id} className="settings-input" type="text" value={draft} maxLength={max} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && commit()} />;
+}
+
 function HotkeyField({ id, value, onSet }: { id: string; value: string; onSet: (v: string) => void }) {
   const [rec, setRec] = useState(false);
   useEffect(() => {

@@ -9,6 +9,7 @@ export type SettingKind =
   | { type: "names"; max: number }
   | { type: "folders"; max: number }
   | { type: "pinned" }
+  | { type: "text"; max: number }
   | { type: "action" };
 
 export type SettingEntry = {

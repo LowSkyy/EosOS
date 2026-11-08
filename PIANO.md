@@ -77,3 +77,4 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 - Passata finale: revisione di sicurezza (corretto il giro cartelle di rete -> apertura file) e consumi a riposo dimezzati (cattura della sfocatura adattiva), vedi `docs/PASSATA-FINALE.md`
 - Pile nel Dock (cartelle con i file recenti in griglia sopra l'icona): fatte, vedi `docs/PILE.md`
 - Aggiornamenti automatici: lato programma fatti (plugin ufficiale, firma obbligatoria, https, ricerca all'avvio spenta di default); mancano un posto pubblico dove pubblicare le versioni e la prova di un'installazione riuscita, vedi `docs/AGGIORNAMENTI.md`
+- Widget «Oggi» (data, meteo con Open-Meteo a scelta, promemoria): fatto, vedi `docs/OGGI.md`

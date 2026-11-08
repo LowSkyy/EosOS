@@ -49,6 +49,13 @@ pub struct Settings {
     /// Cerca aggiornamenti da solo all'avvio (spento di default: è una richiesta di rete).
     #[serde(rename = "updateAuto")]
     pub update_auto: bool,
+    /// Widget «Oggi»: i promemoria dell'utente.
+    pub reminders: Vec<crate::reminders::Reminder>,
+    /// Widget «Oggi»: meteo acceso (spento di default: è una richiesta di rete) e città scelta.
+    #[serde(rename = "weatherOn")]
+    pub weather_on: bool,
+    #[serde(rename = "weatherCity")]
+    pub weather_city: Option<String>,
 }
 
 fn store_path() -> Option<PathBuf> {
@@ -193,6 +200,21 @@ pub fn set_calendar_sunday(on: bool) -> Settings {
     update(|s| s.calendar_sunday = on)
 }
 
+/// Applica `f` ai promemoria e salva; restituisce la lista risultante.
+pub fn update_reminders(f: impl FnOnce(&mut Vec<crate::reminders::Reminder>)) -> Vec<crate::reminders::Reminder> {
+    update(|s| f(&mut s.reminders)).reminders
+}
+
+/// Accende o spegne il meteo e salva.
+pub fn set_weather_on(on: bool) -> Settings {
+    update(|s| s.weather_on = on)
+}
+
+/// Salva la città del meteo (`None` = nessuna).
+pub fn set_weather_city(c: Option<String>) -> Settings {
+    update(|s| s.weather_city = c)
+}
+
 /// Accende o spegne la ricerca di aggiornamenti all'avvio e salva.
 pub fn set_update_auto(on: bool) -> Settings {
     update(|s| s.update_auto = on)
@@ -253,6 +275,7 @@ mod tests {
         let d = Settings::default();
         assert!(!d.menu_off && d.menu_excluded.is_empty());
         assert!(!d.notif_read, "la lettura delle notifiche e' spenta di default");
+        assert!(d.reminders.is_empty() && !d.weather_on && d.weather_city.is_none(), "il widget Oggi parte vuoto e senza rete");
         assert!(!d.update_auto, "nessuna richiesta di rete da sola di default");
         assert!(d.dock_stacks.is_none(), "di default nessuna scelta: c'e' solo Download");
         assert!(!d.notif_dnd, "non disturbare e' spento di default");
@@ -273,7 +296,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()) }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

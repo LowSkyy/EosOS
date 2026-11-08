@@ -1,4 +1,6 @@
 mod appbar;
+mod reminders;
+mod weather;
 mod updates;
 mod webmem;
 mod stacks;
@@ -137,6 +139,63 @@ fn settings_pick_folder(window: tauri::Window, app: tauri::AppHandle) -> Option<
 fn settings_close(window: tauri::Window, app: tauri::AppHandle) {
     guard!(window, "settings_close");
     settingswin::hide(&app);
+}
+
+/// I promemoria del widget «Oggi», già in ordine. Solo il pannello.
+#[tauri::command]
+fn oggi_reminders(window: tauri::Window) -> Vec<reminders::Reminder> {
+    guard!(window, "oggi_reminders", Vec::new());
+    reminders::sorted(&mcstore::load().reminders)
+}
+
+/// Aggiunge un promemoria (testo e ora facoltativa «HH:MM»). Risponde con la lista aggiornata o con l'errore.
+#[tauri::command]
+fn oggi_add(window: tauri::Window, text: String, time: Option<String>) -> Result<Vec<reminders::Reminder>, String> {
+    cmdpolicy::guard(window.label(), "oggi_add", None)?;
+    let mut err = None;
+    let list = mcstore::update_reminders(|l| {
+        if let Err(e) = reminders::add(l, &text, time.as_deref()) {
+            err = Some(e);
+        }
+    });
+    err.map_or(Ok(reminders::sorted(&list)), Err)
+}
+
+/// Segna un promemoria come fatto (o da fare).
+#[tauri::command]
+fn oggi_toggle(window: tauri::Window, id: u32) -> Vec<reminders::Reminder> {
+    guard!(window, "oggi_toggle", Vec::new());
+    reminders::sorted(&mcstore::update_reminders(|l| {
+        reminders::toggle(l, id);
+    }))
+}
+
+/// Toglie un promemoria.
+#[tauri::command]
+fn oggi_remove(window: tauri::Window, id: u32) -> Vec<reminders::Reminder> {
+    guard!(window, "oggi_remove", Vec::new());
+    reminders::sorted(&mcstore::update_reminders(|l| {
+        reminders::remove(l, id);
+    }))
+}
+
+/// Toglie tutti i promemoria fatti.
+#[tauri::command]
+fn oggi_clear_done(window: tauri::Window) -> Vec<reminders::Reminder> {
+    guard!(window, "oggi_clear_done", Vec::new());
+    reminders::sorted(&mcstore::update_reminders(|l| {
+        reminders::clear_done(l);
+    }))
+}
+
+/// Il meteo di oggi (solo se acceso nelle Impostazioni e con una città scelta; altrimenti nessuna richiesta di rete).
+#[tauri::command(async)]
+fn oggi_weather(window: tauri::Window) -> weather::Reply {
+    if cmdpolicy::guard(window.label(), "oggi_weather", None).is_err() {
+        return weather::Reply::plain("off", None);
+    }
+    let s = mcstore::load();
+    weather::current(s.weather_on, s.weather_city.as_deref())
 }
 
 /// Lo stato degli aggiornamenti (versione in uso, ultima ricerca). Solo le Impostazioni.
@@ -899,7 +958,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

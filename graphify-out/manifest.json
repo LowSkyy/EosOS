@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794177773.0625007,
-    "seen": 1794177775.7542677,
-    "ast_hash": "5a57b6c9c8041c34f26238a1c413c5d3",
+    "mtime": 1794181683.2616913,
+    "seen": 1794181690.7169602,
+    "ast_hash": "b17f8355bdfceb9ee333f3526bf0dd29",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -30,9 +30,9 @@
     "semantic_hash": ""
   },
   "src-tauri/Cargo.toml": {
-    "mtime": 1794176004.4828987,
-    "seen": 1794177775.7541683,
-    "ast_hash": "12646a549e6a32668434d7b467d2321e",
+    "mtime": 1794180261.5453825,
+    "seen": 1794181690.7167873,
+    "ast_hash": "f4cf3a0942a3dfa5705ea50cd2261c0b",
     "semantic_hash": ""
   },
   "src-tauri/build.rs": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794179856.0306191,
-    "seen": 1794179861.9672008,
-    "ast_hash": "d99fcf9c8e913b7c37f3f589dce0703c",
+    "mtime": 1794180261.5463824,
+    "seen": 1794181690.7168283,
+    "ast_hash": "d9bfa750ad68a305981011f8a1821b29",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -600,9 +600,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/panelwin.rs": {
-    "mtime": 1794174876.015739,
-    "seen": 1794175935.7225163,
-    "ast_hash": "60292b37932c3de9d84783205f1e79c7",
+    "mtime": 1794180424.0004952,
+    "seen": 1794181690.7168517,
+    "ast_hash": "45fa4014693c564e85797db902e8fe8d",
     "semantic_hash": ""
   },
   "src/components/IndicatorGlyph.tsx": {
@@ -702,9 +702,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/mcstore.rs": {
-    "mtime": 1794176090.157534,
-    "seen": 1794177775.7541978,
-    "ast_hash": "9a434b6f813975c17536f70fa767a980",
+    "mtime": 1794180261.5453825,
+    "seen": 1794181690.7168376,
+    "ast_hash": "40112f144c6d2bfacc10f14b8cd23f83",
     "semantic_hash": ""
   },
   "src-tauri/src/mctrigger.rs": {
@@ -876,21 +876,21 @@
     "semantic_hash": ""
   },
   "scripts/test-settings.ps1": {
-    "mtime": 1794177381.573172,
-    "seen": 1794177775.7541587,
-    "ast_hash": "c30119419d744b82b136a1495c2772a7",
+    "mtime": 1794181134.951807,
+    "seen": 1794181690.7167692,
+    "ast_hash": "4c1f1fa16e8f83d22874f54a4c708186",
     "semantic_hash": ""
   },
   "src-tauri/src/settingslive.rs": {
-    "mtime": 1794176090.157534,
-    "seen": 1794177775.7542071,
-    "ast_hash": "98ae0e204c06da04522bd460372ccc14",
+    "mtime": 1794180261.5463824,
+    "seen": 1794181690.7168543,
+    "ast_hash": "3880938466b7074442b8c3a07df23879",
     "semantic_hash": ""
   },
   "src-tauri/src/settingsreg.rs": {
-    "mtime": 1794176090.157534,
-    "seen": 1794177775.754208,
-    "ast_hash": "6b85caa7a0c54c8b5df802ffcb014405",
+    "mtime": 1794180296.6402779,
+    "seen": 1794181690.7168558,
+    "ast_hash": "485ca4a58edf7c35636c393a382dc8a6",
     "semantic_hash": ""
   },
   "scripts/test-settingswin.ps1": {
@@ -906,9 +906,9 @@
     "semantic_hash": ""
   },
   "src/components/Settings.tsx": {
-    "mtime": 1794176189.2280738,
-    "seen": 1794177775.7542331,
-    "ast_hash": "0bcca31753437aff87e2739cfc2ffe2d",
+    "mtime": 1794180414.1227977,
+    "seen": 1794181690.7169,
+    "ast_hash": "45d6f76bb79b69667f1a0b400654e87b",
     "semantic_hash": ""
   },
   "src/lib/settings.test.ts": {
@@ -918,9 +918,9 @@
     "semantic_hash": ""
   },
   "src/lib/settings.ts": {
-    "mtime": 1794140512.3090427,
-    "seen": 1794141063.0891523,
-    "ast_hash": "7768c8c0a865acb2b695b222dc191286",
+    "mtime": 1794180414.1227977,
+    "seen": 1794181690.7169414,
+    "ast_hash": "6c33e898f60f50f463c2fe01cecaa56e",
     "semantic_hash": ""
   },
   "scripts/test-settings-s3.ps1": {
@@ -990,9 +990,9 @@
     "semantic_hash": ""
   },
   "src/components/CalendarPanel.tsx": {
-    "mtime": 1794143605.2186265,
-    "seen": 1794144060.5510504,
-    "ast_hash": "8dd2b753fa9230933140a1ecba13ce5b",
+    "mtime": 1794180414.1227977,
+    "seen": 1794181690.7168832,
+    "ast_hash": "04cf83a0adc4b046dd2c8330bfd64347",
     "semantic_hash": ""
   },
   "src/lib/calendar.test.ts": {
@@ -1086,9 +1086,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/cmdpolicy.rs": {
-    "mtime": 1794176090.157534,
-    "seen": 1794177775.7541742,
-    "ast_hash": "a97d61fce8d4c229da3b73f8fce1749c",
+    "mtime": 1794180261.5463824,
+    "seen": 1794181690.7167976,
+    "ast_hash": "a9c3955eb2a90e997af48689a97e0a3e",
     "semantic_hash": ""
   },
   "scripts/prepare-sandbox-install.ps1": {
@@ -1182,9 +1182,9 @@
     "semantic_hash": ""
   },
   "docs/AGGIORNAMENTI.md": {
-    "mtime": 1794179856.0306191,
-    "seen": 1794179861.9672792,
-    "ast_hash": "d20923543d141fcc9ca8339c37db853f",
+    "mtime": 1794179867.9474182,
+    "seen": 1794179869.4345372,
+    "ast_hash": "53adc98888bba4086a1930fa255a9e96",
     "semantic_hash": ""
   },
   "scripts/prepare-sandbox-update.ps1": {
@@ -1197,6 +1197,54 @@
     "mtime": 1794179856.0306191,
     "seen": 1794179861.9671254,
     "ast_hash": "ac759576d18539c5bc80137a377ed0e2",
+    "semantic_hash": ""
+  },
+  "scripts/test-oggi.ps1": {
+    "mtime": 1794181080.197659,
+    "seen": 1794181690.7167566,
+    "ast_hash": "1d4c4bd867f35c6972c6377374edb1a5",
+    "semantic_hash": ""
+  },
+  "scripts/weather-mock-server.py": {
+    "mtime": 1794180474.7844555,
+    "seen": 1794181690.7167857,
+    "ast_hash": "42947b3e9cc2d685d0f770920459a88c",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/reminders.rs": {
+    "mtime": 1794180355.813722,
+    "seen": 1794181690.716853,
+    "ast_hash": "bdaa22d49263177385bd6a5c65b005b9",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/weather.rs": {
+    "mtime": 1794180355.813722,
+    "seen": 1794181690.7168756,
+    "ast_hash": "c2b6c449b18dc91523619fe16f482647",
+    "semantic_hash": ""
+  },
+  "src/components/OggiBox.tsx": {
+    "mtime": 1794180394.7882051,
+    "seen": 1794181690.7168972,
+    "ast_hash": "9891d0af8319cc085f96fdf3802d3be5",
+    "semantic_hash": ""
+  },
+  "src/lib/oggi.test.ts": {
+    "mtime": 1794180394.7062461,
+    "seen": 1794181690.7169373,
+    "ast_hash": "f30c4e95c30c9c01a34b6fb5560594f6",
+    "semantic_hash": ""
+  },
+  "src/lib/oggi.ts": {
+    "mtime": 1794180394.6177647,
+    "seen": 1794181690.7169385,
+    "ast_hash": "5057915911983b636eac47d27b28252e",
+    "semantic_hash": ""
+  },
+  "docs/OGGI.md": {
+    "mtime": 1794181683.240648,
+    "seen": 1794181690.7169755,
+    "ast_hash": "64740c16da11bd0065c2346b747fdec6",
     "semantic_hash": ""
   },
   "package-lock.json": {

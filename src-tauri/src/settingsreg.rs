@@ -49,6 +49,8 @@ pub enum Kind {
     Folders,
     /// Le app fissate nel Dock: si può togliere e riordinare, non aggiungere (si fissa dal Dock).
     Pinned,
+    /// Un testo breve (al massimo tanti caratteri).
+    Text(usize),
     /// Un pulsante che esegue un'azione (senza valore).
     Action,
 }
@@ -100,6 +102,8 @@ pub const SPECS: &[Spec] = &[
     Spec { key: "notif.read", section: Section::Notifications, label: "Mostra le notifiche", help: "EosOS legge le notifiche di Windows e le mostra nel pannello sotto l'orologio. Restano solo in memoria. Spento finché non lo accendi.", kind: Kind::Bool, keywords: &["centro notifiche", "avvisi", "toast", "privacy"], live: true },
     Spec { key: "notif.dnd", section: Section::Notifications, label: "Non disturbare", help: "Il pannello sotto l'orologio non legge né mostra le notifiche finché è acceso. Riguarda solo EosOS: le notifiche e le impostazioni di Windows non cambiano.", kind: Kind::Bool, keywords: &["silenzioso", "concentrazione", "avvisi", "notifiche"], live: true },
     Spec { key: "calendar.week_start", section: Section::Notifications, label: "La settimana comincia da", help: "Nel calendario sotto l'orologio.", kind: Kind::Choice(WEEK_START), keywords: &["calendario", "lunedì", "domenica", "settimana", "orologio"], live: true },
+    Spec { key: "oggi.weather", section: Section::Notifications, label: "Meteo nel pannello Oggi", help: "Mostra il meteo di oggi nel pannello sotto l'orologio. Chiede a Open-Meteo (servizio gratuito) la posizione della città e le previsioni, al massimo ogni 30 minuti: all'esterno va solo il nome della città. Spento di base.", kind: Kind::Bool, keywords: &["meteo", "tempo", "temperatura", "previsioni", "oggi", "rete"], live: true },
+    Spec { key: "oggi.city", section: Section::Notifications, label: "Città del meteo", help: "Il nome della città per cui mostrare il meteo (per esempio Roma o L'Aquila).", kind: Kind::Text(60), keywords: &["citta", "meteo", "luogo"], live: true },
 ];
 
 /// L'impostazione con quella chiave, se esiste.
@@ -193,6 +197,16 @@ pub fn validate(s: &Spec, raw: &Value) -> Result<Value, SettingsError> {
         (Kind::Folders, _) => Err(SettingsError::new("Serve un elenco di cartelle.")),
         (Kind::Pinned, Value::List(l)) => Ok(Value::List(clean_list(l, MAX_PINNED, MAX_PINNED_NAME))),
         (Kind::Pinned, _) => Err(SettingsError::new("Serve un elenco di app.")),
+        (Kind::Text(max), Value::Text(t)) => {
+            // Per ora l'unico testo libero è la città del meteo: vuoto = nessuna città.
+            let t = t.trim();
+            if t.is_empty() {
+                Ok(Value::Text(String::new()))
+            } else {
+                crate::weather::valid_city(t).filter(|c| c.chars().count() <= max).map(Value::Text).ok_or_else(|| SettingsError::new("Scrivi il nome di una città (lettere, spazi, apostrofo o trattino)."))
+            }
+        }
+        (Kind::Text(_), _) => Err(SettingsError::new("Serve un testo.")),
         (Kind::Action, _) => Err(SettingsError::new("Questa voce è un pulsante: non ha un valore da cambiare.")),
     }
 }
@@ -253,6 +267,7 @@ pub enum KindOut {
     Names { max: usize },
     Folders { max: usize },
     Pinned,
+    Text { max: usize },
     Action,
 }
 
@@ -264,6 +279,7 @@ fn kind_out(k: Kind) -> KindOut {
         Kind::Names => KindOut::Names { max: MAX_NAMES },
         Kind::Folders => KindOut::Folders { max: MAX_FOLDERS },
         Kind::Pinned => KindOut::Pinned,
+        Kind::Text(max) => KindOut::Text { max },
         Kind::Action => KindOut::Action,
     }
 }

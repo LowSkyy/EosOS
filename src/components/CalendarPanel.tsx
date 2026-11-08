@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import NotifList from "./NotifList";
+import OggiBox from "./OggiBox";
 import { dateLabel, monthGrid, monthTitle, msUntilMidnight, parseWeekStart, shiftMonth, todayOf, weekdayHeaders, type WeekStart, type YearMonth } from "../lib/calendar";
 
 /**
@@ -57,6 +58,7 @@ const CalendarPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cal
 
   return (
     <div className="calendar" ref={ref} role="group" aria-label="Notifiche e calendario">
+      <OggiBox opens={opens} />
       <NotifList />
       <div className="cal-head">
         <h2 className="cal-title" aria-live="polite">

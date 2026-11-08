@@ -21,6 +21,8 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         "mc_activate" | "mc_close_window" | "mc_switch_desktop" | "mc_new_desktop" | "mc_move_window" | "mc_remove_desktop" | "mc_rename_desktop" => label.starts_with("mc-"),
         // Aggiornamenti: li gestisce solo la finestra Impostazioni.
         c if c.starts_with("update_") => label == "settings",
+        // Widget Oggi (promemoria e meteo): solo il pannello sotto l'orologio.
+        c if c.starts_with("oggi_") => label == "panel",
         c if c.starts_with("notif_") => label == "panel",
         c if c.starts_with("launcher_") => label == "launcher",
         _ => true,
@@ -69,6 +71,17 @@ mod tests {
         for w in ["launcher", "dock", "bar-0", "bar-1", "main", "mc-0"] {
             assert!(!allowed(w, "settings_set", Some("notif.read")), "{w}");
         }
+    }
+
+    #[test]
+    fn the_today_widget_belongs_to_the_panel() {
+        for c in ["oggi_reminders", "oggi_add", "oggi_toggle", "oggi_remove", "oggi_clear_done", "oggi_weather"] {
+            assert!(allowed("panel", c, None), "{c}");
+            for other in ["settings", "launcher", "dock", "bar-0", "main", "mc-0"] {
+                assert!(!allowed(other, c, None), "{other} {c}");
+            }
+        }
+        assert!(allowed("panel", "settings_set", Some("notif.read")) && !allowed("panel", "settings_set", Some("oggi.city")));
     }
 
     #[test]

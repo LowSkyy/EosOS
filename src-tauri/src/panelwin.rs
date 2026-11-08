@@ -26,7 +26,7 @@ pub const LABEL: &str = "panel";
 /// Larghezza del pannello, in px CSS.
 pub const WIDTH: f64 = 300.0;
 pub const MIN_HEIGHT: f64 = 60.0;
-pub const MAX_HEIGHT: f64 = 640.0;
+pub const MAX_HEIGHT: f64 = 760.0;
 /// Altezza provvisoria all'apertura: la pagina comunica poi quella vera (`fit`).
 const START_HEIGHT: f64 = 150.0;
 /// Distanza dall'indicatore e dai bordi dello schermo, in px CSS.
