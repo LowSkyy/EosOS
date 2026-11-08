@@ -2,7 +2,7 @@
 
 Obiettivo: una finestra «Impostazioni di EosOS», in stile Impostazioni di Sistema di macOS, dove si cambiano **tutte** le preferenze di EosOS con il mouse. Oggi le preferenze ci sono, ma sono sparse e quasi nascoste: menu contestuali del Dock e della barra, voci del Launcher che accendono e spengono cose, e file JSON da modificare a mano.
 
-Stato: specifica (8 nov 2026); **decisioni dell'utente (8 nov 2026): sì a tutto**, cioè questo è il passo successivo, l'avvio automatico con Windows è incluso (S4) e la finestra è senza bordi in vetro come Launcher e pannelli. **S1-S5 fatte.** La roadmap precedente è finita (Dock, Launcher, Indicatori, Mission Control, Menu globale); questo è il passo che ho scelto come successivo perché è il buco più evidente in uso quotidiano. 
+Stato: specifica (8 nov 2026); **decisioni dell'utente (8 nov 2026): sì a tutto**, cioè questo è il passo successivo, l'avvio automatico con Windows è incluso (S4) e la finestra è senza bordi in vetro come Launcher e pannelli. **S1-S6 fatte: le Impostazioni di EosOS sono complete.** La roadmap precedente è finita (Dock, Launcher, Indicatori, Mission Control, Menu globale); questo è il passo che ho scelto come successivo perché è il buco più evidente in uso quotidiano. 
 
 ## Cosa fa macOS (da replicare) e da dove viene
 
@@ -145,6 +145,27 @@ Dettagli: la voce dei menu nativi ha un id fisso (`eos:settings`) e il gestore d
 **Verifica dal vivo** (`scripts/test-settings-s5.ps1`, **12 controlli**, quattro file delle impostazioni ripristinati identici): con il menu globale spento la riga di una finestra di prova è solo il nome, si apre e ha l'unica voce, scegliendola si apre la finestra delle impostazioni; con il **Desktop** in primo piano la riga è «Desktop» con la stessa voce e scegliendola si apre; **menu nativo della barra e menu nativo del Dock**: si aprono davvero (verificato che il menu a comparsa sia di un processo EosOS prima di fare qualunque cosa), **si clicca col mouse la loro ultima riga** e si apre la finestra delle impostazioni; il menu non resta aperto e nessuna impostazione cambia per sbaglio. (La tastiera, Fine e Invio, non funzionava sul menu nativo perché la barra non è la finestra in primo piano: la prova usa il mouse.) Rust 332 test (3 a richiesta), clippy a 0 avvisi. Regressioni: barra, tendina, indicatori e impostazioni: OK. `test-menusettings.ps1` è fallito UNA volta su tre esecuzioni (7 controlli, tutti legati al ritardo con cui la barra segue la finestra in primo piano) e poi passato due volte di fila: **ha un'instabilità di tempi nota** (la barra impiega fino a 300 ms ad accorgersi del cambio di finestra), da irrobustire nelle rifiniture.
 
 **Non provato:** la voce nel menu a tendina del Dock aperto da un clic reale (la prova chiama lo stesso comando e clicca il menu vero); l'apertura da tastiera dei menu nativi.
+
+## S6 — Rifiniture e revisione: FATTA (8 nov 2026)
+
+**Tastiera e accessibilità** (`test-settings-s6.ps1`, 9 controlli): all'apertura il focus è sulla ricerca; **frecce su/giù nella barra laterale** passano alla sezione vicina e il focus la segue, si fermano ai bordi (non girano); la freccia parte dal pulsante che ha il focus, non da quello selezionato (la prova ha trovato questo difetto: dopo un Tab sul pulsante sbagliato la freccia partiva dalla sezione sbagliata); **ogni pulsante, scelta e campo di tutte le sei sezioni ha un nome accessibile**; ogni interruttore ha `aria-checked` e punta alla sua descrizione con `aria-describedby`; dialogo con nome, navigazione «Sezioni» con `aria-current`; i messaggi di errore sono `role="alert"`. **Un valore scritto a mano nel file che non è fra le opzioni** (la scorciatoia del Launcher `Ctrl+Alt+Z` in `launcher.json`) compare come quarta opzione «… (personalizzata)», selezionata, invece di lasciare la tendina vuota (`withCurrentOption`, pura e testata, come `nextSection`).
+
+**Scale diverse** (`scripts/test-settings-dpi.ps1`, 32 controlli, scala del primario cambiata davvero con ripristino garantito: `finally` più un processo di sicurezza a 10 minuti, cursore rimesso dov'era): a 100%, 125%, 150% e 175% la finestra ha la misura prevista (780 × 560 px CSS per la scala, ridotta se il monitor è piccolo), sta al centro del monitor, tutta dentro, la pagina conosce la scala, **nessuna barra di scorrimento orizzontale**, barra del titolo, ricerca, sezioni e prima riga dentro la finestra, il pulsante di chiusura non è coperto. Scala finale: 100%.
+
+**Tema chiaro:** controllato con uno screenshot reale (sezione Launcher): fondo, testi, interruttori e barra laterale leggibili.
+
+**Revisione del codice** (nessun difetto grave oltre quelli già corretti nelle fasi): tutte le scritture passano da un elenco chiuso con validazione in Rust; valori rifiutati non cambiano lo stato; il selettore di cartelle è in un thread a parte con il suo COM; l'avvio automatico tocca un solo valore; la scorciatoia si cambia a caldo con ritorno alla vecchia se la nuova non si registra. Punti da conoscere: l'avvio automatico scrive il percorso **dell'eseguibile in esecuzione**: se si accende da una build di sviluppo (`target\debug`) punterà a quella; le impostazioni scritte a mano nei file con valori fuori elenco non vengono riscritte finché non si tocca quella voce.
+
+**Prove più robuste:** `test-menusettings.ps1` (instabile a volte, vedi S5) ora lascia 700 ms alla barra dopo ogni cambio di finestra e aspetta fino a 10 s: 3 esecuzioni su 3 passate.
+
+**Cosa NON si è fatto, e perché**
+- **Sfondo sfocato** della finestra (era «opzionale in S6» nella specifica): non fatto. La finestra usa il fondo del tema; la sfocatura passa dal canale di cattura condiviso con Dock, Launcher e pannelli e non volevo metterlo sotto sforzo per una finestra grande che si sposta.
+- **Riavvio di Explorer con le impostazioni aperte:** da lanciare a mano (`! powershell -ExecutionPolicy Bypass -File scripts\test-launcher.ps1 -WithExplorerRestart`; vale anche per la finestra delle impostazioni, che non dipende dalla taskbar).
+- **L'avvio automatico all'accesso vero:** provato fin dove si può senza uscire dalla sessione (il valore giusto è nel registro, EosOS lo scrive e lo toglie); **non** ho riavviato Windows né fatto un accesso per vedere partire EosOS da solo.
+- **Lettore di schermo vero**, **trascinamento della finestra col mouse**, scelta di una cartella col selettore di Windows con il mouse: non provati.
+- **Disattivazioni di Gestione attività perse** durante la prova S4 (vedi sopra): non recuperabili.
+
+**Riepilogo dell'intero progetto Impostazioni:** 21 impostazioni in 6 sezioni, finestra senza bordi, 4 punti d'ingresso, avvio automatico, scorciatoia a caldo, selettore di cartelle, app fissate, ricerca, tastiera e scale. Test: Rust 332 (3 a richiesta), pagina 124, clippy a 0 avvisi; prove dal vivo: S1 67, S2 35, S3 35, S4 21, S5 12, S6 9, scala 32.
 
 ## Decisioni (prese dall'utente, 8 nov 2026)
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addName, asList, byKeys, choiceLabel, comboFromEvent, folderName, inSection, moveItem, pickSection, removeName, sectionsOf, type KeyLike, type SettingEntry } from "./settings";
+import { addName, asList, byKeys, choiceLabel, comboFromEvent, folderName, inSection, moveItem, nextSection, pickSection, removeName, sectionsOf, withCurrentOption, type KeyLike, type SettingEntry } from "./settings";
 
 const e = (key: string, section: string, over: Partial<SettingEntry> = {}): SettingEntry => ({
   key,
@@ -104,5 +104,24 @@ describe("moveItem / folderName", () => {
     expect(folderName("D:\\")).toBe("D:");
     expect(folderName("E:/Dati/")).toBe("Dati");
     expect(folderName("")).toBe("");
+  });
+});
+
+describe("nextSection / withCurrentOption", () => {
+  const secs = [{ id: "a", label: "A" }, { id: "b", label: "B" }, { id: "c", label: "C" }];
+  it("moves to the neighbour section and stops at the edges", () => {
+    expect(nextSection(secs, "b", 1)).toBe("c");
+    expect(nextSection(secs, "b", -1)).toBe("a");
+    expect(nextSection(secs, "c", 1)).toBe("c");
+    expect(nextSection(secs, "a", -1)).toBe("a");
+    expect(nextSection(secs, "zz", 1)).toBe("a");
+    expect(nextSection([], "a", 1)).toBe("");
+  });
+  it("adds a custom current value to a choice so it is shown, and leaves known values alone", () => {
+    const o: [string, string][] = [["x", "X"], ["y", "Y"]];
+    expect(withCurrentOption(o, "x")).toBe(o);
+    expect(withCurrentOption(o, "Ctrl+Alt+Z")).toEqual([...o, ["Ctrl+Alt+Z", "Ctrl+Alt+Z (personalizzata)"]]);
+    expect(withCurrentOption(o, null)).toBe(o);
+    expect(withCurrentOption(o, true)).toBe(o);
   });
 });

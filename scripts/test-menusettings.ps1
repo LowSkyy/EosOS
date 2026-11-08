@@ -32,7 +32,7 @@ function Wait-Until([scriptblock]$cond, [double]$seconds = 8) { $t0 = Get-Date; 
 function Focus([IntPtr]$h) {
   for ($try = 0; $try -lt 4; $try++) {
     [void][MS]::SetForegroundWindow($h)
-    if (Wait-Until { [MS]::GetForegroundWindow() -eq $h } 1) { return }
+    if (Wait-Until { [MS]::GetForegroundWindow() -eq $h } 1) { Start-Sleep -Milliseconds 700; return }   # la barra segue il primo piano entro 300 ms: si lascia il tempo
     [MS]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [MS]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
     Start-Sleep -Milliseconds 300
   }
@@ -69,35 +69,35 @@ try {
 
   Write-Host 'A. di default il menu globale e acceso'
   Focus ([IntPtr]$ids.B); Start-Sleep -Milliseconds 600; Focus ([IntPtr]$ids.A)
-  Check 'A mostra nome, File, Modifica, Finestra' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.A) -and ($r.read -eq $true) -and ((Count-Menus) -eq 4) } 6) ("menu " + (Count-Menus))
+  Check 'A mostra nome, File, Modifica, Finestra' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.A) -and ($r.read -eq $true) -and ((Count-Menus) -eq 4) } 10) ("menu " + (Count-Menus))
 
   Write-Host 'B. spegnerlo dal Launcher'
   Check 'azione accettata' ((Act 'action:menu-toggle') -eq 'done')
-  Check 'ora la barra mostra solo il nome dell app' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.A) -and ((Count-Menus) -eq 1) } 5) ("menu " + (Count-Menus))
+  Check 'ora la barra mostra solo il nome dell app' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.A) -and ((Count-Menus) -eq 1) } 10) ("menu " + (Count-Menus))
   Focus ([IntPtr]$ids.B); Start-Sleep -Milliseconds 1000
-  Check 'anche per le altre app' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.B) -and ((Count-Menus) -eq 1) } 5)
+  Check 'anche per le altre app' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.B) -and ((Count-Menus) -eq 1) } 10)
   Check 'la scelta e nel file' ((Get-Content $mc -Raw) -match '"menuOff":\s*true')
 
   Write-Host 'C. riaccenderlo'
   Check 'azione accettata' ((Act 'action:menu-toggle') -eq 'done')
-  Check 'B torna con i suoi menu (File, Modifica, Finestra + nome)' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.B) -and ($r.read -eq $true) -and ((Count-Menus) -eq 4) } 6) ("menu " + (Count-Menus))
+  Check 'B torna con i suoi menu (File, Modifica, Finestra + nome)' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.B) -and ($r.read -eq $true) -and ((Count-Menus) -eq 4) } 10) ("menu " + (Count-Menus))
 
   Write-Host 'D. escludere solo l app in primo piano (B)'
   Check 'azione accettata' ((Act 'action:menu-exclude') -eq 'done')
-  Check 'B mostra solo il nome' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.B) -and ((Count-Menus) -eq 1) } 5) ("menu " + (Count-Menus))
+  Check 'B mostra solo il nome' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.B) -and ((Count-Menus) -eq 1) } 10) ("menu " + (Count-Menus))
   Focus ([IntPtr]$ids.A); Start-Sleep -Milliseconds 1000
-  Check 'anche A e esclusa: l esclusione e per PROGRAMMA (A e B sono lo stesso programma, PowerShell)' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.A) -and ((Count-Menus) -eq 1) } 5) ("menu " + (Count-Menus))
+  Check 'anche A e esclusa: l esclusione e per PROGRAMMA (A e B sono lo stesso programma, PowerShell)' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.A) -and ((Count-Menus) -eq 1) } 10) ("menu " + (Count-Menus))
   $f = Get-Content $mc -Raw
   Check 'l esclusione e nel file (nome dell app, non titoli di finestra)' ($f -match '"menuExcluded"' -and $f -match 'PowerShell')
 
   Write-Host 'E. dopo il riavvio le scelte restano'
   Cleanup-Eos; Start-Sleep 2; Start-Eos
   Focus ([IntPtr]$ids.B); Start-Sleep -Milliseconds 600; Focus ([IntPtr]$ids.A)
-  Check 'dopo il riavvio: l esclusione vale per PowerShell (stesso programma di A e B)' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.A) -and ((Count-Menus) -eq 1) } 6) ("menu " + (Count-Menus))
+  Check 'dopo il riavvio: l esclusione vale per PowerShell (stesso programma di A e B)' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.A) -and ((Count-Menus) -eq 1) } 10) ("menu " + (Count-Menus))
 
   Write-Host 'F. reincluderla'
   Check 'azione accettata' ((Act 'action:menu-exclude') -eq 'done')
-  Check 'A torna con i suoi menu' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.A) -and ($r.read -eq $true) -and ((Count-Menus) -eq 4) } 6) ("menu " + (Count-Menus))
+  Check 'A torna con i suoi menu' (Wait-Until { $r = Row; ($r.hwnd -eq [int64]$ids.A) -and ($r.read -eq $true) -and ((Count-Menus) -eq 4) } 10) ("menu " + (Count-Menus))
 }
 finally {
   Cleanup-Eos

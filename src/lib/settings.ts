@@ -103,3 +103,20 @@ export function folderName(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts.length > 0 ? parts[parts.length - 1] : path;
 }
+
+/** La sezione vicina (`dir` -1 = prima, +1 = dopo) a quella attuale; ai bordi resta ferma (non gira). Pura. */
+export function nextSection(sections: SectionInfo[], current: string, dir: -1 | 1): string {
+  const i = sections.findIndex((s) => s.id === current);
+  if (i < 0) return sections[0]?.id ?? "";
+  const j = Math.min(Math.max(i + dir, 0), sections.length - 1);
+  return sections[j].id;
+}
+
+/**
+ * Le opzioni di una scelta, con in più il valore attuale se non è fra quelle (per esempio un file modificato a
+ * mano): così la tendina mostra com'è davvero, invece di restare vuota. Pura.
+ */
+export function withCurrentOption(options: [string, string][], value: SettingValue | null): [string, string][] {
+  if (typeof value !== "string" || options.some(([id]) => id === value)) return options;
+  return [...options, [value, `${value} (personalizzata)`]];
+}

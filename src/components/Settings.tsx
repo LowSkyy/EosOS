@@ -10,9 +10,11 @@ import {
   byKeys,
   choiceLabel,
   inSection,
+  nextSection,
   pickSection,
   removeName,
   sectionsOf,
+  withCurrentOption,
   type SetReply,
   type SettingEntry,
   type SettingValue,
@@ -127,12 +129,25 @@ export default function Settings() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <nav aria-label="Sezioni">
+        <nav
+          aria-label="Sezioni"
+          onKeyDown={(e) => {
+            // Frecce su/giù: passa alla sezione vicina (e le dà il focus), come in ogni barra laterale.
+            if (found !== null || (e.key !== "ArrowDown" && e.key !== "ArrowUp")) return;
+            e.preventDefault();
+            // Si parte dal pulsante che ha il focus (non per forza quello selezionato: ci si arriva anche con Tab).
+            const from = (e.target as HTMLElement).closest<HTMLElement>("[data-section]")?.dataset.section ?? section;
+            const next = nextSection(sections, from, e.key === "ArrowDown" ? 1 : -1);
+            setSection(next);
+            requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`[data-section="${next}"]`)?.focus());
+          }}
+        >
           {sections.map((s) => (
             <button
               key={s.id}
               type="button"
               className={`settings-nav${found === null && s.id === section ? " settings-nav-on" : ""}`}
+              data-section={s.id}
               aria-current={found === null && s.id === section ? "page" : undefined}
               onClick={() => {
                 setQuery("");
@@ -165,7 +180,9 @@ function Row({ entry, error, note, onSet, onAction, showSection }: { entry: Sett
           {entry.label}
           {showSection && <span className="settings-where"> · {entry.section_label}</span>}
         </label>
-        <p className="settings-help">{entry.help}</p>
+        <p className="settings-help" id={`${id}-h`}>
+          {entry.help}
+        </p>
         {note && <p className="settings-note">{note}</p>}
         {error && (
           <p className="settings-error" role="alert">
@@ -175,13 +192,13 @@ function Row({ entry, error, note, onSet, onAction, showSection }: { entry: Sett
       </div>
       <div className="settings-control">
         {kind.type === "bool" && (
-          <button id={id} type="button" role="switch" aria-checked={value === true} className={`switch${value === true ? " switch-on" : ""}`} onClick={() => onSet(value !== true)}>
+          <button id={id} type="button" role="switch" aria-describedby={`${id}-h`} aria-checked={value === true} className={`switch${value === true ? " switch-on" : ""}`} onClick={() => onSet(value !== true)}>
             <span className="switch-knob" />
           </button>
         )}
         {kind.type === "choice" && (
-          <select id={id} className="settings-select" value={typeof value === "string" ? value : ""} onChange={(ev) => onSet(ev.target.value)} aria-label={entry.label}>
-            {kind.options.map(([oid, olabel]) => (
+          <select id={id} className="settings-select" value={typeof value === "string" ? value : ""} onChange={(ev) => onSet(ev.target.value)} aria-label={entry.label} aria-describedby={`${id}-h`}>
+            {withCurrentOption(kind.options, value).map(([oid, olabel]) => (
               <option key={oid} value={oid}>
                 {olabel}
               </option>
