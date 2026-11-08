@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useState } from "react";
+import NotifList from "./NotifList";
 import { dateLabel, monthGrid, monthTitle, msUntilMidnight, shiftMonth, todayOf, WEEKDAYS_SHORT, type YearMonth } from "../lib/calendar";
 
 /**
@@ -49,7 +50,8 @@ const CalendarPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cal
   const atToday = view.y === today.y && view.m0 === today.m0;
 
   return (
-    <div className="calendar" ref={ref} role="group" aria-label="Calendario">
+    <div className="calendar" ref={ref} role="group" aria-label="Notifiche e calendario">
+      <NotifList />
       <div className="cal-head">
         <h2 className="cal-title" aria-live="polite">
           {monthTitle(view)}

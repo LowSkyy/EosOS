@@ -66,3 +66,32 @@ pub fn remove(id: u32) -> Result<(), String> {
     })
     .unwrap_or_else(|| Err("Operazione interrotta.".into()))
 }
+
+/// Apre l'app che ha mandato una notifica, come farebbe un clic sulla notifica: `shell:AppsFolder\<identificatore>`
+/// (funziona per le app dello Store e per quelle che Windows conosce con quell'identificatore). `false` se Windows non
+/// la conosce. Nelle build di prova `EOSOS_TEST_NO_OPEN` non apre niente e ricorda l'identificatore (`last_opened`).
+pub fn open_app(app_id: &str) -> bool {
+    if !crate::notifmodel::valid_app_id(app_id) {
+        return false;
+    }
+    #[cfg(feature = "test-hooks")]
+    if std::env::var_os("EOSOS_TEST_NO_OPEN").is_some() {
+        *LAST_OPENED.lock().unwrap_or_else(|e| e.into_inner()) = Some(app_id.to_string());
+        return true;
+    }
+    use windows::core::{w, HSTRING};
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    let target = HSTRING::from(format!("shell:AppsFolder\\{}", app_id.trim()));
+    let r = unsafe { ShellExecuteW(None, w!("open"), &target, None, None, SW_SHOWNORMAL) };
+    r.0 as usize > 32
+}
+
+#[cfg(feature = "test-hooks")]
+static LAST_OPENED: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// L'ultimo identificatore «aperto» in una build di prova con `EOSOS_TEST_NO_OPEN`.
+#[cfg(feature = "test-hooks")]
+pub fn last_opened() -> Option<String> {
+    LAST_OPENED.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}

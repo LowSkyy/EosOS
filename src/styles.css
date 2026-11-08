@@ -782,3 +782,23 @@ body {
 .cal-out { color: var(--bar-fg-muted); opacity: 0.45; }
 .cal-weekend { color: var(--bar-fg-muted); }
 .cal-today { background: rgba(10, 132, 255, 0.95); color: #fff !important; font-weight: var(--weight-strong); opacity: 1 !important; }
+
+/* ---- Notifiche sopra il calendario (dentro la finestra "panel") ---- */
+.notifs { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(128, 128, 128, 0.3); }
+.notifs-title { margin: 0 0 6px; font-size: 13px; font-weight: var(--weight-strong); }
+.notifs-empty { margin: 4px 0; color: var(--bar-fg-muted); }
+.notifs-off p { margin: 0 0 8px; color: var(--bar-fg-muted); font-size: 12px; }
+.notifs-btn { padding: 4px 10px; border: 1px solid rgba(128, 128, 128, 0.4); border-radius: 7px; background: rgba(128, 128, 128, 0.18); color: var(--bar-fg); font: inherit; cursor: default; }
+.notifs-btn:hover { background: rgba(128, 128, 128, 0.3); }
+.notifs-list { max-height: 230px; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 8px; }
+.notifs-group { display: flex; flex-direction: column; gap: 3px; }
+.notifs-app { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--bar-fg-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.notifs-item { display: flex; align-items: flex-start; gap: 4px; border-radius: 8px; background: rgba(128, 128, 128, 0.16); padding: 5px 4px 5px 9px; }
+.notifs-open { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; text-align: left; border: 0; background: none; color: var(--bar-fg); font: inherit; padding: 0; cursor: default; }
+.notifs-ttl { font-weight: var(--weight-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notifs-body { color: var(--bar-fg-muted); font-size: 12px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.notifs-ago { color: var(--bar-fg-muted); font-size: 11px; opacity: 0.8; }
+.notifs-x { flex: none; border: 0; border-radius: 5px; background: none; color: var(--bar-fg-muted); font-size: 15px; line-height: 1; padding: 0 6px; cursor: default; }
+.notifs-x:hover { background: rgba(128, 128, 128, 0.3); color: var(--bar-fg); }
+.notifs-more { font-size: 11px; color: var(--bar-fg-muted); padding-left: 9px; }
+.notifs-open:focus-visible, .notifs-x:focus-visible, .notifs-btn:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 1px; }

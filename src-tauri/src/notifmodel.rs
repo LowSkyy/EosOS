@@ -148,6 +148,23 @@ pub fn build_groups(raw: &[RawNotif], now_ms: i64) -> Vec<Group> {
     groups
 }
 
+/// Gli id di TUTTE le notifiche di un'app (anche quelle oltre il tetto del gruppo), senza badare alle maiuscole. Pura,
+/// testata.
+pub fn ids_of_app(raw: &[RawNotif], app_id: &str) -> Vec<u32> {
+    let k = app_id.trim().to_lowercase();
+    if k.is_empty() {
+        return Vec::new();
+    }
+    raw.iter().filter(|r| r.app_id.trim().to_lowercase() == k).map(|r| r.id).collect()
+}
+
+/// Un identificatore di app accettabile per aprirla: non vuoto, al massimo 300 caratteri, senza caratteri di
+/// controllo né le virgolette/barre che servirebbero a travestirlo da altro comando. Pura, testata.
+pub fn valid_app_id(s: &str) -> bool {
+    let s = s.trim();
+    !s.is_empty() && s.chars().count() <= 300 && !s.chars().any(|c| c.is_control() || c == '"' || c == '|' || c == '<' || c == '>')
+}
+
 /// L'`id` esiste fra i gruppi mostrati? Serve a rifiutare la cancellazione di un id inventato. Pura, testata.
 pub fn contains_id(groups: &[Group], id: u32) -> bool {
     groups.iter().any(|g| g.items.iter().any(|n| n.id == id))
@@ -270,6 +287,25 @@ mod tests {
         assert!(g[0].items[0].title.chars().count() <= MAX_TITLE);
         assert!(g[0].items[0].body.chars().count() <= MAX_BODY);
         assert!(!g[0].items[0].body.chars().any(|c| c.is_control()));
+    }
+
+    #[test]
+    fn all_the_ids_of_an_app_are_found_even_beyond_the_group_cap() {
+        let many: Vec<RawNotif> = (0..30).map(|i| raw(i, "App", "A", &["t"], i64::from(i))).collect();
+        let mut v = many;
+        v.push(raw(100, "altra", "B", &["t"], 1));
+        assert_eq!(ids_of_app(&v, " app ").len(), 30, "tutte, non solo le 20 mostrate");
+        assert_eq!(ids_of_app(&v, "altra"), vec![100]);
+        assert!(ids_of_app(&v, "").is_empty() && ids_of_app(&v, "nessuna").is_empty());
+    }
+
+    #[test]
+    fn app_ids_that_could_hide_a_command_are_refused() {
+        assert!(valid_app_id("Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"));
+        assert!(valid_app_id(r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"));
+        for bad in ["", "   ", "a\"b", "a|b", "a<b", "a>b", "a\nb", &"x".repeat(301)] {
+            assert!(!valid_app_id(bad), "{bad:?}");
+        }
     }
 
     #[test]

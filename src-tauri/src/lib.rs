@@ -206,6 +206,45 @@ fn notif_dismiss(id: u32) -> bool {
     notifread::remove(id).is_ok()
 }
 
+/// Come un clic sulla notifica: apre l'app che l'ha mandata e, se si apre, toglie la notifica. Solo con la lettura accesa
+/// e per un id che c'è adesso.
+#[tauri::command(async)]
+fn notif_open(id: u32) -> bool {
+    if !mcstore::load().notif_read {
+        return false;
+    }
+    let Ok(raw) = notifread::read_all() else { return false };
+    if !notifmodel::contains_id(&notifmodel::build_groups(&raw, now_ms()), id) {
+        return false;
+    }
+    let Some(n) = raw.iter().find(|r| r.id == id) else { return false };
+    let opened = notifread::open_app(&n.app_id);
+    if opened {
+        let _ = notifread::remove(id);
+    }
+    opened
+}
+
+/// Toglie TUTTE le notifiche di un'app (il «×» del gruppo). L'app deve essere fra quelle che hanno notifiche adesso.
+/// Risponde quante ne ha tolte.
+#[tauri::command(async)]
+fn notif_clear_app(app_id: String) -> usize {
+    if !mcstore::load().notif_read {
+        return 0;
+    }
+    let Ok(raw) = notifread::read_all() else { return 0 };
+    notifmodel::ids_of_app(&raw, &app_id).into_iter().filter(|id| notifread::remove(*id).is_ok()).count()
+}
+
+/// L'identificatore dell'ultima app «aperta» da una notifica (solo build di prova con `EOSOS_TEST_NO_OPEN`).
+#[tauri::command]
+fn notif_last_opened() -> Option<String> {
+    #[cfg(feature = "test-hooks")]
+    return notifread::last_opened();
+    #[cfg(not(feature = "test-hooks"))]
+    None
+}
+
 /// Quante notifiche toast di una app precisa ci sono adesso (solo per le prove: conta, non legge niente).
 #[tauri::command(async)]
 fn notif_count_for(aumid: String) -> Option<u32> {
@@ -728,7 +767,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
