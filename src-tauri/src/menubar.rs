@@ -177,6 +177,13 @@ pub fn menu(index: usize) -> Option<TopMenu> {
     Some(filled)
 }
 
+/// Toglie dalla cache la lettura di una finestra (il suo menu può essere cambiato).
+fn forget_cache(hwnd: usize) {
+    if let Some(c) = CACHE.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+        c.remove(&hwnd);
+    }
+}
+
 /// Chiude con WM_CLOSE tutte le finestre visibili di primo livello del processo di `hwnd` (esci dall'app nel
 /// modo gentile: ogni finestra può chiedere di salvare). Mai si termina un processo.
 fn quit_app(hwnd: HWND) {
@@ -239,7 +246,7 @@ fn run_cmd(hwnd: usize, cmd: Cmd) -> bool {
 /// e non è un sottomenu né un separatore; i comandi di EosOS si eseguono qui, quelli dell'app arrivano in G5.
 /// Restituisce se è stato eseguito qualcosa.
 pub fn choose(index: usize, path: &[usize]) -> bool {
-    let (hwnd, action) = {
+    let (hwnd, action, title) = {
         let g = LAST.lock().unwrap_or_else(|e| e.into_inner());
         let Some(row) = g.as_ref() else { return false };
         let Some(menu) = row.menus.get(index) else { return false };
@@ -247,11 +254,29 @@ pub fn choose(index: usize, path: &[usize]) -> bool {
         if !item.enabled || item.separator || item.is_submenu() {
             return false;
         }
-        (row.hwnd as usize, item.action.clone())
+        (row.hwnd as usize, item.action.clone(), item.title.clone())
     };
     match action {
         Some(Action::Eos(cmd)) => run_cmd(hwnd, cmd),
-        Some(Action::App(_)) => false, // G5
+        Some(Action::App(path)) => {
+            // Prima l'app in primo piano (una finestra di dialogo che si apre deve comparire davanti), poi la voce.
+            let h = HWND(hwnd as *mut _);
+            crate::dockact::focus(h);
+            match crate::menuread::invoke_item(hwnd, &path, &title) {
+                Ok(()) => {
+                    // La riga letta resta valida, ma l'app può aver cambiato il suo menu (elenchi recenti, spunte):
+                    // si dimentica la cache così al prossimo cambio di finestra si rilegge.
+                    forget_cache(hwnd);
+                    true
+                }
+                Err(e) => {
+                    if e == crate::menuread::InvokeErr::Changed {
+                        forget_cache(hwnd);
+                    }
+                    false
+                }
+            }
+        }
         None => false,
     }
 }

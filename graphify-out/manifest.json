@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794103694.2192986,
-    "seen": 1794103696.3690307,
-    "ast_hash": "e136211b7b69c18c14e8832e4e088207",
+    "mtime": 1794104827.3282838,
+    "seen": 1794104829.5888972,
+    "ast_hash": "0b0396603e0f55fa65d112cff6cc1c3c",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794102790.5481973,
-    "seen": 1794103696.3689737,
-    "ast_hash": "a76821fe4c7b125a1d67e557c75c1f7a",
+    "mtime": 1794104371.8219655,
+    "seen": 1794104829.588843,
+    "ast_hash": "3a227fafc0c9ffd358d4f2f0bff41576",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -600,9 +600,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/panelwin.rs": {
-    "mtime": 1794088561.6747005,
-    "seen": 1794089359.8563004,
-    "ast_hash": "576430df63cc93665b1b299449d32553",
+    "mtime": 1794104448.328979,
+    "seen": 1794104829.5888538,
+    "ast_hash": "d4dda44bcab9163498fd26202474fbc7",
     "semantic_hash": ""
   },
   "src/components/IndicatorGlyph.tsx": {
@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "src/components/Panel.tsx": {
-    "mtime": 1794089891.4861968,
-    "seen": 1794090005.223536,
-    "ast_hash": "8604f1eb8eb0aae09fa8e166b0497c95",
+    "mtime": 1794103905.912243,
+    "seen": 1794104829.5888722,
+    "ast_hash": "c606cd960fcc861fd0c1e5676fbb1b17",
     "semantic_hash": ""
   },
   "src/components/useIndicators.ts": {
@@ -786,9 +786,9 @@
     "semantic_hash": ""
   },
   "docs/MENU-GLOBALE.md": {
-    "mtime": 1794103694.218298,
-    "seen": 1794103696.3690355,
-    "ast_hash": "ee51b5147b997e00cbdc9407655c2219",
+    "mtime": 1794104827.3272839,
+    "seen": 1794104829.588902,
+    "ast_hash": "dad88faedeceb92f0d74c57bf1059e1c",
     "semantic_hash": ""
   },
   "scripts/test-menu-probe.ps1": {
@@ -798,15 +798,15 @@
     "semantic_hash": ""
   },
   "src-tauri/src/menuread.rs": {
-    "mtime": 1794102733.9258096,
-    "seen": 1794103696.3689845,
-    "ast_hash": "42872a1787c18498e75c6852e6a3d179",
+    "mtime": 1794103809.36212,
+    "seen": 1794104829.5888526,
+    "ast_hash": "877d9d6a42e9db665f2aae6149aa665b",
     "semantic_hash": ""
   },
   "src-tauri/src/menumodel.rs": {
-    "mtime": 1794102790.5481973,
-    "seen": 1794103696.3689835,
-    "ast_hash": "a0e2da7d62f80ca9d481f8f0f50aa240",
+    "mtime": 1794103809.3605602,
+    "seen": 1794104829.588852,
+    "ast_hash": "3b239d2dc05ac0664e391039008a738c",
     "semantic_hash": ""
   },
   "scripts/test-menubar.ps1": {
@@ -816,27 +816,39 @@
     "semantic_hash": ""
   },
   "src-tauri/src/menubar.rs": {
-    "mtime": 1794103517.4492404,
-    "seen": 1794103696.3689826,
-    "ast_hash": "876ee46a180deb8dbdb9106b7427c057",
+    "mtime": 1794104371.8229651,
+    "seen": 1794104829.5888512,
+    "ast_hash": "1f38a451f00268bbccffdeb4719f1b78",
     "semantic_hash": ""
   },
   "src/components/AppMenus.tsx": {
-    "mtime": 1794102823.2912254,
-    "seen": 1794103696.368997,
-    "ast_hash": "4364ffaeea7bcaea06e8fb4bc7185098",
+    "mtime": 1794103905.9132426,
+    "seen": 1794104829.5888646,
+    "ast_hash": "8071551e97f7ee7ae0c2719d2861092b",
     "semantic_hash": ""
   },
   "src/lib/menubar.test.ts": {
-    "mtime": 1794102823.2790196,
-    "seen": 1794103696.36902,
-    "ast_hash": "9feba36190382cfeb16aa745e5126ab0",
+    "mtime": 1794103854.3949666,
+    "seen": 1794104829.5888867,
+    "ast_hash": "3621227f4b4fa0281f48b59e338da585",
     "semantic_hash": ""
   },
   "src/lib/menubar.ts": {
-    "mtime": 1794102823.2678635,
-    "seen": 1794103696.369021,
-    "ast_hash": "4765bc360ed0f2f52501fbcab194974e",
+    "mtime": 1794103854.3939667,
+    "seen": 1794104829.5888877,
+    "ast_hash": "d5f47396dd39e992cac1605faff693be",
+    "semantic_hash": ""
+  },
+  "scripts/test-menudrop.ps1": {
+    "mtime": 1794104663.9170127,
+    "seen": 1794104829.5888157,
+    "ast_hash": "a5dd4f3ae0d885972c3072a979836627",
+    "semantic_hash": ""
+  },
+  "src/components/MenuPanel.tsx": {
+    "mtime": 1794103901.4101257,
+    "seen": 1794104829.5888715,
+    "ast_hash": "e1c0215ecc0052229724bb463eae700c",
     "semantic_hash": ""
   },
   "package-lock.json": {

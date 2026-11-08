@@ -11,12 +11,14 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
 use windows::Win32::System::Variant::VARIANT;
 use windows::Win32::UI::Accessibility::{
-    CUIAutomation, IUIAutomation, IUIAutomationExpandCollapsePattern, TreeScope_Children, TreeScope_Descendants,
-    UIA_ControlTypePropertyId, UIA_ExpandCollapsePatternId, UIA_MenuBarControlTypeId, UIA_MenuItemControlTypeId,
+    CUIAutomation, IUIAutomation, IUIAutomationExpandCollapsePattern, IUIAutomationInvokePattern, TreeScope_Children, TreeScope_Descendants,
+    UIA_ControlTypePropertyId, UIA_ExpandCollapsePatternId, UIA_InvokePatternId, UIA_MenuBarControlTypeId, UIA_MenuItemControlTypeId,
 };
+use windows::Win32::Foundation::{LPARAM, WPARAM};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetMenu, GetMenuItemCount, GetMenuItemInfoW, GetMenuStringW, IsWindow, HMENU, MENUITEMINFOW, MFS_CHECKED, MFS_DISABLED,
-    MFS_GRAYED, MFT_SEPARATOR, MF_BYPOSITION, MIIM_FTYPE, MIIM_STATE, MIIM_STRING, MIIM_SUBMENU,
+    GetMenu, GetMenuItemCount, GetMenuItemInfoW, GetMenuStringW, IsWindow, PostMessageW, HMENU, MENUITEMINFOW, MFS_CHECKED,
+    MFS_DISABLED, MFS_GRAYED, MFT_SEPARATOR, MF_BYPOSITION, MIIM_FTYPE, MIIM_ID, MIIM_STATE, MIIM_STRING, MIIM_SUBMENU,
+    WM_COMMAND,
 };
 
 use crate::menumodel::{RawItem, RawMenu};
@@ -291,6 +293,141 @@ pub fn read_lazy_items(hwnd_id: usize, source: usize) -> Vec<RawItem> {
 /// Tempo massimo per aprire e leggere un menu pigro.
 pub const LAZY_TIMEOUT: Duration = Duration::from_millis(2500);
 
+// ------------------------------------------------------------------ invocazione (G5)
+
+/// Perché una voce non è stata eseguita.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvokeErr {
+    /// La finestra non c'è più o non ha più il menu.
+    Gone,
+    /// Il menu è cambiato dopo che l'abbiamo letto (la voce a quel posto ha un altro titolo): non si indovina.
+    Changed,
+    /// La voce è disattivata, è un separatore o un sottomenu.
+    NotInvokable,
+    /// L'app non ha risposto in tempo o ha rifiutato.
+    Failed,
+}
+
+/// Il titolo mostrato coincide con quello della voce letta ora? Pura, testata.
+pub fn titles_match(shown: &str, raw_now: &str) -> bool {
+    crate::menumodel::split_label(raw_now).0 == shown.trim()
+}
+
+/// Il valore di `WPARAM` di un `WM_COMMAND` da menu per l'identificatore `id`: la parola bassa è l'id, quella alta
+/// 0 (menu). `None` se l'id è 0 (voci senza comando) o non sta in 16 bit. Pura, testata.
+pub fn wm_command_wparam(id: u32) -> Option<usize> {
+    (id != 0 && id <= 0xFFFF).then_some(id as usize)
+}
+
+/// Esegue la voce `path` del menu `HMENU` della finestra: si rilegge la voce (posizione e titolo devono
+/// coincidere con quello mostrato) e si manda alla finestra il `WM_COMMAND` del suo identificatore, come se
+/// l'utente l'avesse scelta nel menu.
+fn invoke_hmenu(hwnd: HWND, path: &[usize], expect_title: &str) -> Result<(), InvokeErr> {
+    let mut menu = unsafe { GetMenu(hwnd) };
+    if menu.is_invalid() {
+        return Err(InvokeErr::Gone);
+    }
+    for (k, &pos) in path.iter().enumerate() {
+        let mut buf = [0u16; 256];
+        let mut mii = MENUITEMINFOW {
+            cbSize: std::mem::size_of::<MENUITEMINFOW>() as u32,
+            fMask: MIIM_FTYPE | MIIM_STATE | MIIM_SUBMENU | MIIM_STRING | MIIM_ID,
+            dwTypeData: windows::core::PWSTR(buf.as_mut_ptr()),
+            cch: buf.len() as u32 - 1,
+            ..Default::default()
+        };
+        if unsafe { GetMenuItemInfoW(menu, pos as u32, true, &mut mii) }.is_err() {
+            return Err(InvokeErr::Changed);
+        }
+        if k + 1 < path.len() {
+            // Un livello intermedio: deve essere un sottomenu.
+            if mii.hSubMenu.is_invalid() {
+                return Err(InvokeErr::Changed);
+            }
+            menu = mii.hSubMenu;
+            continue;
+        }
+        let text = String::from_utf16_lossy(&buf[..(mii.cch as usize).min(buf.len() - 1)]);
+        if mii.fType.0 & MFT_SEPARATOR.0 != 0 || !mii.hSubMenu.is_invalid() || mii.fState.0 & (MFS_GRAYED.0 | MFS_DISABLED.0) != 0 {
+            return Err(InvokeErr::NotInvokable);
+        }
+        if !titles_match(expect_title, &text) {
+            return Err(InvokeErr::Changed);
+        }
+        let Some(wp) = wm_command_wparam(mii.wID) else { return Err(InvokeErr::NotInvokable) };
+        return unsafe { PostMessageW(Some(hwnd), WM_COMMAND, WPARAM(wp), LPARAM(0)) }.map_err(|_| InvokeErr::Failed);
+    }
+    Err(InvokeErr::Changed)
+}
+
+/// Esegue la voce `j` del menu `source` di una finestra con barra UI Automation: si apre il menu un istante,
+/// si ritrova la voce (stesso titolo di quello mostrato) e la si invoca; il menu si chiude da solo.
+fn invoke_uia(hwnd_id: usize, source: usize, j: usize, expect_title: &str) -> Result<(), InvokeErr> {
+    unsafe {
+        let init = CoInitializeEx(None, COINIT_MULTITHREADED).is_ok();
+        let out = (|| -> windows::core::Result<Result<(), InvokeErr>> {
+            let auto: IUIAutomation = CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER)?;
+            let el = auto.ElementFromHandle(HWND(hwnd_id as *mut _))?;
+            let Some(bar) = best_bar(&auto, &el)? else { return Ok(Err(InvokeErr::Gone)) };
+            let item = auto.CreatePropertyCondition(UIA_ControlTypePropertyId, &VARIANT::from(UIA_MenuItemControlTypeId.0))?;
+            let tops = bar.FindAll(TreeScope_Children, &item)?;
+            let Ok(top) = tops.GetElement(source as i32) else { return Ok(Err(InvokeErr::Changed)) };
+            let expand: windows::core::Result<IUIAutomationExpandCollapsePattern> = top.GetCurrentPatternAs(UIA_ExpandCollapsePatternId);
+            if let Ok(p) = &expand {
+                let _ = p.Expand();
+                std::thread::sleep(Duration::from_millis(120));
+            }
+            let kids = top.FindAll(TreeScope_Descendants, &item)?;
+            let Ok(k) = kids.GetElement(j as i32) else { return Ok(Err(InvokeErr::Changed)) };
+            let name = k.CurrentName().map(|s| s.to_string()).unwrap_or_default();
+            let result = if !titles_match(expect_title, &name) {
+                Err(InvokeErr::Changed)
+            } else if !k.CurrentIsEnabled().map(|b| b.as_bool()).unwrap_or(false) {
+                Err(InvokeErr::NotInvokable)
+            } else {
+                let inv: windows::core::Result<IUIAutomationInvokePattern> = k.GetCurrentPatternAs(UIA_InvokePatternId);
+                match inv {
+                    Ok(p) => p.Invoke().map_err(|_| InvokeErr::Failed),
+                    Err(_) => Err(InvokeErr::NotInvokable),
+                }
+            };
+            if result.is_err()
+                && let Ok(p) = &expand
+            {
+                let _ = p.Collapse();
+            }
+            Ok(result)
+        })();
+        if init {
+            CoUninitialize();
+        }
+        out.unwrap_or(Err(InvokeErr::Failed))
+    }
+}
+
+/// Esegue la voce `path` (percorso nel menu originale dell'app: primo indice = menu di primo livello) della
+/// finestra `hwnd_id`, solo se la voce è ancora quella mostrata (`expect_title`). `HMENU` classico se la
+/// finestra ne ha uno, altrimenti UI Automation (con tempo massimo).
+pub fn invoke_item(hwnd_id: usize, path: &[usize], expect_title: &str) -> Result<(), InvokeErr> {
+    let hwnd = HWND(hwnd_id as *mut _);
+    if path.len() < 2 || !unsafe { IsWindow(Some(hwnd)) }.as_bool() {
+        return Err(InvokeErr::Gone);
+    }
+    if !unsafe { GetMenu(hwnd) }.is_invalid() {
+        return invoke_hmenu(hwnd, path, expect_title);
+    }
+    if path.len() != 2 {
+        return Err(InvokeErr::Changed); // di UI Automation si leggono solo le voci del primo livello
+    }
+    let (source, j) = (path[0], path[1]);
+    let title = expect_title.to_string();
+    let (tx, rx) = channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(invoke_uia(hwnd_id, source, j, &title));
+    });
+    rx.recv_timeout(LAZY_TIMEOUT).unwrap_or(Err(InvokeErr::Failed))
+}
+
 /// Misura la finestra `hwnd_id` (solo lettura). `None` se non è più una finestra.
 pub fn probe(hwnd_id: usize) -> Option<Probe> {
     let hwnd = HWND(hwnd_id as *mut _);
@@ -322,6 +459,23 @@ mod tests {
 
     fn p(h: Option<usize>, bar: bool, items: usize, timeout: bool) -> Probe {
         Probe { hmenu_items: h, uia_menubar: bar, uia_items: items, uia_timed_out: timeout, ..Probe::default() }
+    }
+
+    #[test]
+    fn a_shown_title_must_still_be_the_one_in_the_menu() {
+        assert!(titles_match("Apri", "&Apri"));
+        assert!(titles_match("Apri...", "&Apri...\tCtrl+O"));
+        assert!(titles_match(" Apri ", "Apri"));
+        assert!(!titles_match("Apri", "Aprire"), "il menu e' cambiato: non si indovina");
+        assert!(!titles_match("Apri", ""));
+    }
+
+    #[test]
+    fn menu_commands_need_a_usable_id() {
+        assert_eq!(wm_command_wparam(1), Some(1));
+        assert_eq!(wm_command_wparam(0xFFFF), Some(0xFFFF));
+        assert_eq!(wm_command_wparam(0), None, "voce senza comando");
+        assert_eq!(wm_command_wparam(0x1_0000), None, "non sta in 16 bit");
     }
 
     #[test]

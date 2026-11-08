@@ -85,9 +85,9 @@ fn menubar_menu(app: tauri::AppHandle, index: usize) -> Option<menumodel::TopMen
 /// Sceglie una voce del menu (percorso nel modello). Dopo la scelta la tendina si chiude.
 #[tauri::command(async)]
 fn menubar_choose(app: tauri::AppHandle, index: usize, path: Vec<usize>) -> bool {
-    let ok = menubar::choose(index, &path);
+    // Prima si chiude la tendina (il primo piano deve passare all'app), poi si esegue la voce.
     panelwin::hide(&app);
-    ok
+    menubar::choose(index, &path)
 }
 
 #[tauri::command]

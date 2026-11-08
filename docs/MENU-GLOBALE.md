@@ -2,7 +2,7 @@
 
 Obiettivo: come su macOS, i menu dell'app in primo piano (File, Modifica, Visualizza...) compaiono **nella barra in alto di EosOS**, accanto al nome dell'app, invece che dentro la finestra. Un clic su una voce apre il menu a tendina e sceglierne una voce esegue il comando nell'app.
 
-Stato: specifica (8 nov 2026) e **G1, G2, G3 e G4 fatte**. **Scelta dell'utente: opzione 1, ibrido.** Restano G5-G6.
+Stato: specifica (8 nov 2026) e **G1-G5 fatte**. **Scelta dell'utente: opzione 1, ibrido.** Resta G6.
 
 ## Cosa fa macOS (da replicare)
 
@@ -112,6 +112,22 @@ Un clic su un titolo della barra apre sotto di esso la **tendina del menu**; pas
 **Verifica dal vivo** (`scripts/test-menudrop.ps1`, 40 controlli, finestre di prova mie): tendina di un menu classico (4 voci con titoli giusti, separatore, scorciatoia `Ctrl+O`, voce disattivata, voce spuntata), apertura e chiusura dei sottomenu, passaggio da un titolo all'altro, secondo clic che chiude, **clic col mouse vero sul titolo** (verificato prima che sotto il cursore ci fosse proprio quel titolo), tastiera (frecce che saltano separatore e voce disattivata, Esc), scelta di una voce dell'app (per ora non fa nulla e non rompe nulla; indici e percorsi inventati, voci disattivate e sottomenu rifiutati), menu pigri di una finestra con `MenuStrip` (File mostra «Prima voce» e «Seconda voce» in 225 ms, la finestra resta viva), comandi di Finestra sulla console di prova (ingrandisce, ripristina, riduce a icona, chiude), «Esci da ...» che chiude solo l'app di prova e lascia viva l'altra. Regressioni: barra 17, pannello degli indicatori, hook di tastiera 41, tutti OK. Rust 300 test (3 a richiesta), pagina 108, clippy a 0 avvisi.
 
 **Non provato:** il lampo del menu pigro su app vere diverse da Visual Studio Code e dalla finestra di prova (Blocco note di Windows 11: la lettura delle voci dopo l'espansione non è stata verificata; è il prossimo candidato); tendina vicino al bordo destro dello schermo e con due monitor (il posizionamento è quello del pannello, già provato); menu molto lunghi (il pannello scorre oltre 400 px: non l'ho riempito); menu con tema chiaro.
+
+## G5 — Invocazione: FATTA (8 nov 2026)
+
+Scegliere una voce dell'app dalla tendina la **esegue nell'app**. Solo su clic dell'utente e solo dopo aver controllato che la voce sia ancora quella mostrata.
+
+**Come si esegue**
+- **Menu classico (`HMENU`):** si rilegge la voce seguendo il percorso (posizione per posizione, sottomenu compresi), si controlla che non sia un separatore, un sottomenu o disattivata, e che il **titolo coincida ancora con quello mostrato**; poi si manda alla finestra il `WM_COMMAND` del suo identificatore, come se l'utente l'avesse scelta (`wm_command_wparam`: serve un id da 1 a 65535).
+- **Barra di UI Automation:** si apre un istante il menu, si ritrova la voce (stesso controllo del titolo e dell'abilitazione) e la si invoca con `InvokePattern`; il menu si chiude da solo. Con tempo massimo di 2,5 s.
+- **Prima** si chiude la tendina e si riporta in primo piano l'app (una finestra di dialogo che si apre deve comparire davanti), **poi** si esegue la voce.
+- **Se il menu è cambiato** dopo che l'abbiamo letto (la voce a quel posto ha un altro titolo, o non c'è più) **non si esegue niente** e si dimentica la cache, così al prossimo cambio di finestra la barra rilegge. Dopo una voce eseguita si dimentica la cache lo stesso (le app cambiano spunte ed elenchi recenti).
+
+**Limiti noti** (dichiarati, non nascosti): con UI Automation si eseguono solo le voci del **primo livello** di ogni menu (i sottomenu di quelle app non sono esplorati); l'`HMENU` ha invece tutti i livelli. Il comando arriva all'app come `WM_COMMAND` senza `WM_INITMENUPOPUP`: un'app che aggiorna lo stato delle voci solo all'apertura del menu potrebbe eseguire una voce già non valida (per le disattivate ci pensa il controllo di stato letto adesso). Le voci con id oltre 16 bit, o senza id (menu disegnati dall'app), non si eseguono.
+
+**Verifica dal vivo** (`scripts/test-menuinvoke.ps1`, 23 controlli, **solo su due app di prova mie** che scrivono una riga in un log quando una voce viene eseguita): menu classico → scegliere «Apri» scrive la riga; la tendina si chiude e il primo piano torna all'app; una voce **dentro un sottomenu** («Recenti» → «uno», percorso di tre livelli) si esegue; la voce **disattivata** non si può scegliere (pulsante disattivato) **né chiamando il comando a mano** e non si esegue mai; **un'app che rinomina da sola una voce mentre la tendina è aperta**: scegliere la vecchia voce non esegue niente, cambiando finestra la barra rilegge, e la voce col nome nuovo si esegue; barra `MenuStrip` (UI Automation) → «Seconda voce» e poi «Prima voce» si eseguono ognuna una volta, l'app resta viva. Regressioni: tendina 40, barra 17, tutti OK. Rust 302 test (3 a richiesta), clippy a 0 avvisi.
+
+**Non provato:** app vere (Blocco note di Windows 11, Visual Studio Code, Office): la lettura funziona, ma **non ho invocato voci di app dell'utente** (nessuna esecuzione su finestre vere, per la regola di non toccarle); come reagiscono le app a un `WM_COMMAND` senza apertura del menu (alcune app Win32 molto vecchie controllano lo stato in `WM_INITMENUPOPUP`); app con privilegi più alti (UIPI: il messaggio non arriva e `PostMessage` non lo segnala).
 
 ## Fuori scopo
 
