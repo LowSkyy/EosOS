@@ -58,7 +58,7 @@ Le notifiche di Windows, inoltre, **restano comunque quelle del sistema**: EosOS
 - Si è provato il **conteggio** e il riconoscimento di notifiche **di una sola app (la mia)**; leggere titolo e testo delle notifiche e riceverle in tempo reale (evento di cambiamento) sono N3/N4 e non sono ancora stati provati.
 - `notif_count_for` (conta le notifiche di una app per identificatore) esiste solo nelle build con `test-hooks`: nelle build normali risponde sempre «niente».
 
-**Verifica** (`scripts/test-notif-probe.ps1`, tutti OK): EosOS senza identità; il listener risponde; contare funziona; il conteggio per l'app di prova sale di uno con la mia notifica e torna a zero quando la tolgo. Durante la prova compare per un attimo un avviso a schermo («EosOS-N1-prova»). Rust 340 test (3 a richiesta), clippy a 0 avvisi (anche con la feature di prova).
+**Verifica** (`scripts/test-notif-probe.ps1`, tutti OK): EosOS senza identità; il listener risponde; contare funziona; il conteggio per l'app di prova sale di uno con la mia notifica e torna a zero quando la tolgo. Durante la prova compare per un attimo un avviso a schermo («EosOS-N1-prova»). Rust 337 test (3 a richiesta), clippy a 0 avvisi (anche con la feature di prova).
 
 ## Principi (gli stessi di sempre)
 

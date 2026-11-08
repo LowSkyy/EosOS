@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794141267.3410442,
-    "seen": 1794141269.5494285,
-    "ast_hash": "6f1371a6140b60cec9d494b76311d24d",
+    "mtime": 1794141827.0031502,
+    "seen": 1794141829.5361505,
+    "ast_hash": "bdfd9c1177bfd229cbf674393e739bc0",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -30,9 +30,9 @@
     "semantic_hash": ""
   },
   "src-tauri/Cargo.toml": {
-    "mtime": 1794092933.320322,
-    "seen": 1794093682.4497364,
-    "ast_hash": "483ca990c0dafcef64ed43318d19e4b0",
+    "mtime": 1794141591.2872214,
+    "seen": 1794141829.5360663,
+    "ast_hash": "5cf7cf473454e9704a0775826aab1ce9",
     "semantic_hash": ""
   },
   "src-tauri/build.rs": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794139979.9419394,
-    "seen": 1794140429.8957372,
-    "ast_hash": "d56d6e6e9f27437fc70e6a6cfc71726f",
+    "mtime": 1794141642.6534128,
+    "seen": 1794141829.5360897,
+    "ast_hash": "462c8c419c1987490b3a593331014eb9",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -750,9 +750,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/vdint.rs": {
-    "mtime": 1794094122.2374156,
-    "seen": 1794094635.109535,
-    "ast_hash": "a04922428d0c49845bc06af0b350cd48",
+    "mtime": 1794141434.623348,
+    "seen": 1794141829.5361104,
+    "ast_hash": "d065a1510a2f743e523c8e6192ff50b1",
     "semantic_hash": ""
   },
   "src-tauri/src/vdprofile.rs": {
@@ -966,9 +966,21 @@
     "semantic_hash": ""
   },
   "docs/NOTIFICHE.md": {
-    "mtime": 1794141267.0794601,
-    "seen": 1794141269.549437,
-    "ast_hash": "48f740afd6708069a64809c6d2f07b7b",
+    "mtime": 1794141827.0031502,
+    "seen": 1794141829.5361576,
+    "ast_hash": "637f0e6e9a049fe0063925f50946ab65",
+    "semantic_hash": ""
+  },
+  "scripts/test-notif-probe.ps1": {
+    "mtime": 1794141738.3635552,
+    "seen": 1794141829.5360541,
+    "ast_hash": "8bd17e6340772c83c16a32ac91f86285",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/notifprobe.rs": {
+    "mtime": 1794141642.6534128,
+    "seen": 1794141829.5361006,
+    "ast_hash": "139a08b175cff208fb18fc2747e09cae",
     "semantic_hash": ""
   },
   "package-lock.json": {
