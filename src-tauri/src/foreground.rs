@@ -206,6 +206,8 @@ fn update(hwnd: HWND) {
         return;
     }
     LAST_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+    // La barra dei menu segue la FINESTRA, non solo l'app: due finestre della stessa app hanno menu diversi.
+    crate::menubar::on_window(hwnd, &app.name);
     {
         let Ok(mut last) = LAST.lock() else { return };
         if last.as_ref() == Some(&app) {
@@ -265,9 +267,27 @@ fn initial_window() -> HWND {
     fg
 }
 
+/// Rete di sicurezza: l'evento di sistema del primo piano a volte non arriva (osservato dal vivo: finestre rese
+/// attive da un altro processo restavano senza evento per decine di secondi, e la barra mostrava l'app di prima).
+/// Ogni 300 ms si guarda comunque la finestra in primo piano e, se è cambiata, si aggiorna come farebbe l'evento
+/// (`update` è idempotente).
+fn poll_thread() {
+    let mut last = 0isize;
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let fg = unsafe { GetForegroundWindow() };
+        if fg.0.is_null() || fg.0 as isize == last {
+            continue;
+        }
+        last = fg.0 as isize;
+        update(fg);
+    }
+}
+
 /// Avvia il thread con l'hook.
 pub fn start(app: AppHandle) {
     let _ = APP.set(app);
+    std::thread::spawn(poll_thread);
     std::thread::spawn(|| unsafe {
         let hook = SetWinEventHook(
             EVENT_SYSTEM_FOREGROUND,

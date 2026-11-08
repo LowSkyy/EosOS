@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import ActiveAppName from "./components/ActiveApp";
+import AppMenus from "./components/AppMenus";
 import Clock from "./components/Clock";
 import Indicators from "./components/Indicators";
 
@@ -13,7 +13,7 @@ export default function App() {
         void invoke("indicators_menu");
       }}
     >
-      <ActiveAppName />
+      <AppMenus />
       <div className="menubar-right">
         <Indicators />
         <Clock />

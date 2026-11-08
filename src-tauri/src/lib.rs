@@ -19,6 +19,7 @@ mod launcherstore;
 mod launcherwin;
 mod mc;
 mod mclayout;
+mod menubar;
 mod menumodel;
 mod menuread;
 mod mchook;
@@ -41,6 +42,12 @@ mod tests;
 use tauri::Manager;
 use windows::core::BOOL;
 use windows::Win32::System::Console::SetConsoleCtrlHandler;
+
+/// La riga di menu corrente della barra (la pagina la chiede all'avvio, poi ascolta `menubar-row`).
+#[tauri::command]
+fn menubar_current() -> Option<menubar::Row> {
+    menubar::current()
+}
 
 #[tauri::command]
 fn get_active_app() -> Option<foreground::ActiveApp> {
@@ -536,7 +543,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, menubar_current, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
@@ -561,6 +568,7 @@ pub fn run() {
             launcheract::set_mc_open(mcwin::open_soon);
             launcheract::set_mc_corner(mcwin::toggle_corner);
             launcheract::set_mc_keys(mcwin::toggle_key);
+            menubar::start(app.handle().clone());
             foreground::start(app.handle().clone());
             Ok(())
         })

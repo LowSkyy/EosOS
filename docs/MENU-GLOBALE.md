@@ -2,7 +2,7 @@
 
 Obiettivo: come su macOS, i menu dell'app in primo piano (File, Modifica, Visualizza...) compaiono **nella barra in alto di EosOS**, accanto al nome dell'app, invece che dentro la finestra. Un clic su una voce apre il menu a tendina e sceglierne una voce esegue il comando nell'app.
 
-Stato: specifica (8 nov 2026) e **G1 e G2 fatte**. **Scelta dell'utente: opzione 1, ibrido.** Restano G3-G6.
+Stato: specifica (8 nov 2026) e **G1, G2 e G3 fatte**. **Scelta dell'utente: opzione 1, ibrido.** Restano G4-G6.
 
 ## Cosa fa macOS (da replicare)
 
@@ -78,6 +78,22 @@ Tempi: UI Automation fra 3 e 112 ms, **nessuna finestra ha fatto scadere il limi
 - **L'ibrido** (`compose`): la fila della barra è il menu col **nome dell'app in grassetto** («Mostra nel Dock», «Esci da ...»), poi i menu letti dall'app (puliti; un menu vuoto o senza titolo non si mostra; al massimo 12 in tutto), poi «**Finestra**» fatto da EosOS (Riduci a icona, Ingrandisci o Ripristina secondo lo stato, Chiudi) **salvo che l'app ne abbia già uno** (riconosciuto in italiano, inglese, francese e tedesco). Senza un menu leggibile restano solo il nome dell'app e «Finestra»: la barra non è mai vuota.
 
 Scelte da confermare: i comandi della prima versione sono quelli sopra; «Sposta su un altro desktop» è escluso (serve l'elenco dei desktop e il backend di M5, non ancora collaudato in scrittura).
+
+## G3 — La barra: FATTA (8 nov 2026)
+
+La barra in alto mostra ora il **nome dell'app in primo piano in grassetto** e, dopo, la **fila dei suoi menu**, con «Finestra» fatto da EosOS in fondo (l'ibrido). I titoli sono ancora solo etichette (la tendina è G4); i menu che si potranno aprire hanno già l'evidenziazione al passaggio del mouse.
+
+**Come funziona**
+- **Lettura** (`menuread::read_menus`, solo lettura): prima l'`HMENU` classico, **con tutte le voci** (sottomenu fino a 4 livelli, 100 voci per livello, separatori, voci disattivate e spuntate); se non c'è, la barra di UI Automation, di cui si leggono **solo i titoli di primo livello** e i menu restano «pigri» (voci vuote, da leggere all'apertura in G4). Tempo massimo 1,5 s per la lettura con UI Automation, in un thread a parte.
+- **Conversione** (`menumodel::raw_to_top`, pura, testata): titoli ripuliti dagli acceleratori `&`, scorciatoia separata dopo la tabulazione, sottomenu senza azione, e per ogni voce di azione il **percorso nella posizione originale del menu dell'app** (primo indice = il menu di primo livello), che resta valido dopo ogni taglio del modello. I menu «pigri» restano nella barra anche con l'elenco vuoto.
+- **Barra** (`menubar.rs`): quando cambia la finestra in primo piano si emette subito una riga di ripiego (nome + «Finestra»), poi un thread legge il menu e, se la finestra è ancora quella, emette la riga completa (evento `menubar-row`; comando `menubar_current` per la pagina che parte dopo). Ogni nuova richiesta scavalca quelle vecchie (cambiando finestra in fretta non si leggono quelle di mezzo); cache a tempo (5 s se il menu c'è, 3 s se non c'era). Sul desktop solo il nome. **L'hook del primo piano non fa altro che annotare e inviare**: leggere finestre altrui o emettere eventi da lì potrebbe bloccarlo.
+- **Pagina**: `AppMenus.tsx` sostituisce il vecchio nome dell'app; la funzione pura `acceptRow` impedisce che una riga di ripiego sovrascriva una già letta della stessa finestra.
+
+**Difetto vecchio trovato e corretto: il nome dell'app in barra poteva restare indietro per decine di secondi.** L'evento di sistema del primo piano (`SetWinEventHook`) in certi casi non arrivava (finestre rese attive da un altro processo): provato dal vivo, le prime tre finestre portate in primo piano non producevano nessun evento, mentre le successive sì; non ne ho trovato la causa. Ora un thread guarda la finestra in primo piano ogni 300 ms e aggiorna come farebbe l'evento (`update` è idempotente): la barra, e con lei il Dock che usa la stessa informazione, non dipendono più dall'evento da solo.
+
+**Verifica dal vivo** (`scripts/test-menubar.ps1`, 17 controlli, finestre di prova mie; nessun clic, nessun tasto, nessuna voce invocata): finestra con menu classico → nome, File, Modifica, Visualizza, Aiuto, Finestra, con acceleratore tolto, primo menu in grassetto, «File» con 3 voci («Apri» con scorciatoia Ctrl+O, separatore, «Esci»), percorso dell'azione `0,0`, e la barra mostra gli stessi titoli; finestra con `MenuStrip` → File, Modifica, Aiuto «pigri»; console → solo nome e Finestra; tre cambi rapidi → vince l'ultima finestra e la barra mostra la sua riga; tornare su una finestra già letta → riga completa in 74 ms. Con Visual Studio Code in primo piano la barra mostra davvero i suoi menu (File, Edit, Selection, View, Go, Run, Terminal, Help) senza aver fatto altro. Regressioni: hook di tastiera 41, panoramica 58, misura dei menu: tutti OK. Rust 297 test (3 a richiesta), pagina 105, clippy a 0 avvisi.
+
+**Non provato:** la barra con due monitor (una barra per monitor, stesso evento: dovrebbe coincidere, non l'ho guardato); il comportamento di app con menu che cambiano mentre sono in primo piano (la cache dura 5 s e si riprova solo al cambio di finestra); aspetto con tema chiaro (i colori vengono dalle variabili della barra); lettura di app molto grandi o lente oltre VS Code.
 
 ## Fuori scopo
 

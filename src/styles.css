@@ -30,6 +30,16 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Menu globale per app (G3): nome dell'app in grassetto e la fila dei suoi menu. */
+.app-menus { display: flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; }
+.app-menu {
+  padding: 2px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+  color: var(--bar-fg);
+}
+.app-menu-name { font-weight: var(--weight-strong); }
+.app-menu-openable:hover { background: rgba(255, 255, 255, 0.14); }
 .clock {
   font-weight: var(--weight-regular);
   color: var(--bar-fg-muted);

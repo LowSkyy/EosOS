@@ -70,6 +70,9 @@ pub struct TopMenu {
     pub items: Vec<Item>,
     /// Il menu col nome dell'app (in grassetto nella barra).
     pub bold: bool,
+    /// Le voci non sono ancora state lette (UI Automation le espone solo ad app aperta): si leggono quando
+    /// l'utente apre il menu (G4). Un menu "pigro" resta nella barra anche con l'elenco vuoto.
+    pub lazy: bool,
 }
 
 /// Divide un titolo grezzo ("&Apri...\tCtrl+O") in etichetta e scorciatoia, tolti gli acceleratori `&` (`&&`
@@ -134,6 +137,52 @@ pub fn normalize(items: Vec<Item>, depth: usize) -> Vec<Item> {
     out
 }
 
+/// Una voce come l'ha letta il lettore (G1/G3), prima di ogni pulizia.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RawItem {
+    pub text: String,
+    pub separator: bool,
+    pub grayed: bool,
+    pub checked: bool,
+    pub children: Vec<RawItem>,
+}
+
+/// Un menu di primo livello come l'ha letto il lettore.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RawMenu {
+    pub text: String,
+    pub items: Vec<RawItem>,
+    /// Le voci non sono state lette (si leggono all'apertura).
+    pub lazy: bool,
+}
+
+fn raw_item(r: &RawItem, path: Vec<usize>) -> Item {
+    let (title, shortcut) = split_label(&r.text);
+    if r.separator {
+        return Item::separator();
+    }
+    let children: Vec<Item> =
+        r.children.iter().enumerate().map(|(i, c)| raw_item(c, [path.clone(), vec![i]].concat())).collect();
+    // Un sottomenu si apre, non si esegue: l'azione ce l'hanno solo le foglie.
+    let action = if children.is_empty() { Some(Action::App(path)) } else { None };
+    Item { title, shortcut, enabled: !r.grayed, checked: r.checked, separator: false, action, children }
+}
+
+/// Dai menu letti ai menu del modello: titoli ripuliti e percorsi che indicano la POSIZIONE ORIGINALE di ogni
+/// voce (primo indice = il menu di primo livello), prima di qualunque taglio, così G5 trova sempre quella giusta.
+/// Pura, testata.
+pub fn raw_to_top(raw: &[RawMenu]) -> Vec<TopMenu> {
+    raw.iter()
+        .enumerate()
+        .map(|(i, m)| TopMenu {
+            title: split_label(&m.text).0,
+            bold: false,
+            lazy: m.lazy,
+            items: m.items.iter().enumerate().map(|(j, it)| raw_item(it, vec![i, j])).collect(),
+        })
+        .collect()
+}
+
 /// Lo stato della finestra che serve ai menu di EosOS.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WinState {
@@ -148,12 +197,18 @@ pub fn app_menu(app_name: &str) -> TopMenu {
     TopMenu {
         title: name.clone(),
         bold: true,
+        lazy: false,
         items: vec![
             Item::leaf("Mostra nel Dock", Action::Eos(Cmd::ShowInDock)),
             Item::separator(),
             Item::leaf(&format!("Esci da {name}"), Action::Eos(Cmd::Quit)),
         ],
     }
+}
+
+/// La riga della barra quando non c'è un'app (il desktop): solo il nome, in grassetto, senza voci. Pura, testata.
+pub fn name_only(name: &str) -> Vec<TopMenu> {
+    vec![TopMenu { title: limit_title(name.trim()), items: Vec::new(), bold: true, lazy: false }]
 }
 
 /// Il menu "Finestra" fatto da EosOS. Pura, testata.
@@ -168,6 +223,7 @@ pub fn window_menu(w: WinState) -> TopMenu {
     TopMenu {
         title: "Finestra".into(),
         bold: false,
+        lazy: false,
         items: vec![minimize, size, Item::separator(), Item::leaf("Chiudi", Action::Eos(Cmd::Close))],
     }
 }
@@ -186,11 +242,11 @@ pub fn compose(app_name: &str, read: Option<Vec<TopMenu>>, w: WinState) -> Vec<T
     for m in read.unwrap_or_default() {
         let title = limit_title(m.title.trim());
         let items = normalize(m.items, 0);
-        if title.is_empty() || items.is_empty() {
+        if title.is_empty() || (items.is_empty() && !m.lazy) {
             continue; // un menu vuoto non si mostra
         }
         has_window |= is_window_menu(&title);
-        row.push(TopMenu { title, items, bold: false });
+        row.push(TopMenu { title, items, bold: false, lazy: m.lazy });
         if row.len() >= MAX_TOP {
             break;
         }
@@ -210,6 +266,51 @@ mod tests {
     }
     fn w() -> WinState {
         WinState { maximized: false, minimized: false }
+    }
+
+    fn rawi(text: &str) -> RawItem {
+        RawItem { text: text.into(), ..RawItem::default() }
+    }
+
+    #[test]
+    fn raw_menus_become_model_menus_with_original_paths() {
+        let mut sub = rawi("Recenti");
+        sub.children = vec![rawi("uno"), RawItem { separator: true, ..RawItem::default() }, rawi("due")];
+        let mut gray = rawi("&Salva	Ctrl+S");
+        gray.grayed = true;
+        gray.checked = true;
+        let raw = vec![
+            RawMenu { text: "&File".into(), items: vec![rawi("&Nuovo"), gray, sub], lazy: false },
+            RawMenu { text: "Aiuto".into(), items: vec![], lazy: true },
+        ];
+        let top = raw_to_top(&raw);
+        assert_eq!(top[0].title, "File");
+        assert_eq!(top[0].items[0].action, Some(Action::App(vec![0, 0])));
+        let s = &top[0].items[1];
+        assert!(!s.enabled && s.checked && s.shortcut.as_deref() == Some("Ctrl+S"));
+        assert_eq!(s.action, Some(Action::App(vec![0, 1])));
+        let r = &top[0].items[2];
+        assert!(r.is_submenu() && r.action.is_none(), "un sottomenu non ha azione");
+        assert_eq!(r.children[2].action, Some(Action::App(vec![0, 2, 2])), "il percorso conta anche i separatori");
+        assert!(top[0].items[2].children[1].separator);
+        assert!(top[1].lazy && top[1].items.is_empty());
+    }
+
+    #[test]
+    fn paths_keep_pointing_at_the_original_position_after_cleaning() {
+        let raw = vec![RawMenu { text: "File".into(), items: vec![rawi(""), rawi("Apri")], lazy: false }];
+        let row = compose("App", Some(raw_to_top(&raw)), WinState { maximized: false, minimized: false });
+        // La voce senza titolo è sparita, ma "Apri" indica ancora la posizione 1 del menu originale.
+        assert_eq!(row[1].items[0].title, "Apri");
+        assert_eq!(row[1].items[0].action, Some(Action::App(vec![0, 1])));
+    }
+
+    #[test]
+    fn lazy_menus_stay_in_the_bar_even_when_empty() {
+        let read = vec![TopMenu { title: "File".into(), items: vec![], bold: false, lazy: true }];
+        let row = compose("App", Some(read), WinState { maximized: false, minimized: false });
+        assert_eq!(row.iter().map(|m| m.title.as_str()).collect::<Vec<_>>(), vec!["App", "File", "Finestra"]);
+        assert!(row[1].lazy);
     }
 
     #[test]
@@ -279,6 +380,13 @@ mod tests {
     }
 
     #[test]
+    fn the_desktop_row_is_only_a_name() {
+        let r = name_only(" Desktop ");
+        assert_eq!(r.len(), 1);
+        assert!(r[0].bold && r[0].items.is_empty() && r[0].title == "Desktop");
+    }
+
+    #[test]
     fn window_menu_follows_the_window_state() {
         let m = window_menu(w());
         assert_eq!(m.items[1].title, "Ingrandisci");
@@ -300,10 +408,10 @@ mod tests {
     #[test]
     fn with_a_readable_menu_the_app_menus_come_between_name_and_window() {
         let read = vec![
-            TopMenu { title: "File".into(), items: vec![it("Nuovo"), it("Apri")], bold: false },
-            TopMenu { title: "Vuoto".into(), items: vec![Item::separator()], bold: false },
-            TopMenu { title: "".into(), items: vec![it("x")], bold: false },
-            TopMenu { title: "Modifica".into(), items: vec![it("Copia")], bold: true },
+            TopMenu { title: "File".into(), items: vec![it("Nuovo"), it("Apri")], bold: false, lazy: false },
+            TopMenu { title: "Vuoto".into(), items: vec![Item::separator()], bold: false, lazy: false },
+            TopMenu { title: "".into(), items: vec![it("x")], bold: false, lazy: false },
+            TopMenu { title: "Modifica".into(), items: vec![it("Copia")], bold: true, lazy: false },
         ];
         let row = compose("Blocco note", Some(read), w());
         let titles: Vec<&str> = row.iter().map(|m| m.title.as_str()).collect();
@@ -314,7 +422,7 @@ mod tests {
     #[test]
     fn an_app_that_has_its_own_window_menu_does_not_get_a_second_one() {
         for name in ["Finestra", "Window", " window "] {
-            let read = vec![TopMenu { title: name.into(), items: vec![it("Riduci")], bold: false }];
+            let read = vec![TopMenu { title: name.into(), items: vec![it("Riduci")], bold: false, lazy: false }];
             let row = compose("App", Some(read), w());
             assert_eq!(row.len(), 2, "{name}");
         }
@@ -323,7 +431,7 @@ mod tests {
 
     #[test]
     fn the_bar_never_gets_too_many_menus() {
-        let read: Vec<TopMenu> = (0..40).map(|i| TopMenu { title: format!("M{i}"), items: vec![it("x")], bold: false }).collect();
+        let read: Vec<TopMenu> = (0..40).map(|i| TopMenu { title: format!("M{i}"), items: vec![it("x")], bold: false, lazy: false }).collect();
         let row = compose("App", Some(read), w());
         assert!(row.len() <= MAX_TOP);
         assert_eq!(row[0].title, "App");

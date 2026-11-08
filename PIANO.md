@@ -71,4 +71,4 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 - Launcher stile Spotlight: specifica scritta (7 nov 2026), vedi `docs/LAUNCHER.md`; L1-L6 fatte (vedi `docs/LAUNCHER.md`); manca solo la prova del riavvio di Explorer con il Launcher attivo (`scripts\test-launcher.ps1 -WithExplorerRestart`)
 - Indicatori di sistema (batteria, rete, volume): I1-I4 fatte (7 nov 2026), vedi `docs/INDICATORI.md`; non provati: riavvio di Explorer, ripresa dalla sospensione, scrittura sull'audio vero
 - Mission Control: specifica scritta (7 nov 2026), vedi `docs/MISSION-CONTROL.md`; M1-M6 fatte (dati, panoramica, animazione/scorciatoia/angolo, scale e fascia dei desktop, Spaces completo con profili e degradazione, Win+Tab e Alt+Tab con l'hook in un processo separato); da collaudare con l'ok dell'utente: spostare/rinominare/rimuovere desktop (`scripts\test-vdesk-internal.ps1 -ConfermatoDallUtente`)
-- Menu globale per app: scelta: ibrido; G1 (misura) e G2 (modello puro) fatte, restano G3-G6, vedi `docs/MENU-GLOBALE.md`
+- Menu globale per app: scelta: ibrido; G1 (misura), G2 (modello) e G3 (la barra) fatte, restano G4-G6, vedi `docs/MENU-GLOBALE.md`
