@@ -1,7 +1,7 @@
 # Graph Report - EosOS  (2026-11-08)
 
 ## Corpus Check
-- 183 files · ~220,862 words
+- 183 files · ~220,928 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 3, .icns 1, .ico 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `32b9bf95`
+- Built from commit: `fbbb6636`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -871,7 +871,7 @@ Cohesion: 0.50
 Nodes (4): Held, Alt, None, Win
 
 ## Knowledge Gaps
-- **114 isolated node(s):** `Failed`, `Missing`, `BackupAndFresh`, `Fresh`, `Use` (+109 more)
+- **114 isolated node(s):** `BackupAndFresh`, `Fresh`, `Use`, `Both`, `HMenu` (+109 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1000 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **58 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -879,16 +879,16 @@ Nodes (4): Held, Alt, None, Win
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `same_app()` connect `same_app` to `dock.rs`, `dockstore.rs`, `dockact.rs`, `package.json`, `LPARAM`?**
-  _High betweenness centrality (0.155) - this node is a cross-community bridge._
-- **What connects `Failed`, `Missing`, `BackupAndFresh` to the rest of the system?**
+  _High betweenness centrality (0.160) - this node is a cross-community bridge._
+- **What connects `BackupAndFresh`, `Fresh`, `Use` to the rest of the system?**
   _114 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `compilerOptions` be split into smaller, more focused modules?**
   _Cohesion score 0.1 - nodes in this community are weakly interconnected._
 - **Why does `name` connect `package.json` to `same_app`?**
-  _High betweenness centrality (0.155) - this node is a cross-community bridge._
+  _High betweenness centrality (0.159) - this node is a cross-community bridge._
 - **Should `tauri.conf.json` be split into smaller, more focused modules?**
   _Cohesion score 0.07692307692307693 - nodes in this community are weakly interconnected._
 - **Why does `vitest` connect `package.json` to `indicators.ts`, `menubar.ts`, `calendar.ts`, `stacks.ts`, `theme.ts`, `Clock.tsx`, `launcher.ts`, `Dock.tsx`, `Mc.tsx`, `tokens.test.ts`, `Settings.tsx`, `useBackdrop.ts`?**
-  _High betweenness centrality (0.069) - this node is a cross-community bridge._
+  _High betweenness centrality (0.058) - this node is a cross-community bridge._
 - **Should `panelwin.rs` be split into smaller, more focused modules?**
   _Cohesion score 0.07149758454106281 - nodes in this community are weakly interconnected._

@@ -85,6 +85,12 @@ try {
   $handle = $ps.BeginInvoke()
   Check 'server del feed locale avviato' ($listener.IsListening)
 
+  # L'installatore puo' aver gia' avviato EosOS (senza la porta di debug): lo si chiude, cosi' il WebView2 riparte con la porta.
+  # (Siamo dentro la Sandbox: chiudere i processi WebView2 non tocca nient'altro.)
+  $pre = @(Get-Process eosos -ErrorAction SilentlyContinue)
+  Log "Processi eosos subito dopo l'installazione: $($pre.Count)"
+  Get-Process eosos, msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force
+  Start-Sleep 4
   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
   Start-Process $exe
   Start-Sleep 25
