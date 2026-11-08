@@ -8,7 +8,8 @@ export type SettingKind =
   | { type: "hotkey" }
   | { type: "names"; max: number }
   | { type: "folders"; max: number }
-  | { type: "pinned" };
+  | { type: "pinned" }
+  | { type: "action" };
 
 export type SettingEntry = {
   key: string;

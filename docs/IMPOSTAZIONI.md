@@ -2,7 +2,7 @@
 
 Obiettivo: una finestra «Impostazioni di EosOS», in stile Impostazioni di Sistema di macOS, dove si cambiano **tutte** le preferenze di EosOS con il mouse. Oggi le preferenze ci sono, ma sono sparse e quasi nascoste: menu contestuali del Dock e della barra, voci del Launcher che accendono e spengono cose, e file JSON da modificare a mano.
 
-Stato: specifica (8 nov 2026); **decisioni dell'utente (8 nov 2026): sì a tutto**, cioè questo è il passo successivo, l'avvio automatico con Windows è incluso (S4) e la finestra è senza bordi in vetro come Launcher e pannelli. **S1, S2 e S3 fatte.** La roadmap precedente è finita (Dock, Launcher, Indicatori, Mission Control, Menu globale); questo è il passo che ho scelto come successivo perché è il buco più evidente in uso quotidiano. 
+Stato: specifica (8 nov 2026); **decisioni dell'utente (8 nov 2026): sì a tutto**, cioè questo è il passo successivo, l'avvio automatico con Windows è incluso (S4) e la finestra è senza bordi in vetro come Launcher e pannelli. **S1-S4 fatte.** La roadmap precedente è finita (Dock, Launcher, Indicatori, Mission Control, Menu globale); questo è il passo che ho scelto come successivo perché è il buco più evidente in uso quotidiano. 
 
 ## Cosa fa macOS (da replicare) e da dove viene
 
@@ -116,6 +116,21 @@ Una finestra «Impostazioni di EosOS» senza bordi (angoli arrotondati disegnati
 Regressioni (aggiornate dove cambiavano le sezioni): impostazioni S1 (67), finestra S2 (35, ora con le sezioni nuove), Mission Control apertura/scorciatoie (39), Launcher: tutte OK. Rust 323 test (3 a richiesta), pagina 122, clippy a 0 avvisi.
 
 **Non provato:** un vero conflitto con un programma esterno su una scorciatoia di Mission Control (il rifiuto è provato con quella del Launcher, che è dello stesso processo ma usa lo stesso meccanismo del sistema); il selettore con una cartella vera scelta col mouse (si è provata la pagina con il selettore finto e il selettore vero solo aperto e chiuso); riordino delle app fissate con il Dock che le ridisegna dal vivo (si è verificato il deposito e il file).
+
+## S4 — Generale e avvio automatico: FATTA (8 nov 2026)
+
+**Sezione «Generale»** (la prima della finestra, ora sei sezioni e **21** impostazioni):
+- **«Apri EosOS all'accesso»** (`general.autostart`): scrive e toglie UN solo valore, `EosOS`, nella chiave `Run` **dell'utente** (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`): niente chiavi di sistema, niente attività pianificate, nessun altro valore. Il valore è il percorso di questo eseguibile fra virgolette. Rispetta Gestione attività: se la voce è stata disattivata da lì (`StartupApproved`), per le impostazioni risulta **spenta**, e riaccenderla da qui toglie il blocco. Rifiuta di accendersi se non trova il file di EosOS. Spegnere due volte, o accendere due volte, va bene.
+- **«Lingua»** (`general.language`): solo Italiano; c'è per dire com'è.
+- **«Rapporto sui desktop virtuali»** (`general.report`): un **pulsante** (nuovo tipo `Action`, senza valore) che scrive e apre il rapporto tecnico di M5 (versione di Windows ed esito dei controlli; nessun dato personale). `settings_action(key)` ha il suo comando e la sua validazione: un interruttore non si può premere come pulsante e un pulsante non si imposta come un valore.
+
+**Logica in `autostart.rs`** (6 test con una chiave di prova sotto HKCU, mai quella vera): funzioni che lavorano su chiavi passate dal chiamante; scrivere/togliere tocca solo il valore `EosOS` (provato con un altro valore nella stessa chiave che resta identico), blocco di Gestione attività letto dal primo byte (dispari = disattivata), percorso relativo o inesistente rifiutato senza nemmeno creare la chiave.
+
+**Verifica dal vivo** (`scripts/test-settings-s4.ps1`, **21 controlli**): Generale è la prima sezione con le tre righe e la lingua ha solo «Italiano»; all'inizio spento; **cliccando l'interruttore compare il valore `EosOS` nella chiave `Run` dell'utente, fra virgolette e con il percorso di questo eseguibile**; gli altri valori della chiave `Run` restano identici; con il blocco di Gestione attività risulta spento, riaccenderlo lo toglie; spegnere toglie il valore; valori non booleani e lingue inesistenti rifiutati; il rapporto viene scritto (senza aprirlo, con `EOSOS_TEST_NO_OPEN` nelle build di prova), contiene versione di Windows e controlli e **non contiene il nome utente**; ricerca «avvio automatico» → prima l'avvio all'accesso. Rust 331 test (3 a richiesta), pagina 122, clippy a 0 avvisi; le prove S1, S2, S3 aggiornate e passate.
+
+### Incidente durante la prova (8 nov 2026)
+
+**La prima esecuzione di `test-settings-s4.ps1` ha cancellato i valori di `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run`.** Lo script usava `New-Item -Path <chiave> -Force` su quella chiave, che esisteva già: in PowerShell `-Force` su una chiave esistente **la ricrea vuota**. Quella chiave contiene, per ogni programma che parte all'accesso, un valore che Gestione attività usa per sapere se è **attivato o disattivato**. Prima della prova c'erano 9 valori (Medal, Spotify, Docker Desktop, electron.app.Vaydeer keyboard, Gemini, GoogleUpdaterTaskUser156.0.8067.0, Discord, LGHUB, GoogleUpdaterTaskUser157.0.8089.0); ora la chiave è vuota. **Un valore mancante vale «attivata»**: i programmi della chiave `Run` partono come prima, ma **quelli che l'utente aveva disattivato da Gestione attività ripartirebbero** al prossimo accesso. Non avevo una copia completa (salvavo solo il valore `EosOS`), e non c'è una copia di ripristino accessibile: **non si può ricostruire quali fossero disattivati**. Da rifare a mano: Gestione attività → App di avvio → disattivare quelle che non si vogliono. Lo script è corretto: niente `-Force` su chiavi esistenti, **esportazione completa delle chiavi con `reg export` prima** e `reg import` dalla copia se alla fine il registro non coincide. Regola salvata in memoria per le prove future.
 
 ## Decisioni (prese dall'utente, 8 nov 2026)
 

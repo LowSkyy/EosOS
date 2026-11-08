@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Section {
+    General,
     Appearance,
     Dock,
     MenuBar,
@@ -22,6 +23,7 @@ pub enum Section {
 impl Section {
     pub fn label(self) -> &'static str {
         match self {
+            Section::General => "Generale",
             Section::Appearance => "Aspetto",
             Section::Dock => "Dock",
             Section::MenuBar => "Barra dei menu",
@@ -45,6 +47,8 @@ pub enum Kind {
     Folders,
     /// Le app fissate nel Dock: si può togliere e riordinare, non aggiungere (si fissa dal Dock).
     Pinned,
+    /// Un pulsante che esegue un'azione (senza valore).
+    Action,
 }
 
 /// Una voce dell'elenco chiuso.
@@ -61,11 +65,15 @@ pub struct Spec {
     pub live: bool,
 }
 
+const LANGUAGES: &[(&str, &str)] = &[("it", "Italiano")];
 const GLASS: &[(&str, &str)] = &[("clear", "Vetro trasparente"), ("standard", "Vetro standard"), ("solid", "Vetro opaco")];
 const LAUNCHER_HOTKEYS: &[(&str, &str)] = &[("Alt+Space", "Alt+Spazio"), ("Ctrl+Alt+Space", "Ctrl+Alt+Spazio"), ("Ctrl+Shift+Space", "Ctrl+Maiusc+Spazio")];
 
 /// L'elenco chiuso di tutte le impostazioni. Le chiavi sono stabili: la pagina e i test le usano.
 pub const SPECS: &[Spec] = &[
+    Spec { key: "general.autostart", section: Section::General, label: "Apri EosOS all'accesso", help: "EosOS parte da solo quando accedi a Windows. Vale solo per il tuo utente e si spegne da qui o da Gestione attività.", kind: Kind::Bool, keywords: &["avvio automatico", "accesso", "login", "avvia con windows", "esecuzione automatica"], live: true },
+    Spec { key: "general.language", section: Section::General, label: "Lingua", help: "Per ora EosOS parla solo italiano.", kind: Kind::Choice(LANGUAGES), keywords: &["italiano", "traduzione"], live: true },
+    Spec { key: "general.report", section: Section::General, label: "Rapporto sui desktop virtuali", help: "Scrive e apre un file tecnico con la versione di Windows e l'esito dei controlli sui desktop virtuali. Non contiene dati personali.", kind: Kind::Action, keywords: &["diagnostica", "rapporto", "desktop virtuali", "spaces", "problemi"], live: true },
     Spec { key: "dock.blur", section: Section::Appearance, label: "Sfocatura dello sfondo", help: "Sfoca quello che sta dietro al Dock, alla barra e ai pannelli.", kind: Kind::Bool, keywords: &["vetro", "blur", "trasparenza"], live: true },
     Spec { key: "dock.glass", section: Section::Appearance, label: "Livello di vetro", help: "Quanto sono trasparenti Dock, barra e pannelli.", kind: Kind::Choice(GLASS), keywords: &["vetro", "trasparente", "opaco", "aspetto"], live: true },
     Spec { key: "dock.autohide", section: Section::Dock, label: "Nascondi automaticamente", help: "Il Dock scompare quando non serve e riappare spostando il mouse sul bordo.", kind: Kind::Bool, keywords: &["auto", "nascondi", "scompare"], live: true },
@@ -177,6 +185,7 @@ pub fn validate(s: &Spec, raw: &Value) -> Result<Value, SettingsError> {
         (Kind::Folders, _) => Err(SettingsError::new("Serve un elenco di cartelle.")),
         (Kind::Pinned, Value::List(l)) => Ok(Value::List(clean_list(l, MAX_PINNED, MAX_PINNED_NAME))),
         (Kind::Pinned, _) => Err(SettingsError::new("Serve un elenco di app.")),
+        (Kind::Action, _) => Err(SettingsError::new("Questa voce è un pulsante: non ha un valore da cambiare.")),
     }
 }
 
@@ -190,6 +199,18 @@ pub struct Applied {
 pub trait Backend {
     fn get(&self, key: &str) -> Option<Value>;
     fn set(&mut self, key: &str, value: &Value) -> Result<(), SettingsError>;
+    /// Esegue l'azione di un pulsante (`Kind::Action`).
+    fn action(&mut self, key: &str) -> Result<(), SettingsError>;
+}
+
+/// Preme il pulsante `key`: deve esistere ed essere di tipo azione. Pura nel senso che dipende solo dal
+/// `Backend`; testata.
+pub fn run_action(b: &mut dyn Backend, key: &str) -> Result<(), SettingsError> {
+    let s = spec(key).ok_or_else(|| SettingsError::new("Impostazione sconosciuta."))?;
+    if s.kind != Kind::Action {
+        return Err(SettingsError::new("Questa impostazione non è un pulsante."));
+    }
+    b.action(s.key)
 }
 
 /// Cambia un'impostazione: la chiave deve esistere, il valore essere ammesso; poi lo scrive il deposito. Pura nel
@@ -224,6 +245,7 @@ pub enum KindOut {
     Names { max: usize },
     Folders { max: usize },
     Pinned,
+    Action,
 }
 
 fn kind_out(k: Kind) -> KindOut {
@@ -234,6 +256,7 @@ fn kind_out(k: Kind) -> KindOut {
         Kind::Names => KindOut::Names { max: MAX_NAMES },
         Kind::Folders => KindOut::Folders { max: MAX_FOLDERS },
         Kind::Pinned => KindOut::Pinned,
+        Kind::Action => KindOut::Action,
     }
 }
 
@@ -325,6 +348,10 @@ mod tests {
         fn get(&self, key: &str) -> Option<Value> {
             self.data.get(key).cloned()
         }
+        fn action(&mut self, key: &str) -> Result<(), SettingsError> {
+            self.data.insert(format!("ran:{key}"), Value::Bool(true));
+            Ok(())
+        }
         fn set(&mut self, key: &str, v: &Value) -> Result<(), SettingsError> {
             if self.fail {
                 return Err(SettingsError("deposito non scrivibile".into()));
@@ -355,7 +382,7 @@ mod tests {
             }
         }
         // Ogni sezione ha almeno un'impostazione, e l'ordine dell'elenco segue quello delle sezioni.
-        let order = [Section::Appearance, Section::Dock, Section::MenuBar, Section::Launcher, Section::MissionControl];
+        let order = [Section::General, Section::Appearance, Section::Dock, Section::MenuBar, Section::Launcher, Section::MissionControl];
         let mut last = 0;
         for s in SPECS {
             let pos = order.iter().position(|o| *o == s.section).unwrap();
@@ -459,6 +486,25 @@ mod tests {
     }
 
     #[test]
+    fn buttons_run_actions_but_have_no_value() {
+        let mut f = Fake::default();
+        assert!(run_action(&mut f, "general.report").is_ok());
+        assert_eq!(f.get("ran:general.report"), Some(Value::Bool(true)));
+        assert!(run_action(&mut f, "dock.autohide").is_err(), "un interruttore non e' un pulsante");
+        assert!(run_action(&mut f, "nope").is_err());
+        assert!(set_value(&mut f, "general.report", &Value::Bool(true)).is_err(), "un pulsante non si imposta");
+    }
+
+    #[test]
+    fn the_language_has_only_italian_and_autostart_is_a_plain_switch() {
+        let mut f = Fake::default();
+        assert!(set_value(&mut f, "general.language", &t("it")).is_ok());
+        assert!(set_value(&mut f, "general.language", &t("en")).is_err());
+        assert!(set_value(&mut f, "general.autostart", &Value::Bool(true)).is_ok());
+        assert!(set_value(&mut f, "general.autostart", &t("true")).is_err());
+    }
+
+    #[test]
     fn a_failing_backend_reports_the_error_and_changes_nothing() {
         let mut f = Fake { fail: true, ..Fake::default() };
         let r = set_value(&mut f, "dock.autohide", &Value::Bool(true));
@@ -472,7 +518,8 @@ mod tests {
         f.set("dock.autohide", &Value::Bool(true)).unwrap();
         let snap = snapshot(&f);
         assert_eq!(snap.len(), SPECS.len());
-        assert_eq!(snap[0].key, "dock.blur");
+        assert_eq!(snap[0].key, "general.autostart");
+        assert_eq!(snap.iter().find(|e| e.key == "general.report").unwrap().value, None, "un pulsante non ha valore");
         let auto = snap.iter().find(|e| e.key == "dock.autohide").unwrap();
         assert_eq!(auto.value, Some(Value::Bool(true)));
         assert_eq!(snap[0].value, None, "non ancora scritta nel deposito finto");
@@ -480,7 +527,7 @@ mod tests {
         assert!(matches!(&glass.kind, KindOut::Choice { options } if options.len() == 3));
         // Serializza senza errori e con i nomi che la pagina si aspetta.
         let json = serde_json::to_string(&snap[0]).unwrap();
-        assert!(json.contains("\"section_label\":\"Aspetto\"") && json.contains("\"type\":\"bool\""), "{json}");
+        assert!(json.contains("\"section_label\":\"Generale\"") && json.contains("\"type\":\"bool\""), "{json}");
     }
 
     #[test]

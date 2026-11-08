@@ -57,7 +57,8 @@ try {
   Check 'la finestra delle impostazioni e aperta' ([S3]::Find('EosOS Impostazioni') -ne 0)
 
   Write-Host 'A. sezione Aspetto'
-  Check 'e la prima sezione, con sfocatura e livello di vetro' ((Win "document.querySelector('.settings-h').textContent") -eq 'Aspetto' -and (Win "document.querySelectorAll('.settings-row').length") -eq 2)
+  Click-Nav 'Aspetto'
+  Check 'ha sfocatura e livello di vetro' ((Win "document.querySelector('.settings-h').textContent") -eq 'Aspetto' -and (Win "document.querySelectorAll('.settings-row').length") -eq 2)
 
   Write-Host 'B. app fissate: riordino e rimozione'
   Click-Nav 'Dock'

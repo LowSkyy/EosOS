@@ -66,8 +66,9 @@ try {
   Check 'ha il primo piano' (Wait-Until { [SW]::GetForegroundWindow() -eq [IntPtr]$h } 3)
 
   Write-Host 'B. contenuto'
-  Check 'la barra laterale ha le cinque sezioni' ((Navs) -join '|' -eq 'Aspetto|Dock|Barra dei menu|Launcher|Mission Control') ((Navs) -join '|')
-  Check 'si parte dalla prima sezione, Aspetto' ((Heading) -eq 'Aspetto')
+  Check 'la barra laterale ha le sei sezioni' ((Navs) -join '|' -eq 'Generale|Aspetto|Dock|Barra dei menu|Launcher|Mission Control') ((Navs) -join '|')
+  Check 'si parte dalla prima sezione, Generale' ((Heading) -eq 'Generale')
+  Click-Nav 'Aspetto'; Start-Sleep -Milliseconds 400
   Check 'Aspetto mostra sfocatura e livello di vetro' ((Labels) -join '|' -eq 'Sfocatura dello sfondo|Livello di vetro') ((Labels) -join '|')
   Check 'ogni riga ha etichetta e aiuto' ((Win "Array.from(document.querySelectorAll('.settings-row')).every(function(r){return r.querySelector('.settings-help').textContent.length>5})") -eq $true)
 

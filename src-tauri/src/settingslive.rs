@@ -55,6 +55,8 @@ impl Backend for Live {
         let ind = crate::indicatorstore::load;
         let mc = crate::mcstore::load;
         match key {
+            "general.autostart" => b(crate::autostart::is_enabled(&crate::autostart::real_keys(), crate::autostart::NAME)),
+            "general.language" => Some(Value::Text("it".into())),
             "dock.autohide" => b(crate::dockwin::autohide()),
             "dock.reserve" => b(crate::dockwin::reserve_enabled()),
             "dock.blur" => b(crate::dockwin::blur_enabled()),
@@ -77,6 +79,19 @@ impl Backend for Live {
         }
     }
 
+    fn action(&mut self, key: &str) -> Result<(), SettingsError> {
+        match key {
+            "general.report" => {
+                if crate::vdreport::write_and_open() {
+                    Ok(())
+                } else {
+                    Err(SettingsError("Non riesco a scrivere il rapporto.".into()))
+                }
+            }
+            _ => Err(SettingsError("Pulsante sconosciuto.".into())),
+        }
+    }
+
     fn set(&mut self, key: &str, value: &Value) -> Result<(), SettingsError> {
         use crate::indicatorstore::Toggle;
         let indicator = |t: Toggle, cur: bool, want: bool| {
@@ -86,6 +101,20 @@ impl Backend for Live {
             }
         };
         match key {
+            "general.autostart" => {
+                let keys = crate::autostart::real_keys();
+                if want_bool(value)? {
+                    let exe = std::env::current_exe().map_err(|_| SettingsError("Non trovo il file di EosOS.".into()))?;
+                    crate::autostart::enable(&keys, crate::autostart::NAME, &exe).map_err(SettingsError)?;
+                } else {
+                    crate::autostart::disable(&keys, crate::autostart::NAME).map_err(SettingsError)?;
+                }
+            }
+            "general.language" => {
+                if want_text(value)? != "it" {
+                    return Err(SettingsError("Per ora c'è solo l'italiano.".into()));
+                }
+            }
             "dock.autohide" => {
                 if crate::dockwin::autohide() != want_bool(value)? {
                     crate::dockwin::toggle_autohide();

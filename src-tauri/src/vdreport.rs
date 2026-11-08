@@ -24,6 +24,11 @@ pub fn write_and_open() -> bool {
         let _ = std::fs::remove_file(&tmp);
         return false;
     }
+    // Nelle build di prova `EOSOS_TEST_NO_OPEN` scrive il file ma non lo apre (niente finestre a sorpresa).
+    #[cfg(feature = "test-hooks")]
+    if std::env::var_os("EOSOS_TEST_NO_OPEN").is_some() {
+        return true;
+    }
     let target = HSTRING::from(p.to_string_lossy().as_ref());
     let r = unsafe { ShellExecuteW(None, w!("open"), &target, None, None, SW_SHOWNORMAL) };
     r.0 as usize > 32

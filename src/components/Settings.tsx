@@ -97,6 +97,12 @@ export default function Settings() {
     await reload(); // lo stato vero, anche dopo un rifiuto
   };
 
+  const act = async (key: string) => {
+    setErrors((e) => ({ ...e, [key]: "" }));
+    const r = await invoke<SetReply>("settings_action", { key }).catch(() => ({ ok: false, live: false, error: "Non riesco a eseguirlo." }) as SetReply);
+    if (!r.ok) setErrors((e) => ({ ...e, [key]: r.error ?? "Non riesco a eseguirlo." }));
+  };
+
   const sections = sectionsOf(entries);
   const shown = found !== null ? byKeys(entries, found) : inSection(entries, section);
   const title = found !== null ? `Risultati per “${query.trim()}”` : (sections.find((s) => s.id === section)?.label ?? "");
@@ -142,14 +148,14 @@ export default function Settings() {
         <h1 className="settings-h">{title}</h1>
         {shown.length === 0 && <p className="settings-empty">{found !== null ? "Nessuna impostazione corrisponde." : ""}</p>}
         {shown.map((e) => (
-          <Row key={e.key} entry={e} error={errors[e.key]} note={notes[e.key]} onSet={(v) => void set(e.key, v)} showSection={found !== null} />
+          <Row key={e.key} entry={e} error={errors[e.key]} note={notes[e.key]} onSet={(v) => void set(e.key, v)} onAction={() => void act(e.key)} showSection={found !== null} />
         ))}
       </main>
     </div>
   );
 }
 
-function Row({ entry, error, note, onSet, showSection }: { entry: SettingEntry; error?: string; note?: string; onSet: (v: SettingValue) => void; showSection: boolean }) {
+function Row({ entry, error, note, onSet, onAction, showSection }: { entry: SettingEntry; error?: string; note?: string; onSet: (v: SettingValue) => void; onAction: () => void; showSection: boolean }) {
   const { kind, value } = entry;
   const id = `s-${entry.key}`;
   return (
@@ -186,6 +192,11 @@ function Row({ entry, error, note, onSet, showSection }: { entry: SettingEntry; 
         {kind.type === "hotkey" && <HotkeyField id={id} value={String(value ?? "")} onSet={(v) => onSet(v)} />}
         {kind.type === "folders" && <FolderList id={id} items={asList(value)} max={kind.max} onChange={onSet} />}
         {kind.type === "pinned" && <PinnedList id={id} items={asList(value)} onChange={onSet} />}
+        {kind.type === "action" && (
+          <button id={id} type="button" className="settings-button" onClick={onAction}>
+            Mostra il rapporto
+          </button>
+        )}
         {kind.type === "choice" && <span className="settings-sr">{choiceLabel(kind, value)}</span>}
       </div>
     </section>
