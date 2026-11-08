@@ -923,6 +923,31 @@ pub fn run() {
                     let _ = tauri::async_runtime::block_on(updates::check(&handle));
                 });
             }
+            // Solo build di prova: aggiornamento automatico completo (cerca e, se c'è, installa) senza premere i
+            // pulsanti, per provarlo nella Sandbox dove non c'è la porta di debug. Passa dalle stesse funzioni dei comandi.
+            #[cfg(feature = "test-hooks")]
+            if std::env::var_os("EOSOS_TEST_AUTOUPDATE").is_some() {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(15));
+                    let log = |m: String| {
+                        if let Some(dir) = std::env::var_os("LOCALAPPDATA") {
+                            let path = std::path::Path::new(&dir).join("EosOS").join("autoupdate.log");
+                            let _ = std::fs::create_dir_all(path.parent().unwrap());
+                            let _ = std::fs::OpenOptions::new().create(true).append(true).open(path).and_then(|mut f| {
+                                use std::io::Write;
+                                writeln!(f, "{m}")
+                            });
+                        }
+                    };
+                    let st = tauri::async_runtime::block_on(updates::check(&handle));
+                    log(format!("check: {} ({})", st.state, st.text));
+                    if st.state == "available" {
+                        let r = tauri::async_runtime::block_on(updates::install(&handle));
+                        log(format!("install: {r:?}"));
+                    }
+                });
+            }
             launcher::warm_up();
             launcherclip::start();
             indicators::start(app.handle().clone());

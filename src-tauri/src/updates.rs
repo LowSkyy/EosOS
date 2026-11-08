@@ -83,10 +83,10 @@ pub fn idle(current: String) -> Status {
 
 fn updater(app: &tauri::AppHandle) -> tauri_plugin_updater::Result<tauri_plugin_updater::Updater> {
     #[cfg(feature = "test-hooks")]
-    if let Ok(url) = std::env::var("EOSOS_TEST_UPDATE_URL") {
-        if let Ok(u) = url.parse() {
-            return app.updater_builder().endpoints(vec![u])?.timeout(CHECK_TIMEOUT).build();
-        }
+    if let Ok(url) = std::env::var("EOSOS_TEST_UPDATE_URL")
+        && let Ok(u) = url.parse()
+    {
+        return app.updater_builder().endpoints(vec![u])?.timeout(CHECK_TIMEOUT).build();
     }
     app.updater_builder().timeout(CHECK_TIMEOUT).build()
 }

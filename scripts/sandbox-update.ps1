@@ -91,39 +91,27 @@ try {
   Log "Processi eosos subito dopo l'installazione: $($pre.Count)"
   Get-Process eosos, msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Sleep 4
-  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
+  # La 0.1.0 di questa prova e' una build di prova (test-hooks): con EOSOS_TEST_AUTOUPDATE cerca e installa da sola,
+  # passando dalle STESSE funzioni dei pulsanti (updates::check / updates::install: scarica, verifica la firma, installa).
+  $env:EOSOS_TEST_AUTOUPDATE = '1'
+  $alog = Join-Path $env:LOCALAPPDATA 'EosOSutoupdate.log'
+  Remove-Item $alog -ErrorAction SilentlyContinue
   Start-Process $exe
   Start-Sleep 25
   Check 'EosOS 0.1.0 in esecuzione' (@(Get-Process eosos -ErrorAction SilentlyContinue).Count -ge 1)
-  $ws = $null
-  for ($i = 0; $i -lt 10 -and -not $ws; $i++) { try { $ws = Settings-Ws } catch {}; if (-not $ws) { Start-Sleep 2 } }
-  Check 'pagina Impostazioni raggiungibile' ([bool]$ws) "ultimo errore: $script:lastErr; pagine viste: $script:targets"
-  if (-not $ws) {
-    # Diagnostica: la porta di debug e' stata passata ai processi WebView2? E chi ascolta su quali porte?
-    $wv = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -notmatch '--type=' })
-    Log "Processi WebView2 principali: $($wv.Count)"
-    foreach ($w in $wv) { Log ("  pid $($w.ProcessId): " + ($w.CommandLine -replace '\s+', ' ').Substring(0, [math]::Min(400, $w.CommandLine.Length))) }
-    $ids = @(Get-Process eosos, msedgewebview2 -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
-    $ports = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess } | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort)" })
-    Log "Porte in ascolto dei processi EosOS/WebView2: $($ports -join ', ')"
-    Log "Variabile nel processo della prova: $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
-    throw 'senza la pagina Impostazioni non si puo continuare'
-  }
-
-  $st = Cdp-Eval $ws "window.__TAURI_INTERNALS__.invoke('update_check').then(function(r){return JSON.stringify(r)},function(e){return 'ERR:'+e})"
-  Log "update_check -> $st"
-  Check 'update_check: disponibile la 0.1.1' (($st -like '*"state":"available"*') -and ($st -like '*0.1.1*'))
-
-  # Installazione: l'app si chiude durante l'aggiornamento, quindi non si aspetta la risposta.
-  [void](Cdp-Eval $ws "window.__TAURI_INTERNALS__.invoke('update_install')" 10 $false)
   $done = $false
   for ($i = 0; $i -lt 90 -and -not $done; $i++) { Start-Sleep 2; $done = (Test-Path $exe) -and ((Installed-Version $exe) -eq '0.1.1') }
+  if (Test-Path $alog) { Log ("Registro dell'aggiornamento: " + ((Get-Content $alog) -join ' | ')) } else { Log "Nessun registro dell'aggiornamento" }
+  Check 'la ricerca ha trovato la 0.1.1' ((Test-Path $alog) -and ((Get-Content $alog -Raw) -match 'check: available'))
   $v1 = if (Test-Path $exe) { Installed-Version $exe } else { '(manca)' }
-  Check 'dopo update_install il programma installato e la 0.1.1 (firma verificata e installatore eseguito)' ($v1 -eq '0.1.1') $v1
+  Check 'dopo l aggiornamento il programma installato e la 0.1.1 (firma verificata e installatore eseguito)' ($v1 -eq '0.1.1') $v1
   Start-Sleep 10
   $alive = @(Get-Process eosos -ErrorAction SilentlyContinue)
+  Log "Processi eosos dopo l'aggiornamento: $($alive.Count)"
+  Remove-Item env:EOSOS_TEST_AUTOUPDATE -ErrorAction SilentlyContinue
   if ($alive.Count -eq 0 -and (Test-Path $exe)) { Start-Process $exe; Start-Sleep 20; $alive = @(Get-Process eosos -ErrorAction SilentlyContinue) }
   Check 'EosOS 0.1.1 parte e resta in vita' ($alive.Count -ge 1)
+  if ($alive.Count -ge 1) { Check 'e la versione in esecuzione e la 0.1.1' (($alive | Select-Object -First 1).MainModule.FileVersionInfo.ProductVersion -eq '0.1.1') }
 
   Get-Process eosos -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Sleep 3
