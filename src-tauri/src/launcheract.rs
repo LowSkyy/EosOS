@@ -150,6 +150,14 @@ pub const ACTIONS: &[Action] = &[
         run: Run::Internal("mc-wintab"),
     },
     Action {
+        id: "action:eos-settings",
+        name: "Impostazioni di EosOS",
+        keywords: &["preferenze", "opzioni", "dock", "vetro", "scorciatoie", "menu globale", "configurazione"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("eos-settings"),
+    },
+    Action {
         id: "action:menu-toggle",
         name: "Menu globale: attiva o disattiva",
         keywords: &["menu globale", "barra dei menu", "menu bar", "menu dell app"],
@@ -286,6 +294,14 @@ pub fn set_menu_actions(f: fn(&str) -> bool) {
     let _ = MENU_ACT.set(f);
 }
 
+/// Funzione che apre le impostazioni di EosOS, registrata all'avvio dell'app.
+static EOS_SETTINGS: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
+
+/// Registra la funzione che apre le impostazioni (la chiama l'avvio dell'app).
+pub fn set_eos_settings(f: fn()) {
+    let _ = EOS_SETTINGS.set(f);
+}
+
 /// Registra la funzione di Alt+Tab e Win+Tab (la chiama l'avvio dell'app).
 pub fn set_mc_keys(f: fn(&str) -> bool) {
     let _ = MC_KEYS.set(f);
@@ -324,6 +340,7 @@ fn execute(action: &Action) -> bool {
             MC_OPEN.get().map(|f| f()).is_some()
         }
         Run::Internal("vd-report") => crate::vdreport::write_and_open(),
+        Run::Internal("eos-settings") => EOS_SETTINGS.get().map(|f| f()).is_some(),
         Run::Internal("menu-toggle") => MENU_ACT.get().is_some_and(|f| f("toggle")),
         Run::Internal("menu-exclude") => MENU_ACT.get().is_some_and(|f| f("exclude")),
         Run::Internal("mc-alttab") => MC_KEYS.get().is_some_and(|f| f("alt")),

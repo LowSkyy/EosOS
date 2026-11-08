@@ -171,7 +171,7 @@ try {
   PressCtrl 0x33; Start-Sleep -Milliseconds 700
   Check 'chip Azioni visibile' ((Js "!!document.querySelector('.launcher-chip') && document.querySelector('.launcher-chip').textContent") -eq 'Azioni')
   $kinds = Js "Array.from(document.querySelectorAll('.launcher-item')).map(function(e){return e.dataset.kind}).join(',')"
-  Check 'solo azioni' ($kinds -eq 'action') $kinds
+  Check 'solo azioni (Impostazioni di Windows e, dal 8 nov 2026, Impostazioni di EosOS)' ($kinds -match '^action(,action)*$') $kinds
   PressCtrl 0x33; Start-Sleep -Milliseconds 600
   Check 'secondo Ctrl+2 toglie la scheda' ((Js "!document.querySelector('.launcher-chip')") -eq $true)
   PressCtrl 0x31; Start-Sleep -Milliseconds 600
