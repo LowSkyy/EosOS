@@ -786,9 +786,9 @@
     "semantic_hash": ""
   },
   "docs/MENU-GLOBALE.md": {
-    "mtime": 1794105672.379619,
-    "seen": 1794105674.6865945,
-    "ast_hash": "f25176a9fcce6f206e2de559aa426e62",
+    "mtime": 1794126697.1521058,
+    "seen": 1794126699.1629481,
+    "ast_hash": "3b05f84ae3b6cd34c2cadfd3b302479b",
     "semantic_hash": ""
   },
   "scripts/test-menu-probe.ps1": {
@@ -861,6 +861,12 @@
     "mtime": 1794105235.5108235,
     "seen": 1794105674.6865077,
     "ast_hash": "d0f160defe945810f739e903037c56c4",
+    "semantic_hash": ""
+  },
+  "scripts/test-menu-dpi.ps1": {
+    "mtime": 1794126631.1610918,
+    "seen": 1794126699.1628525,
+    "ast_hash": "6ed13f94da8e7fa42d516147bbb2d8de",
     "semantic_hash": ""
   },
   "package-lock.json": {
