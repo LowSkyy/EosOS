@@ -2,7 +2,7 @@
 
 Obiettivo: cliccando l'orologio nella barra si apre un pannello in stile Centro notifiche di macOS: in alto le **notifiche recenti** raggruppate per app, sotto un **calendario** del mese. Oggi l'orologio è solo un testo.
 
-Stato: **solo specifica (8 nov 2026), niente codice.** Il passo l'ho scelto io, come l'ultima volta, fra quelli rimasti (l'altro candidato era la gestione delle finestre in stile Stage Manager). Se preferisci l'altro, dimmelo e riscrivo.
+Stato: specifica (8 nov 2026) e **N1 fatta** (prova di fattibilità). **Decisioni dell'utente (8 nov 2026): sì a tutto**, cioè è questo il passo successivo, il calendario mostra **solo il mese e il giorno** (niente eventi), e **niente banner temporanei** per le notifiche nuove nella prima versione.
 
 ## Cosa fa macOS (da replicare)
 
@@ -35,6 +35,30 @@ Le notifiche di Windows, inoltre, **restano comunque quelle del sistema**: EosOS
 4. **N4 — Elenco nel pannello:** lettura (con consenso esplicito dell'utente), gruppi, «×», apertura dell'app; nessun testo di notifica nei log.
 5. **N5 — Non disturbare** (solo se N1 dice sì e se Windows offre un modo documentato): un interruttore che spegne i banner di EosOS (non quelli di Windows).
 6. **N6 — Rifiniture:** tastiera e accessibilità, scale diverse, impostazioni (sezione nelle Impostazioni di EosOS), revisione.
+
+## N1 — Prova di fattibilità: FATTA (8 nov 2026) — **le notifiche si possono leggere**
+
+`notifprobe.rs` (sola lettura, 5 test) chiede a Windows tre cose, senza chiedere consensi né cambiare niente: l'identità di pacchetto del processo (`GetCurrentPackageFullName`), lo stato di accesso di `UserNotificationListener` (`GetAccessStatus`, **mai** `RequestAccessAsync`) e, se è consentito, **quante** notifiche toast ci sono (solo il numero). Il risultato (comando `notif_probe`) contiene codici e parole fisse, mai testi dell'utente.
+
+**Esito su questo PC (Windows build 26300, EosOS come exe normale non impacchettato):**
+
+| Domanda | Risposta |
+|---|---|
+| EosOS ha un'identità di pacchetto? | **No** (codice 15700, nessun pacchetto) |
+| `UserNotificationListener::Current()` | **funziona** (nessun errore) |
+| Stato di accesso | **`allowed`**, senza che EosOS abbia chiesto o ricevuto alcun consenso |
+| Contare le notifiche toast | **funziona** (3 al momento della prova) |
+| Verifica fino in fondo con una notifica MIA | Una finestra di PowerShell manda un toast di prova (titolo `EosOS-N1-prova`); il conteggio delle notifiche di quell'app passa da 0 a 1; tolto il toast torna a 0 |
+
+**Quindi: sì, un exe normale di EosOS può leggere le notifiche su questo PC, senza identità di pacchetto e senza consenso.** La preoccupazione principale della specifica (l'identità di pacchetto) non si è verificata: **non serve cambiare il modo in cui EosOS si installa**.
+
+**Cose da non dare per scontate:**
+- È la risposta di **una** build di Windows (26300, 26H2). Su altre versioni lo stato potrebbe essere `unspecified` o `denied`: in quel caso il pannello deve dirlo e mandare alle Impostazioni di Windows, senza fingere. Il codice della prova già distingue i casi (`Usable`, `NeedsConsent`, `NeedsPackageIdentity`, `Unknown`).
+- Il fatto che Windows risponda «consentito» a un'app senza consenso è una **scelta di Windows su questa build**: va considerata una caratteristica di sistema da rispettare con attenzione (per questo N4 prevede un **interruttore di EosOS** per spegnere la lettura, spento finché non lo accende l'utente, e nessun testo di notifica nei log né su disco).
+- Si è provato il **conteggio** e il riconoscimento di notifiche **di una sola app (la mia)**; leggere titolo e testo delle notifiche e riceverle in tempo reale (evento di cambiamento) sono N3/N4 e non sono ancora stati provati.
+- `notif_count_for` (conta le notifiche di una app per identificatore) esiste solo nelle build con `test-hooks`: nelle build normali risponde sempre «niente».
+
+**Verifica** (`scripts/test-notif-probe.ps1`, tutti OK): EosOS senza identità; il listener risponde; contare funziona; il conteggio per l'app di prova sale di uno con la mia notifica e torna a zero quando la tolgo. Durante la prova compare per un attimo un avviso a schermo («EosOS-N1-prova»). Rust 340 test (3 a richiesta), clippy a 0 avvisi (anche con la feature di prova).
 
 ## Principi (gli stessi di sempre)
 

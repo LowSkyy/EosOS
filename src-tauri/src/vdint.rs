@@ -513,7 +513,7 @@ fn user_profiles_path() -> Option<PathBuf> {
 }
 
 /// (build, revisione, versione visualizzata) di Windows, dal registro.
-fn build_info() -> (u32, u32, String) {
+pub(crate) fn build_info() -> (u32, u32, String) {
     use windows::core::HSTRING as H;
     use windows::Win32::System::Registry::{RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE, KEY_READ, REG_VALUE_TYPE};
     unsafe {
