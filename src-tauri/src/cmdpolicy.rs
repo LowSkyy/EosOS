@@ -10,6 +10,13 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         "settings_all" => label == "settings" || label == "panel",
         // Il pannello sotto l'orologio può solo accendere/spegnere la lettura delle notifiche e «Non disturbare».
         "settings_set" => label == "settings" || (label == "panel" && matches!(key, Some("notif.read" | "notif.dnd"))),
+        // Dock: aprire app e cambiare le app fissate.
+        "dock_activate" | "dock_reorder" => label == "dock",
+        // Pannello degli indicatori: volume vero, apertura delle impostazioni di Windows, scelta di una voce di menu di
+        // un'altra app.
+        "indicator_open" | "volume_set" | "volume_mute" | "menubar_choose" => label == "panel",
+        // Mission Control: attivare e chiudere finestre vere, cambiare e modificare i desktop virtuali.
+        "mc_activate" | "mc_close_window" | "mc_switch_desktop" | "mc_new_desktop" | "mc_move_window" | "mc_remove_desktop" | "mc_rename_desktop" => label.starts_with("mc-"),
         c if c.starts_with("notif_") => label == "panel",
         c if c.starts_with("launcher_") => label == "launcher",
         _ => true,
@@ -71,7 +78,20 @@ mod tests {
     }
 
     #[test]
-    fn other_commands_are_not_restricted_here() {
-        assert!(allowed("dock", "dock_activate", None) && allowed("bar-0", "panel_toggle", None));
+    fn dock_panel_and_mission_control_actions_have_one_owner() {
+        for c in ["dock_activate", "dock_reorder"] {
+            assert!(allowed("dock", c, None) && !allowed("bar-0", c, None) && !allowed("panel", c, None) && !allowed("launcher", c, None), "{c}");
+        }
+        for c in ["indicator_open", "volume_set", "volume_mute", "menubar_choose"] {
+            assert!(allowed("panel", c, None) && !allowed("bar-0", c, None) && !allowed("dock", c, None) && !allowed("mc-0", c, None), "{c}");
+        }
+        for c in ["mc_activate", "mc_close_window", "mc_switch_desktop", "mc_new_desktop", "mc_move_window", "mc_remove_desktop", "mc_rename_desktop"] {
+            assert!(allowed("mc-0", c, None) && allowed("mc-1", c, None) && !allowed("bar-0", c, None) && !allowed("dock", c, None) && !allowed("panel", c, None), "{c}");
+        }
+    }
+
+    #[test]
+    fn read_only_and_opening_commands_are_not_restricted_here() {
+        assert!(allowed("bar-0", "panel_toggle", None) && allowed("dock", "dock_items", None) && allowed("bar-0", "indicators_get", None));
     }
 }

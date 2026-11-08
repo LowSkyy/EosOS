@@ -107,7 +107,8 @@ fn menubar_menu(app: tauri::AppHandle, index: usize) -> Option<menumodel::TopMen
 
 /// Sceglie una voce del menu (percorso nel modello). Dopo la scelta la tendina si chiude.
 #[tauri::command(async)]
-fn menubar_choose(app: tauri::AppHandle, index: usize, path: Vec<usize>) -> bool {
+fn menubar_choose(window: tauri::Window, app: tauri::AppHandle, index: usize, path: Vec<usize>) -> bool {
+    guard!(window, "menubar_choose", false);
     // Prima si chiude la tendina (il primo piano deve passare all'app), poi si esegue la voce.
     panelwin::hide(&app);
     menubar::choose(index, &path)
@@ -320,7 +321,8 @@ fn dock_items(have: Option<Vec<String>>) -> Vec<dock::DockItem> {
 /// Clic su un'icona del Dock. Il frontend manda solo l'`id` di una voce che il
 /// Dock sta mostrando: il percorso da eseguire lo ricava Rust.
 #[tauri::command(async)]
-fn dock_activate(id: String) {
+fn dock_activate(window: tauri::Window, id: String) {
+    guard!(window, "dock_activate");
     if let Some((item, windows)) = dock::find_with_windows(&id) {
         dockact::activate(&item, &windows);
     }
@@ -418,7 +420,8 @@ fn indicators_get() -> indicators::Indicators {
 /// Clic su un indicatore della barra: apre la pagina di Impostazioni giusta. La pagina manda solo
 /// l'id ("battery", "network", "sound"); l'indirizzo lo sceglie Rust.
 #[tauri::command(async)]
-fn indicator_open(id: String) -> bool {
+fn indicator_open(window: tauri::Window, id: String) -> bool {
+    guard!(window, "indicator_open", false);
     indicators::open_settings(&id)
 }
 
@@ -454,13 +457,15 @@ fn panel_backdrop(since: u64) -> tauri::ipc::Response {
 /// Imposta il volume del dispositivo di uscita (0-100; NaN rifiutato). Nelle build di prova con la
 /// sorgente simulata scrive solo nel file finto, mai sull'audio vero.
 #[tauri::command(async)]
-fn volume_set(percent: f64) -> bool {
+fn volume_set(window: tauri::Window, percent: f64) -> bool {
+    guard!(window, "volume_set", false);
     indicators::set_volume(Some(percent), None)
 }
 
 /// Attiva o disattiva il silenzio del dispositivo di uscita.
 #[tauri::command(async)]
-fn volume_mute(on: bool) -> bool {
+fn volume_mute(window: tauri::Window, on: bool) -> bool {
+    guard!(window, "volume_mute", false);
     indicators::set_volume(None, Some(on))
 }
 
@@ -505,13 +510,15 @@ fn mc_close(app: tauri::AppHandle) {
 /// Porta in primo piano la finestra `id` (la ripristina se è minimizzata) e chiude la panoramica. Solo id
 /// elencati dalla panoramica e ancora esistenti.
 #[tauri::command(async)]
-fn mc_activate(app: tauri::AppHandle, id: u64) -> bool {
+fn mc_activate(window: tauri::Window, app: tauri::AppHandle, id: u64) -> bool {
+    guard!(window, "mc_activate", false);
     mcwin::activate(&app, id)
 }
 
 /// Chiede alla finestra `id` di chiudersi (come il pulsante X). Solo id elencati.
 #[tauri::command(async)]
-fn mc_close_window(app: tauri::AppHandle, id: u64) -> bool {
+fn mc_close_window(window: tauri::Window, app: tauri::AppHandle, id: u64) -> bool {
+    guard!(window, "mc_close_window", false);
     mcwin::close_window(&app, id)
 }
 
@@ -535,31 +542,36 @@ fn mc_desktops() -> Vec<vdesk::Desktop> {
 
 /// Passa a un altro desktop virtuale (solo mentre la panoramica è aperta e solo con un indice valido).
 #[tauri::command(async)]
-fn mc_switch_desktop(app: tauri::AppHandle, index: usize) -> bool {
+fn mc_switch_desktop(window: tauri::Window, app: tauri::AppHandle, index: usize) -> bool {
+    guard!(window, "mc_switch_desktop", false);
     mcwin::switch_desktop(&app, index)
 }
 
 /// Crea un nuovo desktop virtuale (solo mentre la panoramica è aperta).
 #[tauri::command(async)]
-fn mc_new_desktop(app: tauri::AppHandle) -> bool {
+fn mc_new_desktop(window: tauri::Window, app: tauri::AppHandle) -> bool {
+    guard!(window, "mc_new_desktop", false);
     mcwin::new_desktop(&app)
 }
 
 /// Sposta una finestra su un altro desktop (backend interno, solo se ha superato la verifica).
 #[tauri::command(async)]
-fn mc_move_window(app: tauri::AppHandle, id: u64, index: usize) -> bool {
+fn mc_move_window(window: tauri::Window, app: tauri::AppHandle, id: u64, index: usize) -> bool {
+    guard!(window, "mc_move_window", false);
     mcwin::move_window_to(&app, id, index)
 }
 
 /// Rimuove un desktop virtuale.
 #[tauri::command(async)]
-fn mc_remove_desktop(app: tauri::AppHandle, index: usize) -> bool {
+fn mc_remove_desktop(window: tauri::Window, app: tauri::AppHandle, index: usize) -> bool {
+    guard!(window, "mc_remove_desktop", false);
     mcwin::remove_desktop(&app, index)
 }
 
 /// Dà un nome a un desktop virtuale (backend interno, solo se ha superato la verifica).
 #[tauri::command(async)]
-fn mc_rename_desktop(app: tauri::AppHandle, index: usize, name: String) -> bool {
+fn mc_rename_desktop(window: tauri::Window, app: tauri::AppHandle, index: usize, name: String) -> bool {
+    guard!(window, "mc_rename_desktop", false);
     mcwin::rename_desktop(&app, index, &name)
 }
 
@@ -647,7 +659,8 @@ fn launcher_fit(window: tauri::Window, app: tauri::AppHandle, height: f64) {
 /// (contata senza di essa). Un'app aperta non fissata viene fissata lì. Come
 /// sempre, il frontend manda solo l'`id` di una voce che il Dock sta mostrando.
 #[tauri::command(async)]
-fn dock_reorder(id: String, index: usize) {
+fn dock_reorder(window: tauri::Window, id: String, index: usize) {
+    guard!(window, "dock_reorder");
     if let Some(item) = dock::find(&id) {
         let path = std::path::PathBuf::from(&item.path);
         let fallback = dock::Pinned { name: item.name.clone(), path: path.clone() };
