@@ -1134,9 +1134,15 @@
     "semantic_hash": ""
   },
   "docs/PILE.md": {
-    "mtime": 1794174419.0964024,
-    "seen": 1794174424.6899016,
-    "ast_hash": "8535562fc48e0a3fa600767f8a90e8fd",
+    "mtime": 1794174661.2239058,
+    "seen": 1794174663.6070395,
+    "ast_hash": "fe04d8021b6cf44f1ef1459d962527ad",
+    "semantic_hash": ""
+  },
+  "scripts/test-stacks-dpi.ps1": {
+    "mtime": 1794174610.836526,
+    "seen": 1794174663.6069298,
+    "ast_hash": "2914f84bdd285d5d0f15772f3c9e0b34",
     "semantic_hash": ""
   },
   "package-lock.json": {

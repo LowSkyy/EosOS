@@ -204,6 +204,7 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
         .visible(false)
         .inner_size(WIDTH, START_HEIGHT)
         .build()?;
+    crate::webmem::hidden(&win);
     if let Ok(hwnd) = win.hwnd() {
         HWND_RAW.store(hwnd.0 as isize, Ordering::Relaxed);
         unsafe { crate::launcherwin::apply_styles(hwnd) };
@@ -303,6 +304,7 @@ fn show(app: &AppHandle, key: &str, anchor: Rect) {
     }
     VISIBLE.store(true, Ordering::Relaxed);
     update_affinity();
+    crate::webmem::shown(&win);
     let _ = win.show();
     if let Ok(hwnd) = win.hwnd() {
         unsafe { crate::launcherwin::apply_styles(hwnd) };
@@ -335,6 +337,7 @@ pub fn hide(app: &AppHandle) {
     }
     if let Some(win) = win_of(app) {
         let _ = win.hide();
+        crate::webmem::hidden(&win);
     }
     let _ = app.emit_to(LABEL, "panel-close", ());
 }

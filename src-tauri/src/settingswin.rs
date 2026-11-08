@@ -45,7 +45,7 @@ fn win_of(app: &AppHandle) -> Option<tauri::WebviewWindow> {
 }
 
 fn create(app: &AppHandle) -> tauri::Result<()> {
-    WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html?view=settings".into()))
+    let win = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html?view=settings".into()))
         .title("EosOS Impostazioni")
         .decorations(false)
         .skip_taskbar(true)
@@ -56,6 +56,7 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
         .visible(false)
         .inner_size(WIDTH, HEIGHT)
         .build()?;
+    crate::webmem::hidden(&win);
     Ok(())
 }
 
@@ -92,6 +93,7 @@ pub fn open(app: &AppHandle, section: Option<&str>) {
         let _ = win.set_position(PhysicalPosition::new(r.x, r.y));
     }
     VISIBLE.store(true, Ordering::Relaxed);
+    crate::webmem::shown(&win);
     let _ = win.show();
     if let Ok(hwnd) = win.hwnd() {
         crate::dockact::focus(hwnd);
@@ -120,6 +122,7 @@ pub fn hide(app: &AppHandle) {
     VISIBLE.store(false, Ordering::Relaxed);
     if let Some(win) = win_of(app) {
         let _ = win.hide();
+        crate::webmem::hidden(&win);
     }
 }
 

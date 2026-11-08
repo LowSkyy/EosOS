@@ -152,6 +152,7 @@ fn create_one(app: &AppHandle, i: usize) -> tauri::Result<()> {
         .visible(false)
         .inner_size(800.0, 600.0)
         .build()?;
+    crate::webmem::hidden(&win);
     if let Ok(hwnd) = win.hwnd() {
         unsafe { crate::launcherwin::apply_styles(hwnd) };
     }
@@ -386,6 +387,7 @@ pub fn open(app: &AppHandle) {
         if let Some(h) = hwnd_of(&win) {
             unsafe { fit_exact(h, m.rect) };
         }
+        crate::webmem::shown(&win);
         let _ = win.show();
         if let Some(h) = hwnd_of(&win) {
             unsafe {
@@ -460,6 +462,7 @@ pub fn close(app: &AppHandle) {
     for l in all_labels(app) {
         if let Some(w) = app.get_webview_window(&l) {
             let _ = w.hide();
+            crate::webmem::hidden(&w);
         }
         let _ = app.emit_to(l, "mc-close", ());
     }

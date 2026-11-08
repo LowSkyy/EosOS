@@ -125,6 +125,7 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
         .visible(false)
         .inner_size(WIDTH, MIN_HEIGHT)
         .build()?;
+    crate::webmem::hidden(&win);
     if let Ok(hwnd) = win.hwnd() {
         HWND_RAW.store(hwnd.0 as isize, Ordering::Relaxed);
         unsafe { apply_styles(hwnd) };
@@ -204,6 +205,7 @@ pub fn show(app: &AppHandle) {
     SHOWN_AT_MS.store(since_start().as_millis() as u64 + 1, Ordering::Relaxed);
     VISIBLE.store(true, Ordering::Relaxed);
     update_affinity();
+    crate::webmem::shown(&win);
     let _ = win.show();
     if let Ok(hwnd) = win.hwnd() {
         unsafe { apply_styles(hwnd) };
@@ -232,6 +234,7 @@ pub fn hide(app: &AppHandle) {
     VISIBLE.store(false, Ordering::Relaxed);
     if let Some(win) = win_of(app) {
         let _ = win.hide();
+        crate::webmem::hidden(&win);
     }
     // La pagina butta via ciò che mostrava (anche le voci degli Appunti): alla riapertura non deve
     // lampeggiare nulla della sessione precedente.
