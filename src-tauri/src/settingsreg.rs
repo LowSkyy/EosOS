@@ -18,6 +18,7 @@ pub enum Section {
     MenuBar,
     Launcher,
     MissionControl,
+    Notifications,
 }
 
 impl Section {
@@ -29,6 +30,7 @@ impl Section {
             Section::MenuBar => "Barra dei menu",
             Section::Launcher => "Launcher",
             Section::MissionControl => "Mission Control",
+            Section::Notifications => "Notifiche",
         }
     }
 }
@@ -92,6 +94,7 @@ pub const SPECS: &[Spec] = &[
     Spec { key: "mc.corner", section: Section::MissionControl, label: "Angolo attivo", help: "Fermare il mouse nell'angolo in alto a sinistra apre la panoramica.", kind: Kind::Bool, keywords: &["angolo", "mouse"], live: true },
     Spec { key: "mc.alttab", section: Section::MissionControl, label: "Alt+Tab di EosOS", help: "Al posto del selettore di Windows. Spento: resta quello di Windows.", kind: Kind::Bool, keywords: &["selettore", "finestre", "tastiera"], live: true },
     Spec { key: "mc.wintab", section: Section::MissionControl, label: "Win+Tab di EosOS", help: "Apre Mission Control. Spento: resta la Visualizzazione attività di Windows.", kind: Kind::Bool, keywords: &["visualizzazione attività", "task view", "tastiera"], live: true },
+    Spec { key: "notif.read", section: Section::Notifications, label: "Mostra le notifiche", help: "EosOS legge le notifiche di Windows e le mostra nel pannello sotto l'orologio. Restano solo in memoria. Spento finché non lo accendi.", kind: Kind::Bool, keywords: &["centro notifiche", "avvisi", "toast", "privacy"], live: true },
 ];
 
 /// L'impostazione con quella chiave, se esiste.
@@ -382,7 +385,7 @@ mod tests {
             }
         }
         // Ogni sezione ha almeno un'impostazione, e l'ordine dell'elenco segue quello delle sezioni.
-        let order = [Section::General, Section::Appearance, Section::Dock, Section::MenuBar, Section::Launcher, Section::MissionControl];
+        let order = [Section::General, Section::Appearance, Section::Dock, Section::MenuBar, Section::Launcher, Section::MissionControl, Section::Notifications];
         let mut last = 0;
         for s in SPECS {
             let pos = order.iter().position(|o| *o == s.section).unwrap();

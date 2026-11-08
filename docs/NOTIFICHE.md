@@ -2,7 +2,7 @@
 
 Obiettivo: cliccando l'orologio nella barra si apre un pannello in stile Centro notifiche di macOS: in alto le **notifiche recenti** raggruppate per app, sotto un **calendario** del mese. Oggi l'orologio è solo un testo.
 
-Stato: specifica (8 nov 2026) e **N1 e N2 fatte**. **Decisioni dell'utente (8 nov 2026): sì a tutto**, cioè è questo il passo successivo, il calendario mostra **solo il mese e il giorno** (niente eventi), e **niente banner temporanei** per le notifiche nuove nella prima versione.
+Stato: specifica (8 nov 2026) e **N1, N2 e N3 fatte**. **Decisioni dell'utente (8 nov 2026): sì a tutto**, cioè è questo il passo successivo, il calendario mostra **solo il mese e il giorno** (niente eventi), e **niente banner temporanei** per le notifiche nuove nella prima versione.
 
 ## Cosa fa macOS (da replicare)
 
@@ -76,6 +76,29 @@ Le notifiche di Windows, inoltre, **restano comunque quelle del sistema**: EosOS
 **Un test vecchio rimesso a posto:** la sezione G di `test-indicators.ps1` («un clic vero sull'indicatore di rete apre le Impostazioni di Windows») era **rimasta indietro dalla fase I3**: da allora il clic apre il pannello e le Impostazioni di Windows si aprono dal link nel pannello. Falliva già prima di questa fase; ora controlla che il clic apra il pannello.
 
 **Non provato:** il calendario a scale diverse dal 100% (stessa finestra del pannello, già provata nella fase degli indicatori, ma non con il calendario dentro); il cambio di data a mezzanotte dal vivo (la funzione è testata, non ho aspettato la mezzanotte); la settimana che comincia da domenica (non c'è l'impostazione: sarà in N6 se la vuoi).
+
+## N3 — Il modello delle notifiche: FATTO (8 nov 2026)
+
+**Interruttore di lettura, spento di default.** Nuova impostazione «**Mostra le notifiche**» (`notif.read`, sezione **Notifiche** delle Impostazioni di EosOS, che diventa la settima): finché non la accendi tu, `notif_list` risponde «off» **senza leggere niente** e `notif_dismiss` rifiuta tutto. Windows consente la lettura anche senza consenso (vedi N1), quindi il consenso è di EosOS: è una scelta tua e si spegne con un clic.
+
+**Modello puro** (`notifmodel.rs`, 11 test, nessun Windows): dalle notifiche come le legge Windows (`RawNotif`: id, app, righe di testo, istante) ai **gruppi per app** già pronti per il pannello:
+- testi ripuliti (caratteri di controllo e a capo → spazi, spazi multipli ridotti, tagliati con «…» senza spezzare un carattere): **titolo 100, corpo 240 caratteri**; le righe dopo il titolo si uniscono con «·»;
+- una notifica **senza testo si scarta**; la stessa notifica due volte compare una sola; **app riconosciute senza badare alle maiuscole**;
+- **più recenti per prime**, e i gruppi ordinati dalla loro notifica più recente; **tetti**: 30 gruppi, 20 notifiche per gruppo (le altre si contano in `hidden` e nel totale);
+- nome dell'app: quello di Windows, altrimenti l'ultimo pezzo dell'identificatore, mai vuoto;
+- tempo relativo in italiano («adesso», «3 min fa», «2 ore fa», «ieri», «5 giorni fa», poi la data breve «8 nov»; un istante nel futuro vale «adesso»);
+- `contains_id`: si può togliere solo una notifica che c'è.
+
+**Lettura e rimozione** (`notifread.rs`, tocca testi privati, nessun test automatico: la verifica è dal vivo): legge titolo e righe di ogni toast, app e istante dal listener di Windows; i testi restano in memoria, mai nei log né su disco. **Togliere** una notifica la rimuove dal Centro notifiche di Windows (`RemoveNotification`), solo se la lettura è accesa e **l'id è fra quelli che ci sono adesso** (un id inventato si rifiuta).
+
+**Verifica dal vivo** (`scripts/test-notif-model.ps1`, 22 controlli; **solo con notifiche mie**: tre toast mandati da una finestra di PowerShell con titoli noti; la pagina filtra il solo gruppo dell'app PowerShell, quelle di altre app non escono dalla pagina e non si stampano; `mission.json` ripristinato):
+- **lettura spenta:** risposta «off», nessun gruppo, nessun totale, e non si toglie niente; l'impostazione risulta spenta;
+- **accesa:** le tre notifiche di prova compaiono nel gruppo della loro app (nome «Windows PowerShell»); ordine **tre, due, uno**; il titolo con spazi e tabulazioni diventa «EosOS-N3-due con spazi»; due righe di corpo → «riga 1 · riga 2»; il titolo di 300 caratteri è tagliato **esattamente a 100 con «…»**, il corpo di 400 a **240**; «adesso» per la più recente; identificatori tutti diversi; il totale le conta;
+- **togliere:** un id inventato rifiutato; togliere la notifica «due» riesce, sparisce dall'elenco e le altre due restano; spento di nuovo, non si legge né si toglie più niente.
+
+Controlli di lunghezza e di carattere fatti **nella pagina**: la console di PowerShell 5 storpia gli accenti e i puntini nell'output (un «…» si vede come tre caratteri), per cui leggere lì le lunghezze dava risultati falsi. Rust 348 test (3 a richiesta), pagina 142, clippy a 0 avvisi. Regressioni: impostazioni (S1, finestra, S6, con la settima sezione), prova di fattibilità N1: OK.
+
+**Non provato:** l'**evento in tempo reale** quando arriva una notifica (qui si legge a richiesta: N4 rilegge quando il pannello si apre e a intervalli); notifiche con immagini, pulsanti o testi molto strani; notifiche di app dello Store con più associazioni di testo; il comportamento con **Non disturbare / Assistente notifiche** di Windows attivo; la rimozione di una notifica che è sparita nel frattempo (restituisce «falso»).
 
 ## Principi (gli stessi di sempre)
 

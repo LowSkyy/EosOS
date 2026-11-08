@@ -37,13 +37,13 @@ try {
   Key 'ArrowUp'; Key 'ArrowUp'
   Check 'freccia su: torna a Generale e li si ferma (non gira)' (((Heading) -eq 'Generale') -and ((Active) -eq 'general')) ((Heading) + ' / ' + (Active))
   $n = [int](Win "document.querySelectorAll('[data-section]').length")
-  Win "document.querySelector('[data-section=mission_control]').focus()" | Out-Null
+  Win "document.querySelector('[data-section=notifications]').focus()" | Out-Null
   Key 'ArrowDown'
-  Check 'in fondo la freccia giu non fa niente' (((Heading) -eq 'Mission Control') -and ($n -eq 6)) ((Heading) + " sezioni $n")
+  Check 'in fondo la freccia giu non fa niente' (((Heading) -eq 'Notifiche') -and ($n -eq 7)) ((Heading) + " sezioni $n")
 
   Write-Host 'B. accessibilita di ogni sezione'
   $bad = @()
-  foreach ($sec in 'general', 'appearance', 'dock', 'menu_bar', 'launcher', 'mission_control') {
+  foreach ($sec in 'general', 'appearance', 'dock', 'menu_bar', 'launcher', 'mission_control', 'notifications') {
     Win "document.querySelector('[data-section=$sec]').click()" | Out-Null; Start-Sleep -Milliseconds 400
     $r = Win "(function(){var out=[];document.querySelectorAll('.settings-main button, .settings-main select, .settings-main input').forEach(function(el){var name=el.getAttribute('aria-label')||(el.textContent||'').trim()||el.getAttribute('title')||'';if(!name&&el.id){var l=document.querySelector('label[for='+el.id+']');if(l)name=l.textContent.trim()}if(!name)out.push(el.tagName+'.'+el.className)});return out.join(',')})()"
     if ($r) { $bad += "$sec : $r" }

@@ -34,6 +34,9 @@ pub struct Settings {
     /// App di cui non si legge né si mostra il menu (nome come appare nella barra).
     #[serde(rename = "menuExcluded")]
     pub menu_excluded: Vec<String>,
+    /// Mostrare le notifiche di Windows nel Centro notifiche di EosOS (spento di default: sono testi privati).
+    #[serde(rename = "notifRead")]
+    pub notif_read: bool,
 }
 
 fn store_path() -> Option<PathBuf> {
@@ -173,6 +176,11 @@ pub fn set_hotkey(h: Option<String>) -> Settings {
     update(|s| s.hotkey = h)
 }
 
+/// Accende o spegne la lettura delle notifiche e salva.
+pub fn set_notif_read(on: bool) -> Settings {
+    update(|s| s.notif_read = on)
+}
+
 /// Accende o spegne il menu globale e salva.
 pub fn set_menu_off(off: bool) -> Settings {
     update(|s| s.menu_off = off)
@@ -212,6 +220,7 @@ mod tests {
     fn the_global_menu_is_on_by_default_with_no_exclusions() {
         let d = Settings::default();
         assert!(!d.menu_off && d.menu_excluded.is_empty());
+        assert!(!d.notif_read, "la lettura delle notifiche e' spenta di default");
         let s = parse(r#"{"menuOff":true,"menuExcluded":["Chrome","Discord"]}"#).unwrap();
         assert!(s.menu_off && s.menu_excluded == vec!["Chrome".to_string(), "Discord".to_string()]);
         assert!(parse(r#"{"menuExcluded":"Chrome"}"#).is_none(), "una lista che non e una lista e' un file non valido");
@@ -228,7 +237,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()] }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

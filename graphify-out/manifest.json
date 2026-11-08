@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794141827.0031502,
-    "seen": 1794141829.5361505,
-    "ast_hash": "bdfd9c1177bfd229cbf674393e739bc0",
+    "mtime": 1794142462.7120593,
+    "seen": 1794142465.415807,
+    "ast_hash": "82c52531b9b9d5ff363bcb61f0581116",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -240,9 +240,9 @@
     "semantic_hash": ""
   },
   "src/components/Clock.tsx": {
-    "mtime": 1794022951.6354225,
-    "seen": 1794023028.5632715,
-    "ast_hash": "b18ad43e0ff33a48dcccf652a05421bd",
+    "mtime": 1794141957.5628884,
+    "seen": 1794142465.4157712,
+    "ast_hash": "eb14d5f4ba5342e0a46ea1484e61b76f",
     "semantic_hash": ""
   },
   "src/lib/clock.test.ts": {
@@ -564,9 +564,9 @@
     "semantic_hash": ""
   },
   "scripts/test-indicators.ps1": {
-    "mtime": 1794088194.7636385,
-    "seen": 1794088283.6379762,
-    "ast_hash": "36636b7db35a30948c33ed2549610a9f",
+    "mtime": 1794142365.823626,
+    "seen": 1794142465.4156916,
+    "ast_hash": "3df9e95aef6d5b1d71acab4c684ac5d5",
     "semantic_hash": ""
   },
   "src-tauri/src/indicators.rs": {
@@ -600,9 +600,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/panelwin.rs": {
-    "mtime": 1794104448.328979,
-    "seen": 1794104829.5888538,
-    "ast_hash": "d4dda44bcab9163498fd26202474fbc7",
+    "mtime": 1794141957.5638885,
+    "seen": 1794142465.4157555,
+    "ast_hash": "106f2aab2a3d26a39d06156a464afc30",
     "semantic_hash": ""
   },
   "src/components/IndicatorGlyph.tsx": {
@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "src/components/Panel.tsx": {
-    "mtime": 1794103905.912243,
-    "seen": 1794104829.5888722,
-    "ast_hash": "c606cd960fcc861fd0c1e5676fbb1b17",
+    "mtime": 1794141957.5628884,
+    "seen": 1794142465.4157772,
+    "ast_hash": "1682e28eb1b8de9d763c59b5142d81e3",
     "semantic_hash": ""
   },
   "src/components/useIndicators.ts": {
@@ -966,9 +966,9 @@
     "semantic_hash": ""
   },
   "docs/NOTIFICHE.md": {
-    "mtime": 1794141834.0167024,
-    "seen": 1794141835.441338,
-    "ast_hash": "29e8c6b93485ea684f807933f4dc057c",
+    "mtime": 1794142462.7120593,
+    "seen": 1794142465.4158144,
+    "ast_hash": "60d9945407c0b27e4c2472b3a97363e9",
     "semantic_hash": ""
   },
   "scripts/test-notif-probe.ps1": {
@@ -981,6 +981,30 @@
     "mtime": 1794141642.6534128,
     "seen": 1794141829.5361006,
     "ast_hash": "139a08b175cff208fb18fc2747e09cae",
+    "semantic_hash": ""
+  },
+  "scripts/test-calendar.ps1": {
+    "mtime": 1794142028.4767287,
+    "seen": 1794142465.4156826,
+    "ast_hash": "eba20b501d005adb582f62e52b95e5d9",
+    "semantic_hash": ""
+  },
+  "src/components/CalendarPanel.tsx": {
+    "mtime": 1794141953.2075467,
+    "seen": 1794142465.41577,
+    "ast_hash": "9c5f494bdfeff0e779a099897b9b8e32",
+    "semantic_hash": ""
+  },
+  "src/lib/calendar.test.ts": {
+    "mtime": 1794141926.9559176,
+    "seen": 1794142465.4157827,
+    "ast_hash": "43f7a60a231445673fe66be89b57fb38",
+    "semantic_hash": ""
+  },
+  "src/lib/calendar.ts": {
+    "mtime": 1794141926.8581486,
+    "seen": 1794142465.4157836,
+    "ast_hash": "fa8c81f79e7e391d47b153841326ecf8",
     "semantic_hash": ""
   },
   "package-lock.json": {

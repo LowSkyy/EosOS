@@ -57,6 +57,7 @@ impl Backend for Live {
         match key {
             "general.autostart" => b(crate::autostart::is_enabled(&crate::autostart::real_keys(), crate::autostart::NAME)),
             "general.language" => Some(Value::Text("it".into())),
+            "notif.read" => b(mc().notif_read),
             "dock.autohide" => b(crate::dockwin::autohide()),
             "dock.reserve" => b(crate::dockwin::reserve_enabled()),
             "dock.blur" => b(crate::dockwin::blur_enabled()),
@@ -109,6 +110,9 @@ impl Backend for Live {
                 } else {
                     crate::autostart::disable(&keys, crate::autostart::NAME).map_err(SettingsError)?;
                 }
+            }
+            "notif.read" => {
+                crate::mcstore::set_notif_read(want_bool(value)?);
             }
             "general.language" => {
                 if want_text(value)? != "it" {
