@@ -382,6 +382,23 @@ fn execute(action: &Action) -> bool {
     }
 }
 
+/// Finestra di Windows «Vuoi davvero…?» con «No» predefinito. Bloccante (il comando gira fuori dal thread UI).
+/// Nelle build di prova non si mostra: risponde sì, salvo `EOSOS_TEST_CONFIRM=no`.
+fn native_confirm(name: &str) -> bool {
+    #[cfg(feature = "test-hooks")]
+    {
+        let _ = name;
+        std::env::var("EOSOS_TEST_CONFIRM").map_or(true, |v| v != "no")
+    }
+    #[cfg(not(feature = "test-hooks"))]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, IDYES, MB_DEFBUTTON2, MB_ICONWARNING, MB_SETFOREGROUND, MB_SYSTEMMODAL, MB_YESNO};
+        let text = HSTRING::from(format!("Vuoi davvero eseguire «{name}»? Il lavoro non salvato andrà perso."));
+        let r = unsafe { MessageBoxW(None, &text, w!("EosOS"), MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_SYSTEMMODAL | MB_SETFOREGROUND) };
+        r == IDYES
+    }
+}
+
 /// Esegue l'azione `id` (con la conferma, se serve). Il frontend può chiedere solo ciò che sta
 /// nella tabella.
 pub fn run(id: &str) -> Outcome {
@@ -390,6 +407,11 @@ pub fn run(id: &str) -> Outcome {
     match step(&mut pending, action, now_ms()) {
         Outcome::Done => {
             drop(pending);
+            // La doppia pressione è della pagina e una pagina compromessa potrebbe farla da sola: per spegnere o
+            // riavviare serve anche un clic su «Sì» in una finestra di Windows, che la pagina non può premere.
+            if action.confirm && !native_confirm(action.name) {
+                return Outcome::Failed;
+            }
             if execute(action) { Outcome::Done } else { Outcome::Failed }
         }
         other => other,

@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794144558.337257,
-    "seen": 1794144560.6717043,
-    "ast_hash": "51c506bf569b354ab3a727bc110995c0",
+    "mtime": 1794146781.955959,
+    "seen": 1794146790.7934296,
+    "ast_hash": "325ba01d6186e943b2331b9bd68a3ec1",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -366,9 +366,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/dockwin.rs": {
-    "mtime": 1794079910.0194857,
-    "seen": 1794080426.126324,
-    "ast_hash": "7ce8b9bc0ea904b4e7c8f51256896c88",
+    "mtime": 1794146198.828979,
+    "seen": 1794146790.7933493,
+    "ast_hash": "bfd76d6eb38d970df14171a7c4e1677a",
     "semantic_hash": ""
   },
   "src/components/Dock.tsx": {
@@ -408,9 +408,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/backdrop.rs": {
-    "mtime": 1794091363.7908902,
-    "seen": 1794091828.7058222,
-    "ast_hash": "44b66f2bf0353c339494ce8a6450f0c5",
+    "mtime": 1794146298.347882,
+    "seen": 1794146790.7933445,
+    "ast_hash": "29e759ac54a833a8cf710194d6a9669a",
     "semantic_hash": ""
   },
   "src/lib/backdrop.test.ts": {
@@ -1071,6 +1071,12 @@
     "mtime": 1794144804.7547834,
     "seen": 1794145111.3104916,
     "ast_hash": "ae2f632257025480e92933154ef55938",
+    "semantic_hash": ""
+  },
+  "docs/PASSATA-FINALE.md": {
+    "mtime": 1794146781.9334636,
+    "seen": 1794146790.793438,
+    "ast_hash": "9a56fee9252c88d08dcf962832a31253",
     "semantic_hash": ""
   },
   "package-lock.json": {

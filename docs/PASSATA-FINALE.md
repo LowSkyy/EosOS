@@ -7,10 +7,12 @@ Revisione di sicurezza e misura dei consumi a riposo. Nessuna funzione nuova.
 
 **Controllato e a posto:** avvio delle app (l'id si risolve sempre nell'indice di Rust), Dock, azioni del Launcher (tabelle statiche), apertura da notifica (`valid_app_id`, id verificati), chiave Run dell'avvio automatico, processo `--keyhook` (non emette mai codici di tasto), nessun testo di notifica su disco né nei log, CSP rigida (`script-src 'self'`).
 
-**Rischi accettati (non corretti):**
-- `notif.read`, `notif.dnd` e gli appunti del Launcher si possono cambiare da qualunque finestra: limitarli alla sola finestra Impostazioni romperebbe il pulsante «Mostra le notifiche» del pannello e lo spegnimento degli appunti dal Launcher. Serve già una pagina compromessa.
-- Nessuna separazione dei comandi per finestra (capability uguale per tutte).
-- La conferma di spegnimento/riavvio vive in Rust ma una pagina compromessa può chiamare l'azione due volte.
+**I tre rischi rimasti: corretti** (8 nov 2026):
+- **Comandi per finestra** (`cmdpolicy.rs`, tabella pura e testata): le impostazioni (`settings_*`) si usano solo dalla finestra «settings»; `notif_*` solo dal pannello; `launcher_*` solo dal Launcher. Eccezioni minime: il pannello sotto l'orologio può leggere le impostazioni (per la settimana del calendario) e cambiare **solo** `notif.read` e `notif.dnd`. Dalla barra, dal Dock o da Mission Control non si arriva più a niente di tutto questo.
+- **Consensi:** accendere la lettura delle notifiche o la cronologia degli appunti da una pagina qualunque non è più possibile (solo dal pannello i due interruttori delle notifiche, solo dal Launcher gli appunti, e dalle Impostazioni tutto).
+- **Spegni/Riavvia:** oltre alla doppia pressione (che una pagina potrebbe fare da sola) ora serve un clic su «Sì» in una **finestra di Windows** («No» predefinito, sempre in primo piano) che la pagina non può premere.
+- **Prova dal vivo** (`scripts/test-cmd-policy.ps1`, con `EOSOS_TEST_STRICT=1` che accende il controllo anche nella build di prova, dove di norma è spento per lasciare ai test un canale qualunque): dalla barra tutti i comandi sensibili sono bloccati; dal pannello solo notif.read/notif.dnd passano (launcher.clipboard, dock.pinned, general.autostart no); dal Launcher le impostazioni e le notifiche no, ma i suoi comandi sì; Riavvia/Spegni: conferma, poi «Sì» -> eseguita (nella build di prova solo una riga di registro), «No» -> non eseguita. Con il controllo acceso le finestre vere funzionano ancora: Launcher, pannello e calendario passano; nella finestra Impostazioni gli interruttori e le scelte funzionano (i controlli che fallivano leggevano o scrivevano dalla finestra del Launcher, ora vietato come previsto).
+- **Non provato:** la finestra di Windows «Sì/No» con un clic vero (nelle prove non compare: si prova solo l'esito sì/no); la build di produzione completa con LTO.
 
 ## Consumi a riposo (`scripts/measure-idle.ps1`, build release ottimizzata, 30 s, nessuna interazione)
 | | prima | dopo |

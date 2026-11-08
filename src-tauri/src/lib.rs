@@ -1,4 +1,5 @@
 mod appbar;
+mod cmdpolicy;
 mod backdrop;
 mod dock;
 mod dockact;
@@ -48,6 +49,20 @@ mod watchdog;
 mod tests;
 
 use tauri::Manager;
+
+/// Esce subito (con `default`) se la finestra che chiama non può usare il comando (vedi `cmdpolicy`).
+macro_rules! guard {
+    ($w:expr, $cmd:expr) => {
+        if cmdpolicy::guard($w.label(), $cmd, None).is_err() {
+            return;
+        }
+    };
+    ($w:expr, $cmd:expr, $default:expr) => {
+        if cmdpolicy::guard($w.label(), $cmd, None).is_err() {
+            return $default;
+        }
+    };
+}
 use windows::core::BOOL;
 use windows::Win32::System::Console::SetConsoleCtrlHandler;
 
@@ -100,26 +115,30 @@ fn menubar_choose(app: tauri::AppHandle, index: usize, path: Vec<usize>) -> bool
 
 /// Apre la finestra delle impostazioni (alla sezione indicata, se c'è).
 #[tauri::command]
-fn settings_open(app: tauri::AppHandle, section: Option<String>) {
+fn settings_open(window: tauri::Window, app: tauri::AppHandle, section: Option<String>) {
+    guard!(window, "settings_open");
     settingswin::open(&app, section.as_deref());
 }
 
 /// Apre il selettore di cartelle di Windows e restituisce il percorso scelto (o niente se si annulla).
 #[tauri::command(async)]
-fn settings_pick_folder(app: tauri::AppHandle) -> Option<String> {
+fn settings_pick_folder(window: tauri::Window, app: tauri::AppHandle) -> Option<String> {
+    guard!(window, "settings_pick_folder", None);
     let owner = app.get_webview_window(settingswin::LABEL).and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize);
     folderpick::pick(owner)
 }
 
 /// Chiude (nasconde) la finestra delle impostazioni.
 #[tauri::command]
-fn settings_close(app: tauri::AppHandle) {
+fn settings_close(window: tauri::Window, app: tauri::AppHandle) {
+    guard!(window, "settings_close");
     settingswin::hide(&app);
 }
 
 /// Lo stato di tutte le impostazioni (per la finestra delle impostazioni).
 #[tauri::command(async)]
-fn settings_all(app: tauri::AppHandle) -> Vec<settingsreg::Entry> {
+fn settings_all(window: tauri::Window, app: tauri::AppHandle) -> Vec<settingsreg::Entry> {
+    guard!(window, "settings_all", Vec::new());
     settingsreg::snapshot(&settingslive::Live::new(app))
 }
 
@@ -134,7 +153,10 @@ struct SetReply {
 
 /// Cambia un'impostazione. La chiave e il valore li valida Rust: quel che non è nell'elenco chiuso si rifiuta.
 #[tauri::command(async)]
-fn settings_set(app: tauri::AppHandle, key: String, value: settingsreg::Value) -> SetReply {
+fn settings_set(window: tauri::Window, app: tauri::AppHandle, key: String, value: settingsreg::Value) -> SetReply {
+    if let Err(e) = cmdpolicy::guard(window.label(), "settings_set", Some(&key)) {
+        return SetReply { ok: false, live: false, error: Some(e) };
+    }
     let mut live = settingslive::Live::new(app.clone());
     match settingsreg::set_value(&mut live, &key, &value) {
         Ok(a) => {
@@ -147,7 +169,10 @@ fn settings_set(app: tauri::AppHandle, key: String, value: settingsreg::Value) -
 
 /// Preme un pulsante della finestra delle impostazioni (per esempio il rapporto sui desktop virtuali).
 #[tauri::command(async)]
-fn settings_action(app: tauri::AppHandle, key: String) -> SetReply {
+fn settings_action(window: tauri::Window, app: tauri::AppHandle, key: String) -> SetReply {
+    if let Err(e) = cmdpolicy::guard(window.label(), "settings_action", None) {
+        return SetReply { ok: false, live: false, error: Some(e) };
+    }
     let mut live = settingslive::Live::new(app);
     match settingsreg::run_action(&mut live, &key) {
         Ok(()) => SetReply { ok: true, live: true, error: None },
@@ -185,7 +210,10 @@ fn notif_allowed() -> bool {
 /// Le notifiche di Windows, già raggruppate per app. Solo se l'utente ha acceso «Mostra le notifiche»: altrimenti
 /// risponde "off" senza leggere niente. I testi restano in memoria.
 #[tauri::command(async)]
-fn notif_list() -> NotifReply {
+fn notif_list(window: tauri::Window) -> NotifReply {
+    if cmdpolicy::guard(window.label(), "notif_list", None).is_err() {
+        return NotifReply { state: "off", groups: Vec::new(), total: 0, message: None };
+    }
     let s = mcstore::load();
     let gate = notifmodel::read_gate(s.notif_read, s.notif_dnd);
     if gate != "go" {
@@ -203,7 +231,8 @@ fn notif_list() -> NotifReply {
 /// Toglie una notifica dal Centro notifiche di Windows. Solo se la lettura è accesa e l'id è fra quelli che ci sono
 /// adesso (un id inventato si rifiuta).
 #[tauri::command(async)]
-fn notif_dismiss(id: u32) -> bool {
+fn notif_dismiss(window: tauri::Window, id: u32) -> bool {
+    guard!(window, "notif_dismiss", false);
     if !notif_allowed() {
         return false;
     }
@@ -217,7 +246,8 @@ fn notif_dismiss(id: u32) -> bool {
 /// Come un clic sulla notifica: apre l'app che l'ha mandata e, se si apre, toglie la notifica. Solo con la lettura accesa
 /// e per un id che c'è adesso.
 #[tauri::command(async)]
-fn notif_open(id: u32) -> bool {
+fn notif_open(window: tauri::Window, id: u32) -> bool {
+    guard!(window, "notif_open", false);
     if !notif_allowed() {
         return false;
     }
@@ -236,7 +266,8 @@ fn notif_open(id: u32) -> bool {
 /// Toglie TUTTE le notifiche di un'app (il «×» del gruppo). L'app deve essere fra quelle che hanno notifiche adesso.
 /// Risponde quante ne ha tolte.
 #[tauri::command(async)]
-fn notif_clear_app(app_id: String) -> usize {
+fn notif_clear_app(window: tauri::Window, app_id: String) -> usize {
+    guard!(window, "notif_clear_app", 0);
     if !notif_allowed() {
         return 0;
     }
@@ -269,7 +300,8 @@ fn notif_count_for(aumid: String) -> Option<u32> {
 
 /// Le chiavi delle impostazioni che corrispondono alla ricerca.
 #[tauri::command]
-fn settings_search(query: String) -> Vec<&'static str> {
+fn settings_search(window: tauri::Window, query: String) -> Vec<&'static str> {
+    guard!(window, "settings_search", Vec::new());
     settingsreg::search(&query)
 }
 
@@ -333,40 +365,46 @@ fn dock_backdrop(since: u64) -> tauri::ipc::Response {
 /// Ricerca del Launcher tra le app. `have`: gli id di cui il frontend ha già l'icona. Lavoro
 /// bloccante (shell, icone): fuori dal thread UI.
 #[tauri::command(async)]
-fn launcher_search(query: String, have: Option<Vec<String>>, filter: Option<String>) -> Vec<launcher::LauncherItem> {
+fn launcher_search(window: tauri::Window, query: String, have: Option<Vec<String>>, filter: Option<String>) -> Vec<launcher::LauncherItem> {
+    guard!(window, "launcher_search", Vec::new());
     launcher::search(&query, &have.unwrap_or_default(), filter.as_deref())
 }
 
 /// Ricerca dei file del Launcher (indice di Windows Search). Bloccante e più lenta: la pagina la
 /// chiama a parte dopo una breve pausa.
 #[tauri::command(async)]
-fn launcher_files(query: String, have: Option<Vec<String>>) -> Vec<launcher::LauncherItem> {
+fn launcher_files(window: tauri::Window, query: String, have: Option<Vec<String>>) -> Vec<launcher::LauncherItem> {
+    guard!(window, "launcher_files", Vec::new());
     launcher::files(&query, &have.unwrap_or_default())
 }
 
 /// Apre un file del Launcher, o lo mostra in Esplora risorse (`reveal`). Solo se Rust lo ha
 /// appena mostrato come risultato: un percorso arbitrario è rifiutato.
 #[tauri::command(async)]
-fn launcher_open_file(id: String, reveal: bool) -> bool {
+fn launcher_open_file(window: tauri::Window, id: String, reveal: bool) -> bool {
+    guard!(window, "launcher_open_file", false);
     launcherfiles::open(&id, reveal)
 }
 
 /// Consenso alla cronologia degli appunti (si salva solo il sì/no; il testo copiato resta in
 /// memoria). Rifiutare svuota subito la cronologia.
 #[tauri::command]
-fn launcher_clip_set(on: bool) {
+fn launcher_clip_set(window: tauri::Window, on: bool) {
+    guard!(window, "launcher_clip_set");
     launcher::set_clipboard(on);
 }
 
 /// Rimette negli appunti una voce della cronologia (Rust ha il testo; la pagina manda solo l'id).
 #[tauri::command(async)]
-fn launcher_clip_use(id: String) -> bool {
+fn launcher_clip_use(window: tauri::Window, id: String) -> bool {
+    guard!(window, "launcher_clip_use", false);
     launcher::clip_use(&id)
 }
 
 /// Toglie una voce dalla cronologia degli appunti.
 #[tauri::command]
-fn launcher_clip_delete(id: String) -> bool {
+fn launcher_clip_delete(window: tauri::Window, id: String) -> bool {
+    guard!(window, "launcher_clip_delete", false);
     launcher::clip_delete(&id)
 }
 
@@ -564,7 +602,8 @@ fn menu_probe_all(app: tauri::AppHandle) -> Vec<MenuProbeRow> {
 /// prima richiesta ed eseguono alla seconda (stessa azione, entro 10 secondi): la conferma è di
 /// Rust, non della pagina. Risposte: "done", "confirm", "unknown", "failed".
 #[tauri::command(async)]
-fn launcher_action(id: String) -> &'static str {
+fn launcher_action(window: tauri::Window, id: String) -> &'static str {
+    guard!(window, "launcher_action", "unknown");
     match launcheract::run(&id) {
         launcheract::Outcome::Done => "done",
         launcheract::Outcome::Confirm => "confirm",
@@ -576,27 +615,31 @@ fn launcher_action(id: String) -> &'static str {
 /// Avvia un'app del Launcher. Il frontend manda solo l'`id` di un risultato che ha ricevuto;
 /// ciò che si esegue lo ricava Rust dall'indice.
 #[tauri::command(async)]
-fn launcher_launch(id: String) -> bool {
+fn launcher_launch(window: tauri::Window, id: String) -> bool {
+    guard!(window, "launcher_launch", false);
     launcher::launch(&id)
 }
 
 /// Ultimo fotogramma dello sfondo da sfocare dietro il Launcher (vuoto se la sfocatura è spenta,
 /// il Launcher è nascosto o non c'è nulla di nuovo). Stesso formato di `dock_backdrop`.
 #[tauri::command(async)]
-fn launcher_backdrop(since: u64) -> tauri::ipc::Response {
+fn launcher_backdrop(window: tauri::Window, since: u64) -> tauri::ipc::Response {
+    guard!(window, "launcher_backdrop", tauri::ipc::Response::new(Vec::<u8>::new()));
     tauri::ipc::Response::new(backdrop::latest(backdrop::Channel::Launcher, since))
 }
 
 /// Nasconde il Launcher (Esc, o dopo aver avviato qualcosa).
 #[tauri::command]
-fn launcher_hide(app: tauri::AppHandle) {
+fn launcher_hide(window: tauri::Window, app: tauri::AppHandle) {
+    guard!(window, "launcher_hide");
     launcheract::cancel_pending();
     launcherwin::hide(&app);
 }
 
 /// Altezza che serve al Launcher (campo + risultati), in px CSS.
 #[tauri::command]
-fn launcher_fit(app: tauri::AppHandle, height: f64) {
+fn launcher_fit(window: tauri::Window, app: tauri::AppHandle, height: f64) {
+    guard!(window, "launcher_fit");
     launcherwin::fit(&app, height);
 }
 
