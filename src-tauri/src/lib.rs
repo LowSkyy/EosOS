@@ -1,4 +1,5 @@
 mod appbar;
+mod updates;
 mod webmem;
 mod stacks;
 mod cmdpolicy;
@@ -136,6 +137,31 @@ fn settings_pick_folder(window: tauri::Window, app: tauri::AppHandle) -> Option<
 fn settings_close(window: tauri::Window, app: tauri::AppHandle) {
     guard!(window, "settings_close");
     settingswin::hide(&app);
+}
+
+/// Lo stato degli aggiornamenti (versione in uso, ultima ricerca). Solo le Impostazioni.
+#[tauri::command]
+fn update_status(window: tauri::Window, app: tauri::AppHandle) -> Option<updates::Status> {
+    if cmdpolicy::guard(window.label(), "update_status", None).is_err() {
+        return None;
+    }
+    Some(updates::status(&app))
+}
+
+/// Cerca una versione nuova (una richiesta di rete al sito degli aggiornamenti). Non scarica né installa.
+#[tauri::command(async)]
+async fn update_check(window: tauri::Window, app: tauri::AppHandle) -> Option<updates::Status> {
+    if cmdpolicy::guard(window.label(), "update_check", None).is_err() {
+        return None;
+    }
+    Some(updates::check(&app).await)
+}
+
+/// Scarica e installa la versione trovata (la firma si controlla prima). Su Windows EosOS si chiude e si aggiorna.
+#[tauri::command(async)]
+async fn update_install(window: tauri::Window, app: tauri::AppHandle) -> Result<(), String> {
+    cmdpolicy::guard(window.label(), "update_install", None)?;
+    updates::install(&app).await
 }
 
 /// Le pile del Dock (cartelle con la loro icona). Solo il Dock.
@@ -853,6 +879,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .on_menu_event(|app, event| {
             if settingswin::is_menu_id(event.id().as_ref()) {
                 settingswin::open_soon(None);
@@ -872,7 +899,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
@@ -888,6 +915,14 @@ pub fn run() {
             appbar::start(app.handle());
             dockwin::start(app.handle());
             backdrop::start();
+            // Aggiornamenti: solo se l'utente ha acceso la ricerca all'avvio; cerca soltanto, non installa mai.
+            if mcstore::load().update_auto {
+                let handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(updates::AUTO_DELAY);
+                    let _ = tauri::async_runtime::block_on(updates::check(&handle));
+                });
+            }
             launcher::warm_up();
             launcherclip::start();
             indicators::start(app.handle().clone());

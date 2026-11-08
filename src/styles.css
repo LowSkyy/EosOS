@@ -821,3 +821,9 @@ body {
 .stack-empty { margin: 6px 0; color: var(--bar-fg-muted); }
 .stack-more { margin-top: 6px; text-align: center; color: var(--bar-fg-muted); font-size: 12px; }
 .stack-file:focus-visible, .stack-folder:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 1px; }
+
+/* Aggiornamenti (Impostazioni > Generale) */
+.update-control { flex-direction: column; align-items: flex-end; gap: 6px; }
+.update-text { margin: 0; text-align: right; font-size: 12px; }
+.update-notes { margin: 0; max-width: 260px; max-height: 90px; overflow-y: auto; font-size: 11px; color: var(--bar-fg-muted); white-space: pre-wrap; text-align: left; }
+.update-buttons { display: flex; gap: 8px; }

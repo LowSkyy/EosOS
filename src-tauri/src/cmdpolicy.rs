@@ -19,6 +19,8 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         "indicator_open" | "volume_set" | "volume_mute" | "menubar_choose" => label == "panel",
         // Mission Control: attivare e chiudere finestre vere, cambiare e modificare i desktop virtuali.
         "mc_activate" | "mc_close_window" | "mc_switch_desktop" | "mc_new_desktop" | "mc_move_window" | "mc_remove_desktop" | "mc_rename_desktop" => label.starts_with("mc-"),
+        // Aggiornamenti: li gestisce solo la finestra Impostazioni.
+        c if c.starts_with("update_") => label == "settings",
         c if c.starts_with("notif_") => label == "panel",
         c if c.starts_with("launcher_") => label == "launcher",
         _ => true,
@@ -66,6 +68,16 @@ mod tests {
         assert!(!allowed("panel", "settings_set", None));
         for w in ["launcher", "dock", "bar-0", "bar-1", "main", "mc-0"] {
             assert!(!allowed(w, "settings_set", Some("notif.read")), "{w}");
+        }
+    }
+
+    #[test]
+    fn updates_belong_to_the_settings_window() {
+        for c in ["update_status", "update_check", "update_install"] {
+            assert!(allowed("settings", c, None), "{c}");
+            for other in ["panel", "launcher", "dock", "bar-0", "main", "mc-0"] {
+                assert!(!allowed(other, c, None), "{other} {c}");
+            }
         }
     }
 

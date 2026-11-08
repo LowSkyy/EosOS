@@ -46,6 +46,9 @@ pub struct Settings {
     /// Cartelle delle pile nel Dock (`None` = non scelte: c'è solo Download).
     #[serde(rename = "dockStacks")]
     pub dock_stacks: Option<Vec<String>>,
+    /// Cerca aggiornamenti da solo all'avvio (spento di default: è una richiesta di rete).
+    #[serde(rename = "updateAuto")]
+    pub update_auto: bool,
 }
 
 fn store_path() -> Option<PathBuf> {
@@ -190,6 +193,11 @@ pub fn set_calendar_sunday(on: bool) -> Settings {
     update(|s| s.calendar_sunday = on)
 }
 
+/// Accende o spegne la ricerca di aggiornamenti all'avvio e salva.
+pub fn set_update_auto(on: bool) -> Settings {
+    update(|s| s.update_auto = on)
+}
+
 /// Salva le cartelle delle pile nel Dock (`None` = di nuovo solo Download).
 pub fn set_dock_stacks(v: Option<Vec<String>>) -> Settings {
     update(|s| s.dock_stacks = v)
@@ -245,6 +253,7 @@ mod tests {
         let d = Settings::default();
         assert!(!d.menu_off && d.menu_excluded.is_empty());
         assert!(!d.notif_read, "la lettura delle notifiche e' spenta di default");
+        assert!(!d.update_auto, "nessuna richiesta di rete da sola di default");
         assert!(d.dock_stacks.is_none(), "di default nessuna scelta: c'e' solo Download");
         assert!(!d.notif_dnd, "non disturbare e' spento di default");
         assert!(!d.calendar_sunday, "la settimana comincia da lunedi' di default");
@@ -264,7 +273,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]) }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

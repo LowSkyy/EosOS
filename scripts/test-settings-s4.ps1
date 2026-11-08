@@ -45,7 +45,7 @@ try {
 
   Write-Host 'A. la sezione Generale'
   Check 'e la prima sezione' ((Win "document.querySelector('.settings-h').textContent") -eq 'Generale')
-  Check 'ha avvio automatico, lingua e rapporto' (((Win "Array.from(document.querySelectorAll('.settings-label')).map(function(e){return e.childNodes[0].textContent})") -join '|') -like 'Apri EosOS*|Lingua|Rapporto sui desktop virtuali')
+  Check 'ha avvio automatico, ricerca aggiornamenti, lingua, rapporto e il blocco Aggiornamenti' (((Win "Array.from(document.querySelectorAll('.settings-label')).map(function(e){return e.childNodes[0].textContent})") -join '|') -like 'Apri EosOS*|Cerca aggiornamenti all*avvio|Lingua|Rapporto sui desktop virtuali|Aggiornamenti')
   Check 'la lingua e solo Italiano' (((Win "Array.from(document.querySelector('select').options).map(function(o){return o.textContent})") -join '|') -eq 'Italiano')
 
   Write-Host 'B. avvio automatico'

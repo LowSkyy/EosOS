@@ -58,6 +58,7 @@ impl Backend for Live {
             "general.autostart" => b(crate::autostart::is_enabled(&crate::autostart::real_keys(), crate::autostart::NAME)),
             "general.language" => Some(Value::Text("it".into())),
             "notif.read" => b(mc().notif_read),
+            "general.update_auto" => b(mc().update_auto),
             "notif.dnd" => b(mc().notif_dnd),
             "calendar.week_start" => Some(Value::Text(if mc().calendar_sunday { "sun" } else { "mon" }.to_string())),
             "dock.autohide" => b(crate::dockwin::autohide()),
@@ -116,6 +117,9 @@ impl Backend for Live {
             }
             "notif.dnd" => {
                 crate::mcstore::set_notif_dnd(want_bool(value)?);
+            }
+            "general.update_auto" => {
+                crate::mcstore::set_update_auto(want_bool(value)?);
             }
             "notif.read" => {
                 crate::mcstore::set_notif_read(want_bool(value)?);

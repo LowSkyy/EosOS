@@ -19,6 +19,7 @@ import {
   type SettingEntry,
   type SettingValue,
 } from "../lib/settings";
+import UpdateBox from "./UpdateBox";
 
 /**
  * Impostazioni di EosOS (finestra "settings", vista ?view=settings): barra laterale con le sezioni e a destra le
@@ -165,6 +166,7 @@ export default function Settings() {
         {shown.map((e) => (
           <Row key={e.key} entry={e} error={errors[e.key]} note={notes[e.key]} onSet={(v) => void set(e.key, v)} onAction={() => void act(e.key)} showSection={found !== null} />
         ))}
+        {found === null && section === "general" && <UpdateBox />}
       </main>
     </div>
   );
