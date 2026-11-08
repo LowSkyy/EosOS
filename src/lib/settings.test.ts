@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addName, asList, byKeys, choiceLabel, inSection, pickSection, removeName, sectionsOf, type SettingEntry } from "./settings";
+import { addName, asList, byKeys, choiceLabel, comboFromEvent, folderName, inSection, moveItem, pickSection, removeName, sectionsOf, type KeyLike, type SettingEntry } from "./settings";
 
 const e = (key: string, section: string, over: Partial<SettingEntry> = {}): SettingEntry => ({
   key,
@@ -61,5 +61,48 @@ describe("choiceLabel", () => {
     expect(choiceLabel(kind, "solid")).toBe("Vetro opaco");
     expect(choiceLabel(kind, "boh")).toBe("boh");
     expect(choiceLabel({ type: "bool" }, true)).toBe("");
+  });
+});
+
+const ev = (over: Partial<KeyLike>): KeyLike => ({ key: "k", code: "KeyK", ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...over });
+
+describe("comboFromEvent", () => {
+  it("writes the combination in the order Ctrl, Alt, Shift, Win, key", () => {
+    expect(comboFromEvent(ev({ ctrlKey: true, altKey: true }))).toBe("Ctrl+Alt+K");
+    expect(comboFromEvent(ev({ ctrlKey: true, shiftKey: true, metaKey: true, altKey: true }))).toBe("Ctrl+Alt+Shift+Win+K");
+    expect(comboFromEvent(ev({ code: "ArrowUp", key: "ArrowUp", ctrlKey: true, altKey: true }))).toBe("Ctrl+Alt+Up");
+    expect(comboFromEvent(ev({ code: "Space", key: " ", altKey: true }))).toBe("Alt+Space");
+    expect(comboFromEvent(ev({ code: "F5", key: "F5", ctrlKey: true }))).toBe("Ctrl+F5");
+    expect(comboFromEvent(ev({ code: "Digit7", key: "7", ctrlKey: true }))).toBe("Ctrl+7");
+  });
+  it("uses the physical key, not the letter a layout produces", () => {
+    expect(comboFromEvent(ev({ code: "KeyQ", key: "a", ctrlKey: true }))).toBe("Ctrl+Q");
+  });
+  it("waits while only modifiers are down", () => {
+    for (const key of ["Control", "Alt", "Shift", "Meta"]) expect(comboFromEvent(ev({ key, code: "Left", ctrlKey: true }))).toBeNull();
+  });
+  it("refuses a bare key or Shift alone, and keys that are not allowed", () => {
+    expect(comboFromEvent(ev({}))).toBeNull();
+    expect(comboFromEvent(ev({ shiftKey: true }))).toBeNull();
+    expect(comboFromEvent(ev({ code: "Enter", key: "Enter", ctrlKey: true }))).toBeNull();
+    expect(comboFromEvent(ev({ code: "F13", key: "F13", ctrlKey: true }))).toBeNull();
+    expect(comboFromEvent(ev({ code: "Tab", key: "Tab", altKey: true }))).toBeNull();
+  });
+});
+
+describe("moveItem / folderName", () => {
+  it("swaps with the neighbour and stops at the edges", () => {
+    expect(moveItem(["a", "b", "c"], 1, -1)).toEqual(["b", "a", "c"]);
+    expect(moveItem(["a", "b", "c"], 1, 1)).toEqual(["a", "c", "b"]);
+    const l = ["a", "b"];
+    expect(moveItem(l, 0, -1)).toBe(l);
+    expect(moveItem(l, 1, 1)).toBe(l);
+    expect(moveItem(l, 5, 1)).toBe(l);
+  });
+  it("shows only the last part of a path", () => {
+    expect(folderName("D:\\Progetti\\EosOS")).toBe("EosOS");
+    expect(folderName("D:\\")).toBe("D:");
+    expect(folderName("E:/Dati/")).toBe("Dati");
+    expect(folderName("")).toBe("");
   });
 });

@@ -30,12 +30,12 @@ try {
 
   Write-Host 'A. lo stato di tutte le impostazioni'
   $all = All-S
-  Check 'ci sono tutte le 17 impostazioni' ($all.Count -eq 17) ("trovate " + $all.Count)
+  Check 'ci sono tutte le 18 impostazioni' ($all.Count -eq 18) ("trovate " + $all.Count)
   Check 'ognuna ha un valore' (@($all | Where-Object { $null -eq $_.value }).Count -eq 0) ("senza valore: " + (@($all | Where-Object { $null -eq $_.value } | ForEach-Object { $_.key }) -join ','))
   Check 'predefiniti: Dock non nasconde, menu globale acceso, Alt+Tab e Win+Tab di EosOS, angolo spento' ((Val 'dock.autohide') -eq $false -and (Val 'menu.enabled') -eq $true -and (Val 'mc.alttab') -eq $true -and (Val 'mc.wintab') -eq $true -and (Val 'mc.corner') -eq $false)
   Check 'predefiniti: Launcher Alt+Space, Mission Control Ctrl+Alt+Up' ((Val 'launcher.hotkey') -eq 'Alt+Space' -and (Val 'mc.hotkey') -eq 'Ctrl+Alt+Up')
   $order = ($all | ForEach-Object { $_.section } | Select-Object -Unique) -join ','
-  Check 'le sezioni escono nell ordine Dock, Barra dei menu, Launcher, Mission Control' ($order -eq 'dock,menu_bar,launcher,mission_control') $order
+  Check 'le sezioni escono nell ordine Aspetto, Dock, Barra dei menu, Launcher, Mission Control' ($order -eq 'appearance,dock,menu_bar,launcher,mission_control') $order
 
   Write-Host 'B. interruttori: si cambiano, si rileggono, tornano come prima'
   foreach ($k in 'dock.reserve', 'dock.blur', 'bar.battery', 'bar.percent', 'bar.network', 'bar.volume', 'menu.enabled', 'launcher.clipboard', 'mc.corner', 'mc.alttab', 'mc.wintab') {
@@ -86,9 +86,9 @@ try {
   [void](Set-S 'launcher.folders' '[]')
   Check 'svuotato' (@(Val 'launcher.folders').Count -eq 0)
 
-  Write-Host 'E. scorciatoia di Mission Control (vale al prossimo avvio)'
+  Write-Host 'E. scorciatoia di Mission Control (si cambia a caldo)'
   $r = Set-S 'mc.hotkey' "'ctrl+alt+k'"
-  Check 'scritta in forma canonica e segnata come non immediata' (($r.ok -eq $true) -and ($r.live -eq $false) -and ((Val 'mc.hotkey') -eq 'Ctrl+Alt+K')) ("live=" + $r.live)
+  Check 'scritta in forma canonica e applicata subito' (($r.ok -eq $true) -and ($r.live -eq $true) -and ((Val 'mc.hotkey') -eq 'Ctrl+Alt+K')) ("live=" + $r.live)
   $r = Set-S 'mc.hotkey' "'Su'"
   Check 'un tasto nudo e rifiutato' ($r.ok -eq $false) $r.error
   [void](Set-S 'mc.hotkey' "'Ctrl+Alt+Up'")

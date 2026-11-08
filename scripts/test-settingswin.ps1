@@ -66,9 +66,9 @@ try {
   Check 'ha il primo piano' (Wait-Until { [SW]::GetForegroundWindow() -eq [IntPtr]$h } 3)
 
   Write-Host 'B. contenuto'
-  Check 'la barra laterale ha le quattro sezioni' ((Navs) -join '|' -eq 'Dock|Barra dei menu|Launcher|Mission Control') ((Navs) -join '|')
-  Check 'si parte dalla sezione Dock' ((Heading) -eq 'Dock')
-  Check 'Dock mostra le sue quattro impostazioni' ((Labels) -join '|' -eq 'Nascondi automaticamente|Riserva spazio alle finestre|Sfocatura dello sfondo|Livello di vetro') ((Labels) -join '|')
+  Check 'la barra laterale ha le cinque sezioni' ((Navs) -join '|' -eq 'Aspetto|Dock|Barra dei menu|Launcher|Mission Control') ((Navs) -join '|')
+  Check 'si parte dalla prima sezione, Aspetto' ((Heading) -eq 'Aspetto')
+  Check 'Aspetto mostra sfocatura e livello di vetro' ((Labels) -join '|' -eq 'Sfocatura dello sfondo|Livello di vetro') ((Labels) -join '|')
   Check 'ogni riga ha etichetta e aiuto' ((Win "Array.from(document.querySelectorAll('.settings-row')).every(function(r){return r.querySelector('.settings-help').textContent.length>5})") -eq $true)
 
   Write-Host 'C. interruttori e scelte agiscono sui depositi'
@@ -84,6 +84,8 @@ try {
   Check 'e torna standard' (Wait-Until { (Val 'dock.glass') -eq 'standard' } 4)
 
   Write-Host 'D. si aggiorna quando la stessa cosa cambia da altrove'
+  Click-Nav 'Dock'; Start-Sleep -Milliseconds 400
+  Check 'la sezione Dock ha nascondi, riserva spazio e app fissate' ((Labels) -join '|' -eq 'Nascondi automaticamente|Riserva spazio alle finestre|App fissate') ((Labels) -join '|')
   [void](Js 'launcher' "window.__TAURI_INTERNALS__.invoke('settings_set',{key:'dock.reserve',value:false})")
   Check 'un cambio fatto fuori dalla finestra compare nell interruttore' (Wait-Until { (Switch-On 'Riserva spazio alle finestre') -eq 'false' } 4)
   [void](Js 'launcher' "window.__TAURI_INTERNALS__.invoke('settings_set',{key:'dock.reserve',value:true})")
@@ -100,7 +102,7 @@ try {
   Win "document.querySelector('.names-item button').click()" | Out-Null
   Check 'toglierlo lo toglie davvero' (Wait-Until { @(Val 'menu.excluded').Count -eq 0 } 4)
   Click-Nav 'Mission Control'; Start-Sleep -Milliseconds 400
-  Check 'Mission Control mostra la scorciatoia come testo' ((Win "document.querySelector('.settings-static').textContent") -eq 'Ctrl+Alt+Up')
+  Check 'Mission Control mostra la scorciatoia attuale con il pulsante Cambia' (((Win "document.querySelector('.hotkey-keys').textContent") -eq 'Ctrl+Alt+Up') -and ((Win "document.querySelector('.hotkey .settings-button').textContent") -eq 'Cambia'))
   Click-Nav 'Launcher'; Start-Sleep -Milliseconds 400
   Check 'Launcher ha la scelta della scorciatoia con tre opzioni' ((Win "document.querySelector('select').options.length") -eq 3)
 

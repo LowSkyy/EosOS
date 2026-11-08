@@ -7,7 +7,8 @@ export type SettingKind =
   | { type: "choice"; options: [string, string][] }
   | { type: "hotkey" }
   | { type: "names"; max: number }
-  | { type: "folders"; max: number };
+  | { type: "folders"; max: number }
+  | { type: "pinned" };
 
 export type SettingEntry = {
   key: string;
@@ -63,4 +64,41 @@ export const asList = (v: SettingValue | null): string[] => (Array.isArray(v) ? 
 export function choiceLabel(kind: SettingKind, value: SettingValue | null): string {
   if (kind.type !== "choice" || typeof value !== "string") return "";
   return kind.options.find(([id]) => id === value)?.[1] ?? value;
+}
+
+/** Un evento di tastiera ridotto a quello che serve per registrare una scorciatoia. */
+export type KeyLike = { key: string; code: string; ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean };
+
+const MODIFIER_KEYS = ["Control", "Alt", "Shift", "Meta", "AltGraph", "OS"];
+
+/**
+ * La scorciatoia scritta ("Ctrl+Alt+K") per un evento di tastiera, o `null` se non è ancora una combinazione
+ * valida: solo modificatori premuti, un tasto non ammesso, o nessun modificatore fra Ctrl, Alt e Win (il solo
+ * Maiusc non basta: dirotterebbe la digitazione). Usa il codice fisico del tasto, non la lettera prodotta. Pura.
+ */
+export function comboFromEvent(e: KeyLike): string | null {
+  if (MODIFIER_KEYS.includes(e.key)) return null;
+  let key: string | null = null;
+  if (/^Key[A-Z]$/.test(e.code)) key = e.code.slice(3);
+  else if (/^Digit[0-9]$/.test(e.code)) key = e.code.slice(5);
+  else if (e.code === "Space") key = "Space";
+  else if (/^Arrow(Up|Down|Left|Right)$/.test(e.code)) key = e.code.slice(5);
+  else if (/^F([1-9]|1[0-2])$/.test(e.code)) key = e.code;
+  if (!key || !(e.ctrlKey || e.altKey || e.metaKey)) return null;
+  return [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", e.metaKey && "Win", key].filter(Boolean).join("+");
+}
+
+/** L'elenco con l'elemento `i` spostato di un posto (`dir` -1 su, +1 giù); invariato ai bordi. Pura. */
+export function moveItem<T>(list: T[], i: number, dir: -1 | 1): T[] {
+  const j = i + dir;
+  if (i < 0 || i >= list.length || j < 0 || j >= list.length) return list;
+  const out = [...list];
+  [out[i], out[j]] = [out[j], out[i]];
+  return out;
+}
+
+/** L'ultimo pezzo di un percorso, per mostrarlo in breve ("D:\\Progetti\\EosOS" → "EosOS"). */
+export function folderName(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : path;
 }

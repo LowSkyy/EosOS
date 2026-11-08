@@ -4,6 +4,9 @@ import { listen } from "@tauri-apps/api/event";
 import {
   addName,
   asList,
+  comboFromEvent,
+  folderName,
+  moveItem,
   byKeys,
   choiceLabel,
   inSection,
@@ -180,11 +183,9 @@ function Row({ entry, error, note, onSet, showSection }: { entry: SettingEntry; 
           </select>
         )}
         {kind.type === "names" && <NameList id={id} items={asList(value)} max={kind.max} onChange={onSet} />}
-        {(kind.type === "hotkey" || kind.type === "folders") && (
-          <span id={id} className="settings-static">
-            {kind.type === "hotkey" ? String(value ?? "") : `${asList(value).length} cartelle`}
-          </span>
-        )}
+        {kind.type === "hotkey" && <HotkeyField id={id} value={String(value ?? "")} onSet={(v) => onSet(v)} />}
+        {kind.type === "folders" && <FolderList id={id} items={asList(value)} max={kind.max} onChange={onSet} />}
+        {kind.type === "pinned" && <PinnedList id={id} items={asList(value)} onChange={onSet} />}
         {kind.type === "choice" && <span className="settings-sr">{choiceLabel(kind, value)}</span>}
       </div>
     </section>
@@ -227,5 +228,92 @@ function NameList({ id, items, max, onChange }: { id: string; items: string[]; m
         </button>
       </div>
     </div>
+  );
+}
+
+/** Scorciatoia: si preme «Cambia», poi la nuova combinazione; Esc annulla. Rust la valida e la prova davvero. */
+function HotkeyField({ id, value, onSet }: { id: string; value: string; onSet: (v: string) => void }) {
+  const [rec, setRec] = useState(false);
+  useEffect(() => {
+    if (!rec) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (e.key === "Escape") return setRec(false);
+      const combo = comboFromEvent(e);
+      if (combo) {
+        setRec(false);
+        onSet(combo);
+      }
+    };
+    // In cattura: prima di Esc della finestra, così annulla la registrazione e non chiude le impostazioni.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [rec, onSet]);
+  return (
+    <div className="hotkey" id={id}>
+      <kbd className="hotkey-keys">{rec ? "Premi la nuova scorciatoia…" : value}</kbd>
+      <button type="button" className="settings-button" onClick={() => setRec((r) => !r)}>
+        {rec ? "Annulla" : "Cambia"}
+      </button>
+    </div>
+  );
+}
+
+/** Cartelle di ricerca: elenco con «×» e «Aggiungi cartella…» (il selettore di Windows lo apre Rust). */
+function FolderList({ id, items, max, onChange }: { id: string; items: string[]; max: number; onChange: (v: string[]) => void }) {
+  const [busy, setBusy] = useState(false);
+  const add = async () => {
+    setBusy(true);
+    try {
+      const picked = await invoke<string | null>("settings_pick_folder");
+      if (picked && !items.some((p) => p.toLowerCase() === picked.toLowerCase())) onChange([...items, picked]);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="names" id={id}>
+      <ul className="names-list" aria-label="Cartelle">
+        {items.length === 0 && <li className="names-empty">Nessuna</li>}
+        {items.map((p) => (
+          <li key={p} className="names-item" title={p}>
+            <span>{folderName(p)}</span>
+            <button type="button" aria-label={`Rimuovi ${p}`} onClick={() => onChange(removeName(items, p))}>
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="names-add">
+        <button type="button" className="settings-button" onClick={() => void add()} disabled={busy || items.length >= max}>
+          {busy ? "Scegli la cartella…" : "Aggiungi cartella…"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** App fissate nel Dock: si riordinano con le frecce e si tolgono con «×»; non se ne aggiungono da qui. */
+function PinnedList({ id, items, onChange }: { id: string; items: string[]; onChange: (v: string[]) => void }) {
+  return (
+    <ol className="pinned" id={id} aria-label="App fissate">
+      {items.length === 0 && <li className="names-empty">Nessuna</li>}
+      {items.map((n, i) => (
+        <li key={`${i}-${n}`} className="pinned-item">
+          <span className="pinned-name">{n}</span>
+          <button type="button" aria-label={`Sposta su ${n}`} disabled={i === 0} onClick={() => onChange(moveItem(items, i, -1))}>
+            ↑
+          </button>
+          <button type="button" aria-label={`Sposta giù ${n}`} disabled={i === items.length - 1} onClick={() => onChange(moveItem(items, i, 1))}>
+            ↓
+          </button>
+          <button type="button" aria-label={`Togli ${n} dal Dock`} onClick={() => onChange(items.filter((_, j) => j !== i))}>
+            ×
+          </button>
+        </li>
+      ))}
+    </ol>
   );
 }

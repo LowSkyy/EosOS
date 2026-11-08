@@ -895,6 +895,28 @@ fn configured_hotkey() -> Hotkey {
         .unwrap_or(Hotkey { mods: 0x3, vk: 0x26 })
 }
 
+/// Messaggio privato per il thread della scorciatoia: "cambia combinazione".
+const WM_CHANGE_HOTKEY: u32 = windows::Win32::UI::WindowsAndMessaging::WM_APP + 3;
+static HOTKEY_THREAD: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+type Change = (Hotkey, std::sync::mpsc::Sender<bool>);
+static PENDING_CHANGE: Mutex<Option<Change>> = Mutex::new(None);
+
+/// Cambia la scorciatoia di Mission Control subito, senza riavviare. `true` se la nuova combinazione è stata
+/// registrata; `false` se è occupata (da un altro programma o dal Launcher) o il thread non risponde: resta
+/// quella di prima. Il salvataggio lo fa chi chiama.
+pub fn change_hotkey(h: Hotkey) -> bool {
+    let tid = HOTKEY_THREAD.load(Ordering::Relaxed);
+    if tid == 0 {
+        return false;
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    *PENDING_CHANGE.lock().unwrap_or_else(|e| e.into_inner()) = Some((h, tx));
+    if unsafe { windows::Win32::UI::WindowsAndMessaging::PostThreadMessageW(tid, WM_CHANGE_HOTKEY, WPARAM(0), LPARAM(0)) }.is_err() {
+        return false;
+    }
+    rx.recv_timeout(Duration::from_secs(2)).unwrap_or(false)
+}
+
 fn try_register(h: Hotkey) -> bool {
     unsafe { RegisterHotKey(None, HOTKEY_ID, HOT_KEY_MODIFIERS(h.mods) | MOD_NOREPEAT, h.vk) }.is_ok()
 }
@@ -902,7 +924,8 @@ fn try_register(h: Hotkey) -> bool {
 /// Thread della scorciatoia: la registra, apre/chiude la panoramica a ogni pressione e, se la
 /// combinazione è occupata da un altro programma, avvisa una volta e riprova ogni 30 secondi.
 fn hotkey_thread(app: AppHandle) {
-    let hk = configured_hotkey();
+    HOTKEY_THREAD.store(unsafe { windows::Win32::System::Threading::GetCurrentThreadId() }, Ordering::Relaxed);
+    let mut hk = configured_hotkey();
     let mut registered = try_register(hk);
     if !registered {
         eprintln!("mission control: {} è già usata da un altro programma", display_hotkey(hk));
@@ -925,6 +948,22 @@ fn hotkey_thread(app: AppHandle) {
                     std::thread::spawn(move || toggle(&app));
                 }
                 WM_TIMER if !registered => registered = try_register(hk),
+                WM_CHANGE_HOTKEY => {
+                    let change = PENDING_CHANGE.lock().unwrap_or_else(|e| e.into_inner()).take();
+                    if let Some((new, tx)) = change {
+                        if registered {
+                            let _ = windows::Win32::UI::Input::KeyboardAndMouse::UnregisterHotKey(None, HOTKEY_ID);
+                        }
+                        if try_register(new) {
+                            hk = new;
+                            registered = true;
+                            let _ = tx.send(true);
+                        } else {
+                            registered = try_register(hk); // si torna a quella di prima
+                            let _ = tx.send(false);
+                        }
+                    }
+                }
                 _ => {
                     let _ = TranslateMessage(&msg);
                     DispatchMessageW(&msg);

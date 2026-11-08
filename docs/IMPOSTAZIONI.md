@@ -2,7 +2,7 @@
 
 Obiettivo: una finestra «Impostazioni di EosOS», in stile Impostazioni di Sistema di macOS, dove si cambiano **tutte** le preferenze di EosOS con il mouse. Oggi le preferenze ci sono, ma sono sparse e quasi nascoste: menu contestuali del Dock e della barra, voci del Launcher che accendono e spengono cose, e file JSON da modificare a mano.
 
-Stato: specifica (8 nov 2026); **decisioni dell'utente (8 nov 2026): sì a tutto**, cioè questo è il passo successivo, l'avvio automatico con Windows è incluso (S4) e la finestra è senza bordi in vetro come Launcher e pannelli. **S1 e S2 fatte.** La roadmap precedente è finita (Dock, Launcher, Indicatori, Mission Control, Menu globale); questo è il passo che ho scelto come successivo perché è il buco più evidente in uso quotidiano. 
+Stato: specifica (8 nov 2026); **decisioni dell'utente (8 nov 2026): sì a tutto**, cioè questo è il passo successivo, l'avvio automatico con Windows è incluso (S4) e la finestra è senza bordi in vetro come Launcher e pannelli. **S1, S2 e S3 fatte.** La roadmap precedente è finita (Dock, Launcher, Indicatori, Mission Control, Menu globale); questo è il passo che ho scelto come successivo perché è il buco più evidente in uso quotidiano. 
 
 ## Cosa fa macOS (da replicare) e da dove viene
 
@@ -96,6 +96,26 @@ Una finestra «Impostazioni di EosOS» senza bordi (angoli arrotondati disegnati
 **Scelta di stile da conoscere:** a differenza di Launcher e pannelli la finestra **non ha lo sfondo sfocato** (la cattura dello schermo per la sfocatura è un canale condiviso con Dock, Launcher e pannello, e una finestra grande e trascinabile lo metterebbe sotto sforzo): usa il fondo del tema, opaco. Se lo vuoi sfocato si può aggiungere in S6.
 
 **Non provato:** tema chiaro dal vivo (le variabili del tema ci sono, non l'ho guardato), scale diverse dal 100% (S6), trascinamento della finestra col mouse vero (l'attributo c'è e il permesso è concesso, ma non ho trascinato), lettore di schermo vero.
+
+## S3 — Le altre sezioni: FATTA (8 nov 2026)
+
+**Sezioni ora cinque:** Aspetto (sfocatura e livello di vetro, che valgono per Dock, barra e pannelli: spostate qui dal Dock, le chiavi `dock.blur` e `dock.glass` restano le stesse), Dock, Barra dei menu, Launcher, Mission Control. Le impostazioni sono **18** (si è aggiunta `dock.pinned`).
+
+- **Scorciatoia di Mission Control, cambiata a caldo.** Nella pagina: «Cambia» → «Premi la nuova scorciatoia…» → si preme la combinazione (Esc annulla senza chiudere la finestra; un tasto da solo, o con il solo Maiusc, non basta e si resta in ascolto). La pagina scrive la combinazione dal codice fisico del tasto (`comboFromEvent`, pura e testata), Rust la valida con le regole di sempre e **prova davvero a registrarla**: se è occupata (da un altro programma o **dal Launcher**) resta quella di prima e compare il messaggio «Questa scorciatoia è già usata da un altro programma (o dal Launcher)». Lo stesso meccanismo del Launcher (messaggio al thread della scorciatoia, ritorno alla vecchia se la nuova non si registra). Non serve più riavviare.
+- **Cartelle di ricerca del Launcher.** Elenco con «×» e **«Aggiungi cartella…»** che apre il **selettore di cartelle di Windows** (`folderpick.rs`, in un thread a parte con il suo COM, legato alla finestra delle impostazioni: non blocca nient'altro; annullarlo non è un errore). La stessa cartella scelta due volte non si duplica. Rust controlla che la cartella esista.
+- **App fissate del Dock.** Elenco con ↑ ↓ ×: si riordina e si toglie; **non si aggiunge** da qui (per fissare un'app la si trascina nel Dock). Rust accetta solo nomi che sono davvero nel Dock (`plan_pins`, pura e testata: due app con lo stesso nome si distinguono per ordine, nessun nome inventato, nessun uso doppio) e applica togliendo e riordinando con le stesse funzioni del Dock.
+- **Scorciatoia del Launcher:** le tre scorciatoie del Launcher restano un menu a tendina di scelte sicure (Alt+Spazio, Ctrl+Alt+Spazio, Ctrl+Maiusc+Spazio).
+
+**Verifica dal vivo** (`scripts/test-settings-s3.ps1`, **35 controlli**, i quattro file dell'utente salvati e ripristinati identici; per le app fissate si usa un `dock.json` di prova con tre programmi di Windows):
+- **Aspetto** è la prima sezione con due righe.
+- **App fissate:** le tre app nell'ordine del file, frecce disattivate ai bordi; ↓ e ↑ cambiano l'ordine **nel deposito e nel file del Dock**; «×» toglie un'app; un nome inventato è rifiutato e non cambia nulla.
+- **Cartelle:** il selettore (finto, per la parte di pagina) aggiunge la cartella scelta, compare con l'ultimo pezzo del percorso e finisce nel file del Launcher; una seconda scelta uguale non la duplica; «×» la toglie.
+- **Scorciatoia:** si mostra quella attuale; un tasto da solo resta in ascolto; **Esc annulla senza chiudere la finestra**; Ctrl+Alt+K è accettata, mostrata e scritta nel file, **senza la nota del riavvio**; **dal vivo, premendo Ctrl+Alt+K con tasti veri si apre Mission Control** (con la finestra delle impostazioni in primo piano); Alt+Spazio (del Launcher) rifiutata con il messaggio e Alt+F4 rifiutata, e lo stato resta Ctrl+Alt+K; registrando Alt+Spazio dalla pagina compare l'errore; si torna alla predefinita Ctrl+Alt+Su, il file non la conserva più e **Ctrl+Alt+Su apre di nuovo Mission Control**.
+- **Selettore vero** (app riavviata senza il selettore finto): la finestra «Scegli una cartella» di Windows compare davvero, e chiudendola il comando risponde «nessuna cartella» con EosOS ancora vivo.
+
+Regressioni (aggiornate dove cambiavano le sezioni): impostazioni S1 (67), finestra S2 (35, ora con le sezioni nuove), Mission Control apertura/scorciatoie (39), Launcher: tutte OK. Rust 323 test (3 a richiesta), pagina 122, clippy a 0 avvisi.
+
+**Non provato:** un vero conflitto con un programma esterno su una scorciatoia di Mission Control (il rifiuto è provato con quella del Launcher, che è dello stesso processo ma usa lo stesso meccanismo del sistema); il selettore con una cartella vera scelta col mouse (si è provata la pagina con il selettore finto e il selettore vero solo aperto e chiuso); riordino delle app fissate con il Dock che le ridisegna dal vivo (si è verificato il deposito e il file).
 
 ## Decisioni (prese dall'utente, 8 nov 2026)
 

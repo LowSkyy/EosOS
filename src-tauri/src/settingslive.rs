@@ -58,6 +58,7 @@ impl Backend for Live {
             "dock.autohide" => b(crate::dockwin::autohide()),
             "dock.reserve" => b(crate::dockwin::reserve_enabled()),
             "dock.blur" => b(crate::dockwin::blur_enabled()),
+            "dock.pinned" => Some(Value::List(crate::dockstore::load().into_iter().map(|p| p.name).collect())),
             "dock.glass" => Some(Value::Text(crate::dockstore::nearest_glass_id(crate::dockstore::settings().glass).to_string())),
             "bar.battery" => b(ind().battery),
             "bar.percent" => b(ind().percent),
@@ -103,6 +104,21 @@ impl Backend for Live {
                 }
                 self.dock_changed();
             }
+            "dock.pinned" => {
+                let cur = crate::dockstore::load();
+                let names: Vec<String> = cur.iter().map(|p| p.name.clone()).collect();
+                let keep = crate::settingsreg::plan_pins(&names, &want_list(value)?)?;
+                // Prima si tolgono quelle non volute, poi si mettono nell'ordine voluto.
+                for (i, p) in cur.iter().enumerate() {
+                    if !keep.contains(&i) {
+                        crate::dockstore::unpin(&p.path);
+                    }
+                }
+                for (to, i) in keep.iter().enumerate() {
+                    crate::dockstore::move_to(&cur[*i].path, None, to);
+                }
+                self.dock_changed();
+            }
             "dock.glass" => {
                 let v = crate::dockstore::glass_value(want_text(value)?).ok_or_else(|| SettingsError("Livello di vetro sconosciuto.".into()))?;
                 crate::dockstore::set_glass(v);
@@ -133,6 +149,11 @@ impl Backend for Live {
             }
             "mc.hotkey" => {
                 let text = want_text(value)?.to_string();
+                let h = crate::launcherwin::parse_hotkey(&text).ok_or_else(|| SettingsError("Scorciatoia non valida.".into()))?;
+                // Cambia subito; si salva solo se la nuova combinazione è libera.
+                if !crate::mcwin::change_hotkey(h) {
+                    return Err(SettingsError("Questa scorciatoia è già usata da un altro programma (o dal Launcher).".into()));
+                }
                 let default = text == crate::mcwin::DEFAULT_HOTKEY;
                 crate::mcstore::set_hotkey((!default).then_some(text));
             }

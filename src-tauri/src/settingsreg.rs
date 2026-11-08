@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Section {
+    Appearance,
     Dock,
     MenuBar,
     Launcher,
@@ -21,6 +22,7 @@ pub enum Section {
 impl Section {
     pub fn label(self) -> &'static str {
         match self {
+            Section::Appearance => "Aspetto",
             Section::Dock => "Dock",
             Section::MenuBar => "Barra dei menu",
             Section::Launcher => "Launcher",
@@ -41,6 +43,8 @@ pub enum Kind {
     Names,
     /// Un elenco di cartelle (percorsi assoluti).
     Folders,
+    /// Le app fissate nel Dock: si può togliere e riordinare, non aggiungere (si fissa dal Dock).
+    Pinned,
 }
 
 /// Una voce dell'elenco chiuso.
@@ -62,10 +66,11 @@ const LAUNCHER_HOTKEYS: &[(&str, &str)] = &[("Alt+Space", "Alt+Spazio"), ("Ctrl+
 
 /// L'elenco chiuso di tutte le impostazioni. Le chiavi sono stabili: la pagina e i test le usano.
 pub const SPECS: &[Spec] = &[
+    Spec { key: "dock.blur", section: Section::Appearance, label: "Sfocatura dello sfondo", help: "Sfoca quello che sta dietro al Dock, alla barra e ai pannelli.", kind: Kind::Bool, keywords: &["vetro", "blur", "trasparenza"], live: true },
+    Spec { key: "dock.glass", section: Section::Appearance, label: "Livello di vetro", help: "Quanto sono trasparenti Dock, barra e pannelli.", kind: Kind::Choice(GLASS), keywords: &["vetro", "trasparente", "opaco", "aspetto"], live: true },
     Spec { key: "dock.autohide", section: Section::Dock, label: "Nascondi automaticamente", help: "Il Dock scompare quando non serve e riappare spostando il mouse sul bordo.", kind: Kind::Bool, keywords: &["auto", "nascondi", "scompare"], live: true },
     Spec { key: "dock.reserve", section: Section::Dock, label: "Riserva spazio alle finestre", help: "Le finestre ingrandite non finiscono sotto il Dock.", kind: Kind::Bool, keywords: &["area di lavoro", "spazio", "ingrandite"], live: true },
-    Spec { key: "dock.blur", section: Section::Dock, label: "Sfocatura dello sfondo", help: "Sfoca quello che sta dietro al Dock, alla barra e ai pannelli.", kind: Kind::Bool, keywords: &["vetro", "blur", "trasparenza"], live: true },
-    Spec { key: "dock.glass", section: Section::Dock, label: "Livello di vetro", help: "Quanto è trasparente il Dock.", kind: Kind::Choice(GLASS), keywords: &["vetro", "trasparente", "opaco", "aspetto"], live: true },
+    Spec { key: "dock.pinned", section: Section::Dock, label: "App fissate", help: "Le app fissate nel Dock: riordinale o toglile (per fissarne una, trascinala nel Dock).", kind: Kind::Pinned, keywords: &["fissate", "pin", "icone", "ordine"], live: true },
     Spec { key: "bar.battery", section: Section::MenuBar, label: "Batteria", help: "Mostra l'indicatore della batteria nella barra.", kind: Kind::Bool, keywords: &["indicatori", "energia"], live: true },
     Spec { key: "bar.percent", section: Section::MenuBar, label: "Percentuale della batteria", help: "Scrive la percentuale accanto all'icona della batteria.", kind: Kind::Bool, keywords: &["indicatori", "batteria", "per cento"], live: true },
     Spec { key: "bar.network", section: Section::MenuBar, label: "Rete", help: "Mostra l'indicatore di rete nella barra.", kind: Kind::Bool, keywords: &["indicatori", "wifi", "internet"], live: true },
@@ -75,7 +80,7 @@ pub const SPECS: &[Spec] = &[
     Spec { key: "launcher.hotkey", section: Section::Launcher, label: "Scorciatoia del Launcher", help: "Il tasto che apre la ricerca.", kind: Kind::Choice(LAUNCHER_HOTKEYS), keywords: &["spotlight", "ricerca", "tastiera"], live: true },
     Spec { key: "launcher.clipboard", section: Section::Launcher, label: "Cronologia degli appunti", help: "Il Launcher ricorda il testo copiato (solo in memoria).", kind: Kind::Bool, keywords: &["appunti", "copia", "incolla", "clipboard"], live: true },
     Spec { key: "launcher.folders", section: Section::Launcher, label: "Cartelle di ricerca", help: "Cartelle in più dove il Launcher cerca i file.", kind: Kind::Folders, keywords: &["file", "cartelle", "percorsi"], live: true },
-    Spec { key: "mc.hotkey", section: Section::MissionControl, label: "Scorciatoia di Mission Control", help: "Il tasto che apre e chiude la panoramica (vale al prossimo avvio).", kind: Kind::Hotkey, keywords: &["tastiera", "panoramica"], live: false },
+    Spec { key: "mc.hotkey", section: Section::MissionControl, label: "Scorciatoia di Mission Control", help: "Il tasto che apre e chiude la panoramica.", kind: Kind::Hotkey, keywords: &["tastiera", "panoramica"], live: true },
     Spec { key: "mc.corner", section: Section::MissionControl, label: "Angolo attivo", help: "Fermare il mouse nell'angolo in alto a sinistra apre la panoramica.", kind: Kind::Bool, keywords: &["angolo", "mouse"], live: true },
     Spec { key: "mc.alttab", section: Section::MissionControl, label: "Alt+Tab di EosOS", help: "Al posto del selettore di Windows. Spento: resta quello di Windows.", kind: Kind::Bool, keywords: &["selettore", "finestre", "tastiera"], live: true },
     Spec { key: "mc.wintab", section: Section::MissionControl, label: "Win+Tab di EosOS", help: "Apre Mission Control. Spento: resta la Visualizzazione attività di Windows.", kind: Kind::Bool, keywords: &["visualizzazione attività", "task view", "tastiera"], live: true },
@@ -109,6 +114,8 @@ impl SettingsError {
 pub const MAX_NAMES: usize = crate::menumodel::MAX_EXCLUDED;
 pub const MAX_FOLDERS: usize = 20;
 pub const MAX_NAME_LEN: usize = 60;
+pub const MAX_PINNED: usize = 100;
+pub const MAX_PINNED_NAME: usize = 200;
 pub const MAX_PATH_LEN: usize = 260;
 
 /// Un percorso di cartella accettabile: assoluto (lettera di unità o `\\\\server`), senza `..`, senza caratteri
@@ -168,6 +175,8 @@ pub fn validate(s: &Spec, raw: &Value) -> Result<Value, SettingsError> {
             Ok(Value::List(clean_list(l, MAX_FOLDERS, MAX_PATH_LEN)))
         }
         (Kind::Folders, _) => Err(SettingsError::new("Serve un elenco di cartelle.")),
+        (Kind::Pinned, Value::List(l)) => Ok(Value::List(clean_list(l, MAX_PINNED, MAX_PINNED_NAME))),
+        (Kind::Pinned, _) => Err(SettingsError::new("Serve un elenco di app.")),
     }
 }
 
@@ -214,6 +223,7 @@ pub enum KindOut {
     Hotkey,
     Names { max: usize },
     Folders { max: usize },
+    Pinned,
 }
 
 fn kind_out(k: Kind) -> KindOut {
@@ -223,6 +233,7 @@ fn kind_out(k: Kind) -> KindOut {
         Kind::Hotkey => KindOut::Hotkey,
         Kind::Names => KindOut::Names { max: MAX_NAMES },
         Kind::Folders => KindOut::Folders { max: MAX_FOLDERS },
+        Kind::Pinned => KindOut::Pinned,
     }
 }
 
@@ -241,6 +252,24 @@ pub fn snapshot(b: &dyn Backend) -> Vec<Entry> {
             value: b.get(s.key),
         })
         .collect()
+}
+
+/// Come riordinare/ridurre le app fissate: `wanted` è l'elenco di nomi che si vuole (nell'ordine voluto), `current`
+/// quelli di adesso. Restituisce le posizioni delle app attuali da tenere, nell'ordine voluto. Ogni nome deve
+/// esistere fra quelli attuali (senza badare alle maiuscole) e ognuno si usa una volta sola (due app con lo
+/// stesso nome si distinguono per ordine); non si aggiunge niente. Pura, testata.
+pub fn plan_pins(current: &[String], wanted: &[String]) -> Result<Vec<usize>, SettingsError> {
+    let mut used = vec![false; current.len()];
+    let mut order = Vec::new();
+    for w in wanted {
+        let pos = current.iter().enumerate().position(|(i, c)| !used[i] && c.to_lowercase() == w.to_lowercase());
+        let Some(i) = pos else {
+            return Err(SettingsError::new(format!("Nel Dock non c'e' un'app fissata chiamata {}.", w.chars().take(40).collect::<String>())));
+        };
+        used[i] = true;
+        order.push(i);
+    }
+    Ok(order)
 }
 
 /// Toglie accenti e maiuscole per la ricerca. Pura, testata.
@@ -326,7 +355,7 @@ mod tests {
             }
         }
         // Ogni sezione ha almeno un'impostazione, e l'ordine dell'elenco segue quello delle sezioni.
-        let order = [Section::Dock, Section::MenuBar, Section::Launcher, Section::MissionControl];
+        let order = [Section::Appearance, Section::Dock, Section::MenuBar, Section::Launcher, Section::MissionControl];
         let mut last = 0;
         for s in SPECS {
             let pos = order.iter().position(|o| *o == s.section).unwrap();
@@ -373,8 +402,8 @@ mod tests {
             assert!(set_value(&mut f, "mc.hotkey", &t(bad)).is_err(), "{bad:?}");
         }
         assert_eq!(f.get("mc.hotkey"), Some(t("Ctrl+Alt+Up")));
-        // Mission Control si applica al prossimo avvio: lo dice.
-        assert_eq!(set_value(&mut f, "mc.hotkey", &t("Ctrl+Alt+K")), Ok(Applied { live: false }));
+        // La scorciatoia di Mission Control si cambia a caldo.
+        assert_eq!(set_value(&mut f, "mc.hotkey", &t("Ctrl+Alt+K")), Ok(Applied { live: true }));
     }
 
     #[test]
@@ -415,6 +444,21 @@ mod tests {
     }
 
     #[test]
+    fn pinned_apps_can_be_reordered_and_removed_but_not_invented() {
+        let cur: Vec<String> = ["Discord", "FiveM", "Chrome", "FiveM"].iter().map(|s| s.to_string()).collect();
+        let w = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(plan_pins(&cur, &w(&["Chrome", "Discord"])).unwrap(), vec![2, 0], "riordinate e una tolta");
+        assert_eq!(plan_pins(&cur, &w(&["fivem", "FIVEM"])).unwrap(), vec![1, 3], "due app con lo stesso nome: ognuna una volta");
+        assert!(plan_pins(&cur, &w(&["FiveM", "FiveM", "FiveM"])).is_err(), "non si puo' usare la stessa app tre volte");
+        assert!(plan_pins(&cur, &w(&["Inventata"])).is_err());
+        assert_eq!(plan_pins(&cur, &[]).unwrap(), Vec::<usize>::new(), "svuotare e' ammesso");
+        let mut f = Fake::default();
+        assert!(set_value(&mut f, "dock.pinned", &l(&["Discord", "", "discord", "Chrome"])).is_ok());
+        assert_eq!(f.get("dock.pinned"), Some(l(&["Discord", "Chrome"])), "ripulito come gli altri elenchi");
+        assert!(set_value(&mut f, "dock.pinned", &Value::Bool(true)).is_err());
+    }
+
+    #[test]
     fn a_failing_backend_reports_the_error_and_changes_nothing() {
         let mut f = Fake { fail: true, ..Fake::default() };
         let r = set_value(&mut f, "dock.autohide", &Value::Bool(true));
@@ -428,14 +472,15 @@ mod tests {
         f.set("dock.autohide", &Value::Bool(true)).unwrap();
         let snap = snapshot(&f);
         assert_eq!(snap.len(), SPECS.len());
-        assert_eq!(snap[0].key, "dock.autohide");
-        assert_eq!(snap[0].value, Some(Value::Bool(true)));
-        assert_eq!(snap[1].value, None, "non ancora scritta nel deposito finto");
+        assert_eq!(snap[0].key, "dock.blur");
+        let auto = snap.iter().find(|e| e.key == "dock.autohide").unwrap();
+        assert_eq!(auto.value, Some(Value::Bool(true)));
+        assert_eq!(snap[0].value, None, "non ancora scritta nel deposito finto");
         let glass = snap.iter().find(|e| e.key == "dock.glass").unwrap();
         assert!(matches!(&glass.kind, KindOut::Choice { options } if options.len() == 3));
         // Serializza senza errori e con i nomi che la pagina si aspetta.
         let json = serde_json::to_string(&snap[0]).unwrap();
-        assert!(json.contains("\"section_label\":\"Dock\"") && json.contains("\"type\":\"bool\""), "{json}");
+        assert!(json.contains("\"section_label\":\"Aspetto\"") && json.contains("\"type\":\"bool\""), "{json}");
     }
 
     #[test]

@@ -20,6 +20,7 @@ mod launcherwin;
 mod mc;
 mod mclayout;
 mod menubar;
+mod folderpick;
 mod settingslive;
 mod settingswin;
 mod settingsreg;
@@ -97,6 +98,13 @@ fn menubar_choose(app: tauri::AppHandle, index: usize, path: Vec<usize>) -> bool
 #[tauri::command]
 fn settings_open(app: tauri::AppHandle, section: Option<String>) {
     settingswin::open(&app, section.as_deref());
+}
+
+/// Apre il selettore di cartelle di Windows e restituisce il percorso scelto (o niente se si annulla).
+#[tauri::command(async)]
+fn settings_pick_folder(app: tauri::AppHandle) -> Option<String> {
+    let owner = app.get_webview_window(settingswin::LABEL).and_then(|w| w.hwnd().ok()).map(|h| h.0 as isize);
+    folderpick::pick(owner)
 }
 
 /// Chiude (nasconde) la finestra delle impostazioni.
@@ -633,7 +641,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, settings_open, settings_close, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, settings_open, settings_close, settings_pick_folder, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
