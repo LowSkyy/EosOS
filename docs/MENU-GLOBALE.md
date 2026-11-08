@@ -146,9 +146,15 @@ Scegliere una voce dell'app dalla tendina la **esegue nell'app**. Solo su clic d
 **Cosa NON è provato in tutto il menu globale (riassunto onesto):**
 - **App vere dell'utente:** nessuna voce di menu è stata *eseguita* in app vere (regola: solo finestre di prova). La *lettura* è provata su Blocco note, Visual Studio Code e le finestre di prova; le voci di VS Code non sono state lette (si aprirebbe il suo menu).
 - **Più monitor:** una barra per monitor mostra la stessa riga (stesso evento), la tendina si apre sotto il titolo cliccato col calcolo del pannello (già provato in I3 su due monitor), ma non ho cliccato la barra del secondo monitor.
-- **Sottomenu delle app UI Automation** (solo il primo livello), **menu molto lunghi**, **tema chiaro**, **scale diverse dal 100% e riavvio di Explorer dopo il menu globale** (servono il tuo OK e, per Explorer, che lo lanci tu).
+- **Sottomenu delle app UI Automation** (solo il primo livello), **menu molto lunghi**, **tema chiaro**, **riavvio di Explorer dopo il menu globale** (lo lanci tu; le scale diverse dal 100% sono invece provate, vedi sotto).
 - **App con privilegi più alti (UIPI):** la lettura e il `WM_COMMAND` potrebbero non arrivare; non provato.
 - **Lampo del menu** nelle app UI Automation quando si apre la loro tendina: è inevitabile con questa tecnica; non l'ho potuto «vedere» (nessuno schermo da guardare), l'ho solo dedotto dal comportamento.
+
+## Prove con scale dello schermo diverse (8 nov 2026, con l'ok dell'utente)
+
+Cambiando davvero la scala del monitor primario (con ripristino garantito: blocco `finally` più un processo di sicurezza che la rimette dopo 10 minuti; il secondario resta al 100%, quindi le due barre lavorano a scale diverse): `scripts/test-menu-dpi.ps1`, **66 controlli, tutti OK**, a 100%, 125%, 150% e 175% e su **entrambe le barre** (una per monitor): la barra mostra nome, i 4 menu della finestra di prova e «Finestra»; la tendina si apre **sotto il titolo cliccato** (non lo copre, a meno di 40 px fisici), **centrata** sul titolo o spostata solo per restare nel monitor, **dentro il monitor**, con la **larghezza di 300 px CSS** moltiplicata per la scala. Scala dopo la prova: 100%, nessun processo rimasto.
+
+Le suite di scala già esistenti, rilanciate dopo tutte le modifiche di M6 e del menu globale: Mission Control a due scale diverse (`test-mc-dpi.ps1`, 60), pannello degli indicatori (`test-indicators-dpi.ps1`, 94), Launcher (`test-launcher-dpi.ps1`, 73), Dock a 125/150/175% (`test-dock-scales.ps1`, 65), Dock con due monitor a scale diverse (`test-dock-mixed-dpi.ps1`, 66): **tutte OK**. Nota: `test-dock-scales.ps1` e `test-dock-mixed-dpi.ps1` usano per default la build di debug, che qui non ha l'interfaccia incorporata: vanno lanciati con `-Exe src-tauri\target\fast\release\eosos.exe` (altrimenti dicono «Dock assente» a ogni scala, anche al 100%).
 
 ## Fuori scopo
 
