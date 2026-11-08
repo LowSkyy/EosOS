@@ -17,3 +17,5 @@ sandbox/EosOS.wsb
 sandbox/in-install/
 sandbox/EosOS-install.wsb
 dist-update/
+sandbox/in-update/
+sandbox/EosOS-update.wsb
