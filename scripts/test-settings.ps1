@@ -30,12 +30,12 @@ try {
 
   Write-Host 'A. lo stato di tutte le impostazioni'
   $all = All-S
-  Check 'ci sono tutte le 22 impostazioni' ($all.Count -eq 22) ("trovate " + $all.Count)
+  Check 'ci sono tutte le 23 impostazioni' ($all.Count -eq 23) ("trovate " + $all.Count)
   Check 'ognuna ha un valore (tranne il pulsante del rapporto)' (@($all | Where-Object { $null -eq $_.value -and $_.key -ne 'general.report' }).Count -eq 0) ("senza valore: " + (@($all | Where-Object { $null -eq $_.value } | ForEach-Object { $_.key }) -join ','))
   Check 'predefiniti: Dock non nasconde, menu globale acceso, Alt+Tab e Win+Tab di EosOS, angolo spento' ((Val 'dock.autohide') -eq $false -and (Val 'menu.enabled') -eq $true -and (Val 'mc.alttab') -eq $true -and (Val 'mc.wintab') -eq $true -and (Val 'mc.corner') -eq $false)
   Check 'predefiniti: Launcher Alt+Space, Mission Control Ctrl+Alt+Up' ((Val 'launcher.hotkey') -eq 'Alt+Space' -and (Val 'mc.hotkey') -eq 'Ctrl+Alt+Up')
   $order = ($all | ForEach-Object { $_.section } | Select-Object -Unique) -join ','
-  Check 'le sezioni escono nell ordine Generale, Aspetto, Dock, Barra dei menu, Launcher, Mission Control, Notifiche' ($order -eq 'general,appearance,dock,menu_bar,launcher,mission_control,notifications') $order
+  Check 'le sezioni escono nell ordine Generale, Aspetto, Dock, Barra dei menu, Launcher, Mission Control, Notifiche e calendario' ($order -eq 'general,appearance,dock,menu_bar,launcher,mission_control,notifications') $order
 
   Write-Host 'B. interruttori: si cambiano, si rileggono, tornano come prima'
   foreach ($k in 'dock.reserve', 'dock.blur', 'bar.battery', 'bar.percent', 'bar.network', 'bar.volume', 'menu.enabled', 'launcher.clipboard', 'mc.corner', 'mc.alttab', 'mc.wintab') {

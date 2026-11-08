@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import NotifList from "./NotifList";
-import { dateLabel, monthGrid, monthTitle, msUntilMidnight, shiftMonth, todayOf, WEEKDAYS_SHORT, type YearMonth } from "../lib/calendar";
+import { dateLabel, monthGrid, monthTitle, msUntilMidnight, parseWeekStart, shiftMonth, todayOf, weekdayHeaders, type WeekStart, type YearMonth } from "../lib/calendar";
 
 /**
  * Calendario del mese sotto l'orologio (dentro la finestra "panel"): giorni da lunedì, numeri di settimana ISO, il
@@ -10,12 +11,17 @@ import { dateLabel, monthGrid, monthTitle, msUntilMidnight, shiftMonth, todayOf,
 const CalendarPanel = forwardRef<HTMLDivElement, { opens: number }>(function CalendarPanel({ opens }, ref) {
   const [today, setToday] = useState(() => todayOf(new Date()));
   const [view, setView] = useState<YearMonth>(() => ({ y: today.y, m0: today.m0 }));
+  const [weekStart, setWeekStart] = useState<WeekStart>("mon");
 
   // A ogni apertura si riparte dal mese di oggi.
   useEffect(() => {
     const t = todayOf(new Date());
     setToday(t);
     setView({ y: t.y, m0: t.m0 });
+    // Da che giorno comincia la settimana: dalle impostazioni (lunedì se manca o è strano).
+    invoke<{ key: string; value: unknown }[]>("settings_all")
+      .then((all) => setWeekStart(parseWeekStart(all.find((e) => e.key === "calendar.week_start")?.value)))
+      .catch(() => undefined);
   }, [opens]);
 
   // A mezzanotte «oggi» cambia: si rilegge e si rimette il timer per la mezzanotte dopo.
@@ -46,7 +52,7 @@ const CalendarPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cal
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const rows = monthGrid(view, today);
+  const rows = monthGrid(view, today, weekStart);
   const atToday = view.y === today.y && view.m0 === today.m0;
 
   return (
@@ -74,8 +80,8 @@ const CalendarPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cal
             <th className="cal-week" scope="col" aria-label="Settimana">
 
             </th>
-            {WEEKDAYS_SHORT.map((w, i) => (
-              <th key={w} scope="col" className={i >= 5 ? "cal-weekend" : undefined}>
+            {weekdayHeaders(weekStart).map((w, i) => (
+              <th key={w} scope="col" className={(weekStart === "mon" ? i >= 5 : i === 0 || i === 6) ? "cal-weekend" : undefined}>
                 {w}
               </th>
             ))}

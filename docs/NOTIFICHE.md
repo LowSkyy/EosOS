@@ -2,7 +2,7 @@
 
 Obiettivo: cliccando l'orologio nella barra si apre un pannello in stile Centro notifiche di macOS: in alto le **notifiche recenti** raggruppate per app, sotto un **calendario** del mese. Oggi l'orologio è solo un testo.
 
-Stato: specifica (8 nov 2026) e **N1-N4 fatte**. **Decisioni dell'utente (8 nov 2026): sì a tutto**, cioè è questo il passo successivo, il calendario mostra **solo il mese e il giorno** (niente eventi), e **niente banner temporanei** per le notifiche nuove nella prima versione.
+Stato: specifica (8 nov 2026) e **N1-N4 e N6 fatte (N5 saltata)**. **Decisioni dell'utente (8 nov 2026): sì a tutto**, cioè è questo il passo successivo, il calendario mostra **solo il mese e il giorno** (niente eventi), e **niente banner temporanei** per le notifiche nuove nella prima versione.
 
 ## Cosa fa macOS (da replicare)
 
@@ -121,6 +121,20 @@ Cliccando l'orologio il pannello ora ha **le notifiche in alto e il calendario s
 Controllato anche con uno screenshot della struttura dell'elenco con dati finti (non si sono mai visualizzate notifiche vere): gruppi, titoli, corpo a due righe, «quanto fa», «+1 altra», scorrimento sottile. Rust 350 test (3 a richiesta), pagina 148, clippy a 0 avvisi. Regressioni: calendario, pannello degli indicatori, N3, impostazioni: OK.
 
 **Non provato:** **aprire davvero un'app** da una notifica (nelle prove non si lancia niente; si è provata solo la richiesta con l'identificatore giusto e il rifiuto di identificatori sospetti nei test puri); notifiche con immagini o pulsanti; il pannello con molte notifiche vere insieme (si è provato il tetto solo nei test puri); le notifiche che arrivano mentre il pannello è chiuso (si vedono alla prossima apertura); un secondo monitor.
+
+## N5 — Non disturbare: SALTATA (8 nov 2026)
+
+Non fatta: l'utente ha chiesto di procedere con N6. Si puo' riprendere in futuro dopo aver verificato che Windows offra un modo documentato per leggere/impostare l'Assistente notifiche.
+
+## N6 — Rifiniture: FATTE (8 nov 2026)
+
+- **«La settimana comincia da» (Impostazioni, sezione «Notifiche e calendario»):** lunedi' (predefinito) o domenica. Vale subito (`calendar.week_start`, salvato in `mission.json` come `calendarSunday`). Intestazioni, prima colonna e weekend seguono la scelta; il numero di settimana ISO si legge sempre dal giovedi' della riga. Valori strani vengono rifiutati.
+- **Accessibilita':** ogni pulsante ha un nome, la tabella ha titolo e intestazioni di colonna/riga, ogni giorno ha la data completa, il titolo del mese e' annunciato (`aria-live`), il focus da tastiera ha un contorno.
+- **Impostazioni:** ora 23, la sezione si chiama «Notifiche e calendario».
+
+**Verifica dal vivo:** `scripts/test-calendar-n6.ps1` (20 controlli: lunedi'/domenica confrontati con .NET, accessibilita'); `scripts/test-calendar-dpi.ps1` (scala vera del primario a 100/125/150/175%, **su entrambe le barre** il pannello si apre sotto l'orologio, dentro il monitor, di 300 px CSS, senza tagli; scala ripristinata a 100%). Regressioni: impostazioni (3 script), calendario, N3, N4, pannello: OK. Vitest 153, Rust 350, clippy 0.
+
+**Non provato:** tema chiaro dal vivo (i colori del pannello usano solo i token del tema, nessun colore fisso); passaggio di mezzanotte dal vivo; aprire davvero un'app da una notifica; notifiche con immagini/pulsanti.
 
 ## Principi (gli stessi di sempre)
 

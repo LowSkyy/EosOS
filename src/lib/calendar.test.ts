@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, dateLabel, daysInMonth, isLeap, isoWeek, monthGrid, monthTitle, msUntilMidnight, shiftMonth, todayOf, weekdayMon0 } from "./calendar";
+import { addDays, dateLabel, daysInMonth, isLeap, isoWeek, monthGrid, monthTitle, msUntilMidnight, parseWeekStart, shiftMonth, todayOf, weekdayHeaders, weekdayIndex, weekdayMon0 } from "./calendar";
 
 describe("leap years and month lengths", () => {
   it("knows the century rules", () => {
@@ -114,5 +114,40 @@ describe("midnight", () => {
   });
   it("reads today from the system clock", () => {
     expect(todayOf(new Date(2026, 10, 8, 14, 30))).toEqual({ y: 2026, m0: 10, d: 8 });
+  });
+});
+
+describe("week starting on Sunday", () => {
+  const today = { y: 2026, m0: 10, d: 8 };
+  it("rotates the headers and the weekday index", () => {
+    expect(weekdayHeaders("mon")).toEqual(["lun", "mar", "mer", "gio", "ven", "sab", "dom"]);
+    expect(weekdayHeaders("sun")).toEqual(["dom", "lun", "mar", "mer", "gio", "ven", "sab"]);
+    expect(weekdayIndex(2026, 10, 8, "sun")).toBe(0); // domenica
+    expect(weekdayIndex(2026, 10, 9, "sun")).toBe(1); // lunedi
+    expect(weekdayIndex(2026, 10, 8, "mon")).toBe(6);
+    expect(weekdayIndex(2026, 10, 14, "sun")).toBe(6); // sabato
+  });
+  it("starts the grid on a Sunday and marks Sunday and Saturday as weekend", () => {
+    const g = monthGrid({ y: 2026, m0: 10 }, today, "sun");
+    // novembre 2026 comincia di domenica: la prima riga e' gia' quella del 1 novembre.
+    expect(g[0].cells[0]).toMatchObject({ y: 2026, m0: 10, d: 1, inMonth: true });
+    for (const r of g) r.cells.forEach((c, i) => expect(c.weekend).toBe(i === 0 || i === 6));
+    expect(g).toHaveLength(6);
+  });
+  it("keeps the ISO week of each row (read from its Thursday)", () => {
+    const g = monthGrid({ y: 2026, m0: 10 }, today, "sun");
+    // la riga 1-7 novembre (dom-sab) ha il giovedi' 5 novembre: settimana ISO 45.
+    expect(g[0].week).toBe(45);
+    expect(g.map((r) => r.week)).toEqual([45, 46, 47, 48, 49, 50]);
+  });
+  it("covers every day once and marks one today", () => {
+    const g = monthGrid({ y: 2026, m0: 10 }, today, "sun").flatMap((r) => r.cells);
+    expect(g.filter((c) => c.inMonth).map((c) => c.d)).toEqual(Array.from({ length: 30 }, (_, i) => i + 1));
+    expect(g.filter((c) => c.isToday)).toHaveLength(1);
+  });
+  it("defaults to Monday and ignores strange values", () => {
+    expect(parseWeekStart("sun")).toBe("sun");
+    for (const v of ["mon", "", "domenica", null, undefined, 3]) expect(parseWeekStart(v)).toBe("mon");
+    expect(monthGrid({ y: 2026, m0: 10 }, today)[0].cells[0]).toMatchObject({ m0: 9, d: 26 });
   });
 });

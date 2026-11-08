@@ -4,6 +4,21 @@
 
 export const MONTHS_IT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];
 export const WEEKDAYS_SHORT = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"];
+
+/** Da che giorno comincia la settimana: lunedì (predefinito, uso italiano) o domenica. */
+export type WeekStart = "mon" | "sun";
+
+/** Le sigle dei giorni nell'ordine della settimana scelta. Pura. */
+export const weekdayHeaders = (ws: WeekStart): string[] => (ws === "mon" ? WEEKDAYS_SHORT : [WEEKDAYS_SHORT[6], ...WEEKDAYS_SHORT.slice(0, 6)]);
+
+/** Il giorno della settimana contato dall'inizio scelto (0 = primo giorno della settimana). Pura. */
+export function weekdayIndex(y: number, m0: number, d: number, ws: WeekStart): number {
+  const mon0 = weekdayMon0(y, m0, d);
+  return ws === "mon" ? mon0 : (mon0 + 1) % 7;
+}
+
+/** Valore sconosciuto o mancante = lunedì. Pura. */
+export const parseWeekStart = (v: unknown): WeekStart => (v === "sun" ? "sun" : "mon");
 export const WEEKDAYS_LONG = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"];
 
 export type Ymd = { y: number; m0: number; d: number };
@@ -63,18 +78,19 @@ export function dateLabel(d: Ymd): string {
 }
 
 /** Il mese come sei settimane da sette giorni (con i giorni dei mesi vicini a riempire), con i numeri di settimana. */
-export function monthGrid(ym: YearMonth, today: Ymd): Row[] {
+export function monthGrid(ym: YearMonth, today: Ymd, ws: WeekStart = "mon"): Row[] {
   const first: Ymd = { y: ym.y, m0: ym.m0, d: 1 };
-  const start = addDays(first, -weekdayMon0(ym.y, ym.m0, 1));
+  const start = addDays(first, -weekdayIndex(ym.y, ym.m0, 1, ws));
   const rows: Row[] = [];
   for (let r = 0; r < 6; r++) {
     const cells: Cell[] = [];
     for (let c = 0; c < 7; c++) {
       const day = addDays(start, r * 7 + c);
-      cells.push({ ...day, inMonth: day.y === ym.y && day.m0 === ym.m0, isToday: day.y === today.y && day.m0 === today.m0 && day.d === today.d, weekend: c >= 5 });
+      cells.push({ ...day, inMonth: day.y === ym.y && day.m0 === ym.m0, isToday: day.y === today.y && day.m0 === today.m0 && day.d === today.d, weekend: ws === "mon" ? c >= 5 : c === 0 || c === 6 });
     }
-    // La settimana ISO di una riga si legge dal suo giovedì.
-    rows.push({ week: isoWeek(cells[3]), cells });
+    // La settimana ISO di una riga si legge dal suo giovedì (la riga parte da lunedì o da domenica, il giovedì c'è sempre).
+    const thursday = cells.find((c) => weekdayMon0(c.y, c.m0, c.d) === 3) ?? cells[3];
+    rows.push({ week: isoWeek(thursday), cells });
   }
   return rows;
 }

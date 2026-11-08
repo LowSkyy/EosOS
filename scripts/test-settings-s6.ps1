@@ -39,7 +39,7 @@ try {
   $n = [int](Win "document.querySelectorAll('[data-section]').length")
   Win "document.querySelector('[data-section=notifications]').focus()" | Out-Null
   Key 'ArrowDown'
-  Check 'in fondo la freccia giu non fa niente' (((Heading) -eq 'Notifiche') -and ($n -eq 7)) ((Heading) + " sezioni $n")
+  Check 'in fondo la freccia giu non fa niente' (((Heading) -eq 'Notifiche e calendario') -and ($n -eq 7)) ((Heading) + " sezioni $n")
 
   Write-Host 'B. accessibilita di ogni sezione'
   $bad = @()

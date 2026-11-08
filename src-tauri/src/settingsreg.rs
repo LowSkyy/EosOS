@@ -30,7 +30,7 @@ impl Section {
             Section::MenuBar => "Barra dei menu",
             Section::Launcher => "Launcher",
             Section::MissionControl => "Mission Control",
-            Section::Notifications => "Notifiche",
+            Section::Notifications => "Notifiche e calendario",
         }
     }
 }
@@ -67,6 +67,7 @@ pub struct Spec {
     pub live: bool,
 }
 
+const WEEK_START: &[(&str, &str)] = &[("mon", "Lunedì"), ("sun", "Domenica")];
 const LANGUAGES: &[(&str, &str)] = &[("it", "Italiano")];
 const GLASS: &[(&str, &str)] = &[("clear", "Vetro trasparente"), ("standard", "Vetro standard"), ("solid", "Vetro opaco")];
 const LAUNCHER_HOTKEYS: &[(&str, &str)] = &[("Alt+Space", "Alt+Spazio"), ("Ctrl+Alt+Space", "Ctrl+Alt+Spazio"), ("Ctrl+Shift+Space", "Ctrl+Maiusc+Spazio")];
@@ -95,6 +96,7 @@ pub const SPECS: &[Spec] = &[
     Spec { key: "mc.alttab", section: Section::MissionControl, label: "Alt+Tab di EosOS", help: "Al posto del selettore di Windows. Spento: resta quello di Windows.", kind: Kind::Bool, keywords: &["selettore", "finestre", "tastiera"], live: true },
     Spec { key: "mc.wintab", section: Section::MissionControl, label: "Win+Tab di EosOS", help: "Apre Mission Control. Spento: resta la Visualizzazione attività di Windows.", kind: Kind::Bool, keywords: &["visualizzazione attività", "task view", "tastiera"], live: true },
     Spec { key: "notif.read", section: Section::Notifications, label: "Mostra le notifiche", help: "EosOS legge le notifiche di Windows e le mostra nel pannello sotto l'orologio. Restano solo in memoria. Spento finché non lo accendi.", kind: Kind::Bool, keywords: &["centro notifiche", "avvisi", "toast", "privacy"], live: true },
+    Spec { key: "calendar.week_start", section: Section::Notifications, label: "La settimana comincia da", help: "Nel calendario sotto l'orologio.", kind: Kind::Choice(WEEK_START), keywords: &["calendario", "lunedì", "domenica", "settimana", "orologio"], live: true },
 ];
 
 /// L'impostazione con quella chiave, se esiste.
