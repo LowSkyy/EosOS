@@ -33,6 +33,19 @@ pub const FACTOR: usize = 2;
 /// Lunghezza dell'intestazione di un fotogramma serializzato.
 pub const HEADER_LEN: usize = 28;
 const INTERVAL: Duration = Duration::from_millis(40);
+/// Passo a riposo: se per `QUIET_AFTER` lo sfondo non è cambiato in nessun canale, si cattura più di rado
+/// (a riposo la cattura era il lavoro più costoso di EosOS). Appena qualcosa cambia si torna a `INTERVAL`.
+const IDLE_INTERVAL: Duration = Duration::from_millis(120);
+const QUIET_AFTER: Duration = Duration::from_millis(1000);
+
+/// Quanto aspettare prima del prossimo giro, dato da quanto tempo lo sfondo è fermo. Pura, testata.
+pub fn next_interval(since_change: Duration) -> Duration {
+    if since_change >= QUIET_AFTER {
+        IDLE_INTERVAL
+    } else {
+        INTERVAL
+    }
+}
 
 /// Un fotogramma già ridotto, in RGBA opaco.
 struct Frame {
@@ -166,18 +179,22 @@ pub fn capture_bytes(r: Rect) -> Option<Vec<u8>> {
 pub fn start() {
     std::thread::spawn(|| {
         let mut last: [Vec<u8>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+        let mut changed_at = std::time::Instant::now();
         loop {
-            std::thread::sleep(INTERVAL);
+            std::thread::sleep(next_interval(changed_at.elapsed()));
             for ch in CHANNELS {
                 // Un panic nella cattura non deve fermare né il Dock né il Launcher.
                 let l = &mut last[ch as usize];
-                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| step(ch, l)));
+                if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| step(ch, l))).unwrap_or(false) {
+                    changed_at = std::time::Instant::now();
+                }
             }
         }
     });
 }
 
-fn step(ch: Channel, last: &mut Vec<u8>) {
+/// Un giro di cattura per il canale. Vero se ha pubblicato un fotogramma nuovo.
+fn step(ch: Channel, last: &mut Vec<u8>) -> bool {
     let info = match ch {
         Channel::Dock => crate::dockwin::capture_info(),
         Channel::Launcher => crate::launcherwin::capture_info(),
@@ -188,12 +205,12 @@ fn step(ch: Channel, last: &mut Vec<u8>) {
         // Niente da catturare (finestra nascosta): il fotogramma vecchio non deve ricomparire
         // alla riapertura, magari in un altro punto dello schermo.
         *FRAMES[ch as usize].lock().unwrap_or_else(|e| e.into_inner()) = None;
-        return;
+        return false;
     };
-    let Some(bgra) = grab(capture) else { return };
+    let Some(bgra) = grab(capture) else { return false };
     let (w, h, rgba) = downscale(&bgra, capture.w as usize, capture.h as usize, FACTOR);
     if w == 0 || *last == rgba {
-        return;
+        return false;
     }
     last.clone_from(&rgba);
     let seq = SEQ.fetch_add(1, Ordering::Relaxed) + 1;
@@ -205,11 +222,21 @@ fn step(ch: Channel, last: &mut Vec<u8>) {
         h: h as u32,
         rgba,
     });
+    true
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn capture_slows_down_only_after_a_quiet_second() {
+        assert_eq!(next_interval(Duration::from_millis(0)), INTERVAL);
+        assert_eq!(next_interval(Duration::from_millis(999)), INTERVAL);
+        assert_eq!(next_interval(Duration::from_millis(1000)), IDLE_INTERVAL);
+        assert_eq!(next_interval(Duration::from_secs(60)), IDLE_INTERVAL);
+        assert!(IDLE_INTERVAL > INTERVAL);
+    }
 
     #[test]
     fn downscale_averages_blocks_and_swaps_to_rgba() {
