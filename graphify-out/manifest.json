@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794155624.5104475,
-    "seen": 1794156743.5585334,
-    "ast_hash": "982a4f1de0431371e54d6a550007b740",
+    "mtime": 1794172417.5472176,
+    "seen": 1794172690.1598153,
+    "ast_hash": "490be2d6f3cc9f23ac06a72d16d93a70",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -1074,9 +1074,9 @@
     "semantic_hash": ""
   },
   "docs/PASSATA-FINALE.md": {
-    "mtime": 1794156737.7954133,
-    "seen": 1794156743.5586078,
-    "ast_hash": "554a7ef8df6572f35e166acbf7cd500f",
+    "mtime": 1794172687.4168167,
+    "seen": 1794172690.15989,
+    "ast_hash": "75fb65346144b2b7379c559a34ac6070",
     "semantic_hash": ""
   },
   "scripts/test-cmd-policy.ps1": {
@@ -1086,9 +1086,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/cmdpolicy.rs": {
-    "mtime": 1794155597.544899,
-    "seen": 1794156743.5585165,
-    "ast_hash": "9455dcc978c0e56b155f6e084fb87592",
+    "mtime": 1794172417.548211,
+    "seen": 1794172690.1597977,
+    "ast_hash": "5e086fc9fb36c2899814c1f89bea6be2",
     "semantic_hash": ""
   },
   "package-lock.json": {
