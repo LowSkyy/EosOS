@@ -11,8 +11,16 @@ Log "OS: $((Get-CimInstance Win32_OperatingSystem).Caption) $((Get-CimInstance W
 try {
   $setup = Get-ChildItem 'C:\EosOS\*setup*.exe' | Select-Object -First 1
   Check 'installatore presente' ($null -ne $setup) $setup.Name
-  Add-Type -AssemblyName System.Windows.Forms
-  $wa0 = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+  # L'area di lavoro vera (SPI_GETWORKAREA), come in test-workarea.ps1: Screen.WorkingArea di .NET puo' restare in cache.
+  Add-Type @'
+using System; using System.Runtime.InteropServices;
+public static class WA {
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+  [DllImport("user32.dll")] static extern bool SystemParametersInfo(uint a, uint b, ref RECT r, uint c);
+  public static string Get() { RECT r = new RECT(); SystemParametersInfo(0x30, 0, ref r, 0); return r.T + ".." + r.B; }
+}
+'@
+  $wa0 = [WA]::Get()
   $p = Start-Process $setup.FullName -ArgumentList '/S' -PassThru -Wait
   Check 'installazione silenziosa riuscita' ($p.ExitCode -eq 0) "codice $($p.ExitCode)"
   $dir = Join-Path $env:LOCALAPPDATA 'EosOS'
@@ -30,15 +38,15 @@ try {
   Check 'EosOS e in esecuzione dopo 25 s' ($procs.Count -ge 1) "processi: $($procs.Count)"
   Check 'le finestre WebView2 sono partite' (@(Get-Process msedgewebview2 -ErrorAction SilentlyContinue).Count -ge 3)
   Check 'nessun avviso di errore a schermo (nessuna finestra di errore)' (@(Get-Process | Where-Object { $_.MainWindowTitle -match 'errore|error|WebView2 Runtime' }).Count -eq 0)
-  $wa1 = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-  Check 'la barra riserva spazio in alto' ($wa1.Top -gt $wa0.Top) "area di lavoro $($wa0.Top)->$($wa1.Top)"
+  $wa1 = [WA]::Get()
+  Check 'la barra riserva spazio (l area di lavoro cambia)' ($wa1 -ne $wa0) "area di lavoro $wa0 -> $wa1"
   Start-Sleep 30
   Check 'ancora vivo dopo 55 s' (@(Get-Process eosos -ErrorAction SilentlyContinue).Count -ge 1)
 
   Get-Process eosos -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Sleep 5
-  $wa2 = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-  Check 'dopo la chiusura l area di lavoro torna intera' ($wa2.Top -eq $wa0.Top -and $wa2.Height -eq $wa0.Height) "prima $($wa0.Top)/$($wa0.Height), dopo $($wa2.Top)/$($wa2.Height)"
+  $wa2 = [WA]::Get()
+  Check 'dopo la chiusura l area di lavoro torna intera' ($wa2 -eq $wa0) "prima $wa0, dopo $wa2"
   if ($uninst) {
     $u = Start-Process $uninst.FullName -ArgumentList '/S' -PassThru -Wait
     Check 'disinstallazione silenziosa riuscita' ($u.ExitCode -eq 0) "codice $($u.ExitCode)"

@@ -1091,6 +1091,18 @@
     "ast_hash": "5e086fc9fb36c2899814c1f89bea6be2",
     "semantic_hash": ""
   },
+  "scripts/prepare-sandbox-install.ps1": {
+    "mtime": 1794172879.5021183,
+    "seen": 1794173030.5838325,
+    "ast_hash": "8d0d4b69676ed865795c7a38a4c162db",
+    "semantic_hash": ""
+  },
+  "scripts/sandbox-install.ps1": {
+    "mtime": 1794172874.6238365,
+    "seen": 1794173030.5838351,
+    "ast_hash": "9fad81ce8551ff8c380b53dd9a5c2a63",
+    "semantic_hash": ""
+  },
   "package-lock.json": {
     "mtime": 1794023864.0802197,
     "seen": 1794024042.3013453,
