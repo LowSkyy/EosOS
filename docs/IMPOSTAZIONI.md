@@ -2,7 +2,7 @@
 
 Obiettivo: una finestra «Impostazioni di EosOS», in stile Impostazioni di Sistema di macOS, dove si cambiano **tutte** le preferenze di EosOS con il mouse. Oggi le preferenze ci sono, ma sono sparse e quasi nascoste: menu contestuali del Dock e della barra, voci del Launcher che accendono e spengono cose, e file JSON da modificare a mano.
 
-Stato: **solo specifica (8 nov 2026), niente codice.** La roadmap precedente è finita (Dock, Launcher, Indicatori, Mission Control, Menu globale); questo è il passo che ho scelto come successivo perché è il buco più evidente in uso quotidiano. Se preferisci un altro (per esempio il Centro notifiche), dimmelo e riscrivo.
+Stato: specifica (8 nov 2026); **decisioni dell'utente (8 nov 2026): sì a tutto**, cioè questo è il passo successivo, l'avvio automatico con Windows è incluso (S4) e la finestra è senza bordi in vetro come Launcher e pannelli. **S1 fatta.** La roadmap precedente è finita (Dock, Launcher, Indicatori, Mission Control, Menu globale); questo è il passo che ho scelto come successivo perché è il buco più evidente in uso quotidiano. 
 
 ## Cosa fa macOS (da replicare) e da dove viene
 
@@ -58,7 +58,28 @@ Mancano del tutto: **avvio automatico con Windows**, un posto dove vedere cosa �
 5. **S5 — Ricerca e punti di ingresso** (Launcher, Dock, barra, menu del desktop).
 6. **S6 — Rifiniture:** tastiera e accessibilità (etichette per lo screen reader, navigazione a tab), scale diverse, riavvio di Explorer, revisione del codice.
 
-## Decisioni che servono da te
+## S1 — Elenco e validazione: FATTA (8 nov 2026)
+
+**`settingsreg.rs`** (puro, 11 test): l'**elenco chiuso di 17 impostazioni** con chiave stabile, sezione, etichetta, aiuto, tipo e parole chiave per la ricerca; i valori (`Value`: sì/no, testo, elenco; dal JSON semplice `true`, `"standard"`, `["a","b"]`); la validazione per tipo; `set_value` (valida e poi scrive tramite un `Backend`); `snapshot` (lo stato di tutte, per la pagina) e `search`.
+
+| Sezione | Chiavi |
+|---|---|
+| Dock | `dock.autohide`, `dock.reserve`, `dock.blur`, `dock.glass` (clear / standard / solid) |
+| Barra dei menu | `bar.battery`, `bar.percent`, `bar.network`, `bar.volume`, `menu.enabled`, `menu.excluded` (elenco di app) |
+| Launcher | `launcher.hotkey` (Alt+Spazio, Ctrl+Alt+Spazio, Ctrl+Maiusc+Spazio), `launcher.clipboard`, `launcher.folders` (elenco di cartelle) |
+| Mission Control | `mc.hotkey`, `mc.corner`, `mc.alttab`, `mc.wintab` |
+
+**Regole di validazione:** chiave non nell'elenco → rifiutata (anche una che sembra un percorso); tipo sbagliato (un testo al posto di un sì/no, un testo al posto di un elenco) → rifiutato; scelte (`Choice`) solo fra le opzioni; scorciatoia di Mission Control con le stesse regole delle altre di EosOS (serve un modificatore, Alt+F4 vietata) e scritta in **forma canonica** (`ctrl+alt+k` → `Ctrl+Alt+K`); elenchi **ripuliti** (spazi, doppi senza badare alle maiuscole, vuoti, elementi troppo lunghi; al massimo 100 app e 20 cartelle); cartelle di ricerca **assolute** (lettera di unità o `\\server`), senza `..`, senza caratteri vietati o di controllo, al massimo 260 caratteri; **una sola cartella non valida rifiuta tutto** e lo stato resta com'era. Un valore rifiutato non cambia mai lo stato.
+
+**`settingslive.rs`:** il collegamento ai depositi veri. Ogni chiave passa dalle **stesse funzioni** che usano i menu contestuali e le voci del Launcher (`dockwin`, `indicatorstore`, `mcstore`, `launcherstore`, `menubar`, `mcwin`), quindi la finestra e quei menu restano sempre d'accordo e la modifica ha effetto subito dove può. Quattro funzioni di scrittura mancavano e sono state aggiunte con lo stesso schema robusto (`mcstore::set_hotkey`, `launcherstore::set_search_folders`, `menubar::set_menu_off`/`set_excluded`, `mcwin::set_corner`/`set_key`). Le **cartelle** si controllano anche per esistenza (la validazione pura guarda solo la forma). La scorciatoia del Launcher cambia subito e **si salva solo se la combinazione è libera** (altrimenti messaggio «già usata da un altro programma»). La scorciatoia di Mission Control **vale al prossimo avvio** (la risposta lo dice: `live: false`).
+
+**Comandi per la pagina:** `settings_all` (stato di tutte), `settings_set(key, value)` (risposta `{ok, live, error}`; un valore di forma assurda non passa nemmeno la deserializzazione), `settings_search(query)`; evento `settings-changed` con la chiave dopo ogni scrittura riuscita.
+
+**Verifica dal vivo** (`scripts/test-settings.ps1`, **67 controlli**, i quattro file dell'utente salvati e **ripristinati identici**, comprese le assenze): 17 impostazioni tutte con un valore e nell'ordine delle sezioni; valori predefiniti giusti; ogni interruttore scritto, riletto e rimesso com'era (dal vivo anche `dock.autohide`); livelli di vetro; scorciatoia del Launcher cambiata e **rimessa alla predefinita senza lasciare traccia nel file**, Alt+F4 rifiutata; app escluse ripulite, testo al posto di elenco rifiutato; cartella esistente accettata, **inesistente e relativa rifiutate con un messaggio**, stato invariato dopo i rifiuti; scorciatoia di Mission Control in forma canonica e segnata come non immediata, tasto nudo rifiutato; chiave sconosciuta, chiave «tipo percorso» e valori sbagliati rifiutati; ricerca («batteria» → indicatore per primo); evento `settings-changed` ricevuto. Rust 320 test (3 a richiesta), clippy a 0 avvisi.
+
+**Non provato:** il rifiuto per **conflitto reale** della scorciatoia del Launcher (nessun programma di prova che occupi una delle tre combinazioni; la funzione è quella già provata in L4); `launcher.clipboard` acceso a lungo (si è solo acceso e spento); la reazione di altri programmi in ascolto agli eventi `dock-settings-changed` (solo il Dock).
+
+## Decisioni (prese dall'utente, 8 nov 2026)
 
 1. **Il prossimo passo è questo?** Alternativa: Centro notifiche (le notifiche di Windows nella barra, richiede il permesso di sistema per leggerle) o gestione delle finestre in stile Stage Manager. La mia raccomandazione resta questo: tutto il resto è già configurabile solo con trucchi.
 2. **Avvio automatico con Windows:** lo includo (consigliato, riguarda solo la tua chiave utente e si disattiva da lì), oppure lo lascio fuori?

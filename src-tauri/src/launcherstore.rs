@@ -258,6 +258,15 @@ pub fn set_hotkey(h: Option<String>) {
     });
 }
 
+/// Salva le cartelle di ricerca dei file in più.
+pub fn set_search_folders(list: Vec<String>) {
+    modify(|st| {
+        let changed = st.settings.search_folders != list;
+        st.settings.search_folders = list;
+        changed
+    });
+}
+
 /// Salva la scelta dell'utente sulla cronologia degli appunti.
 pub fn set_clipboard_consent(on: bool) {
     modify(|st| st.settings.clipboard.replace(on) != Some(on));

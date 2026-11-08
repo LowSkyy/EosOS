@@ -59,7 +59,7 @@ const PREFIX: &str = "mc-";
 /// Quanto si aspetta dopo "chiudi finestra" prima di rileggere l'elenco.
 const REFRESH_AFTER: Duration = Duration::from_millis(400);
 /// Scorciatoia di apertura predefinita.
-const DEFAULT_HOTKEY: &str = "Ctrl+Alt+Up";
+pub const DEFAULT_HOTKEY: &str = "Ctrl+Alt+Up";
 const HOTKEY_ID: i32 = 0x4D43; // "MC"
 const RETRY_EVERY: Duration = Duration::from_secs(30);
 
@@ -700,7 +700,11 @@ pub fn open_soon() {
 
 /// Accende o spegne l'angolo attivo e salva la scelta (azione del Launcher).
 pub fn toggle_corner() {
-    let on = !CORNER.load(Ordering::Relaxed);
+    set_corner(!CORNER.load(Ordering::Relaxed));
+}
+
+/// Imposta l'angolo attivo e salva la scelta.
+pub fn set_corner(on: bool) {
     crate::mcstore::set_hot_corner(on);
     CORNER.store(on, Ordering::Relaxed);
 }
@@ -861,19 +865,23 @@ fn apply_keys() {
 
 /// Azione del Launcher: "alt" o "win" passa fra la scorciatoia di Windows e quella di Mission Control.
 pub fn toggle_key(which: &str) -> bool {
+    let mc = crate::mcstore::load();
     match which {
-        "alt" => {
-            let keep = !crate::mcstore::load().windows_alt_tab;
-            crate::mcstore::set_windows_alt_tab(keep);
-        }
-        "win" => {
-            let keep = !crate::mcstore::load().windows_win_tab;
-            crate::mcstore::set_windows_win_tab(keep);
-        }
+        "alt" => set_key("alt", mc.windows_alt_tab), // `keep` vero = quello di Windows: lo si inverte
+        "win" => set_key("win", mc.windows_win_tab),
         _ => return false,
     }
-    apply_keys();
     true
+}
+
+/// Sceglie se Alt+Tab ("alt") o Win+Tab ("win") sono quelli di EosOS (`eos` vero) o di Windows. Vale subito.
+pub fn set_key(which: &str, eos: bool) {
+    match which {
+        "alt" => crate::mcstore::set_windows_alt_tab(!eos),
+        "win" => crate::mcstore::set_windows_win_tab(!eos),
+        _ => return,
+    };
+    apply_keys();
 }
 
 // ------------------------------------------------------------------ scorciatoia

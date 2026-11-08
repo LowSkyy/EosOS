@@ -118,8 +118,19 @@ fn exe_stem_of(hwnd: HWND) -> Option<String> {
 
 /// Azione del Launcher: accende o spegne il menu globale. Ridisegna la barra per la finestra in primo piano.
 pub fn toggle_menu_off() {
-    let off = !MENU_OFF.load(Ordering::Relaxed);
+    set_menu_off(!MENU_OFF.load(Ordering::Relaxed));
+}
+
+/// Accende (`off` falso) o spegne il menu globale, salva e ridisegna la barra.
+pub fn set_menu_off(off: bool) {
     crate::mcstore::set_menu_off(off);
+    reload_settings();
+    refresh_current();
+}
+
+/// Mette l'elenco delle app escluse dal menu globale, salva e ridisegna la barra.
+pub fn set_excluded(list: Vec<String>) {
+    crate::mcstore::set_menu_excluded(list);
     reload_settings();
     refresh_current();
 }

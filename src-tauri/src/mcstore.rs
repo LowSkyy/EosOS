@@ -168,6 +168,11 @@ pub fn set_windows_alt_tab(keep: bool) -> Settings {
     update(|s| s.windows_alt_tab = keep)
 }
 
+/// Salva la scorciatoia di apertura di Mission Control (`None` = la predefinita).
+pub fn set_hotkey(h: Option<String>) -> Settings {
+    update(|s| s.hotkey = h)
+}
+
 /// Accende o spegne il menu globale e salva.
 pub fn set_menu_off(off: bool) -> Settings {
     update(|s| s.menu_off = off)

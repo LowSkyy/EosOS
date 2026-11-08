@@ -20,6 +20,8 @@ mod launcherwin;
 mod mc;
 mod mclayout;
 mod menubar;
+mod settingslive;
+mod settingsreg;
 mod menumodel;
 mod menuread;
 mod mchook;
@@ -88,6 +90,40 @@ fn menubar_choose(app: tauri::AppHandle, index: usize, path: Vec<usize>) -> bool
     // Prima si chiude la tendina (il primo piano deve passare all'app), poi si esegue la voce.
     panelwin::hide(&app);
     menubar::choose(index, &path)
+}
+
+/// Lo stato di tutte le impostazioni (per la finestra delle impostazioni).
+#[tauri::command(async)]
+fn settings_all(app: tauri::AppHandle) -> Vec<settingsreg::Entry> {
+    settingsreg::snapshot(&settingslive::Live::new(app))
+}
+
+/// Risposta di `settings_set`.
+#[derive(serde::Serialize)]
+struct SetReply {
+    ok: bool,
+    /// Ha effetto subito (altrimenti al prossimo avvio).
+    live: bool,
+    error: Option<String>,
+}
+
+/// Cambia un'impostazione. La chiave e il valore li valida Rust: quel che non è nell'elenco chiuso si rifiuta.
+#[tauri::command(async)]
+fn settings_set(app: tauri::AppHandle, key: String, value: settingsreg::Value) -> SetReply {
+    let mut live = settingslive::Live::new(app.clone());
+    match settingsreg::set_value(&mut live, &key, &value) {
+        Ok(a) => {
+            let _ = tauri::Emitter::emit(&app, "settings-changed", &key);
+            SetReply { ok: true, live: a.live, error: None }
+        }
+        Err(e) => SetReply { ok: false, live: false, error: Some(e.0) },
+    }
+}
+
+/// Le chiavi delle impostazioni che corrispondono alla ricerca.
+#[tauri::command]
+fn settings_search(query: String) -> Vec<&'static str> {
+    settingsreg::search(&query)
 }
 
 #[tauri::command]
@@ -584,7 +620,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

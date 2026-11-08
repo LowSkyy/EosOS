@@ -1,0 +1,475 @@
+//! Impostazioni di EosOS, fase S1: l'elenco chiuso di tutte le preferenze, la loro validazione e la ricerca.
+//! Tutto puro e testato: nessun file, nessuna finestra. Chi legge e scrive davvero i depositi
+//! (`dockstore`, `indicatorstore`, `launcherstore`, `mcstore`) è un `Backend` (vedi `settingslive.rs`), così la
+//! logica si prova con un deposito finto.
+//!
+//! Regola: la pagina manda solo una chiave e un valore; qui si decide se esistono e sono ammessi. Una chiave o
+//! un valore sconosciuto viene rifiutato, mai passato ai depositi.
+
+use serde::{Deserialize, Serialize};
+
+/// Le sezioni della finestra, nell'ordine in cui compaiono.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Section {
+    Dock,
+    MenuBar,
+    Launcher,
+    MissionControl,
+}
+
+impl Section {
+    pub fn label(self) -> &'static str {
+        match self {
+            Section::Dock => "Dock",
+            Section::MenuBar => "Barra dei menu",
+            Section::Launcher => "Launcher",
+            Section::MissionControl => "Mission Control",
+        }
+    }
+}
+
+/// Che tipo di valore ha un'impostazione.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Bool,
+    /// Una scelta fra valori fissi: (id, etichetta).
+    Choice(&'static [(&'static str, &'static str)]),
+    /// Una scorciatoia di tastiera ("Ctrl+Alt+Up"), validata come le altre di EosOS.
+    Hotkey,
+    /// Un elenco di nomi di app.
+    Names,
+    /// Un elenco di cartelle (percorsi assoluti).
+    Folders,
+}
+
+/// Una voce dell'elenco chiuso.
+#[derive(Clone, Copy, Debug)]
+pub struct Spec {
+    pub key: &'static str,
+    pub section: Section,
+    pub label: &'static str,
+    pub help: &'static str,
+    pub kind: Kind,
+    /// Parole in più per la ricerca.
+    pub keywords: &'static [&'static str],
+    /// Cambiarla ha effetto subito (altrimenti al prossimo avvio di EosOS).
+    pub live: bool,
+}
+
+const GLASS: &[(&str, &str)] = &[("clear", "Vetro trasparente"), ("standard", "Vetro standard"), ("solid", "Vetro opaco")];
+const LAUNCHER_HOTKEYS: &[(&str, &str)] = &[("Alt+Space", "Alt+Spazio"), ("Ctrl+Alt+Space", "Ctrl+Alt+Spazio"), ("Ctrl+Shift+Space", "Ctrl+Maiusc+Spazio")];
+
+/// L'elenco chiuso di tutte le impostazioni. Le chiavi sono stabili: la pagina e i test le usano.
+pub const SPECS: &[Spec] = &[
+    Spec { key: "dock.autohide", section: Section::Dock, label: "Nascondi automaticamente", help: "Il Dock scompare quando non serve e riappare spostando il mouse sul bordo.", kind: Kind::Bool, keywords: &["auto", "nascondi", "scompare"], live: true },
+    Spec { key: "dock.reserve", section: Section::Dock, label: "Riserva spazio alle finestre", help: "Le finestre ingrandite non finiscono sotto il Dock.", kind: Kind::Bool, keywords: &["area di lavoro", "spazio", "ingrandite"], live: true },
+    Spec { key: "dock.blur", section: Section::Dock, label: "Sfocatura dello sfondo", help: "Sfoca quello che sta dietro al Dock, alla barra e ai pannelli.", kind: Kind::Bool, keywords: &["vetro", "blur", "trasparenza"], live: true },
+    Spec { key: "dock.glass", section: Section::Dock, label: "Livello di vetro", help: "Quanto è trasparente il Dock.", kind: Kind::Choice(GLASS), keywords: &["vetro", "trasparente", "opaco", "aspetto"], live: true },
+    Spec { key: "bar.battery", section: Section::MenuBar, label: "Batteria", help: "Mostra l'indicatore della batteria nella barra.", kind: Kind::Bool, keywords: &["indicatori", "energia"], live: true },
+    Spec { key: "bar.percent", section: Section::MenuBar, label: "Percentuale della batteria", help: "Scrive la percentuale accanto all'icona della batteria.", kind: Kind::Bool, keywords: &["indicatori", "batteria", "per cento"], live: true },
+    Spec { key: "bar.network", section: Section::MenuBar, label: "Rete", help: "Mostra l'indicatore di rete nella barra.", kind: Kind::Bool, keywords: &["indicatori", "wifi", "internet"], live: true },
+    Spec { key: "bar.volume", section: Section::MenuBar, label: "Volume", help: "Mostra l'indicatore del volume nella barra.", kind: Kind::Bool, keywords: &["indicatori", "audio", "suono"], live: true },
+    Spec { key: "menu.enabled", section: Section::MenuBar, label: "Menu globale", help: "Mostra nella barra i menu dell'app in primo piano.", kind: Kind::Bool, keywords: &["menu dell'app", "menu bar"], live: true },
+    Spec { key: "menu.excluded", section: Section::MenuBar, label: "App escluse dal menu globale", help: "Di queste app la barra mostra solo il nome.", kind: Kind::Names, keywords: &["eccezioni", "escludi", "menu globale"], live: true },
+    Spec { key: "launcher.hotkey", section: Section::Launcher, label: "Scorciatoia del Launcher", help: "Il tasto che apre la ricerca.", kind: Kind::Choice(LAUNCHER_HOTKEYS), keywords: &["spotlight", "ricerca", "tastiera"], live: true },
+    Spec { key: "launcher.clipboard", section: Section::Launcher, label: "Cronologia degli appunti", help: "Il Launcher ricorda il testo copiato (solo in memoria).", kind: Kind::Bool, keywords: &["appunti", "copia", "incolla", "clipboard"], live: true },
+    Spec { key: "launcher.folders", section: Section::Launcher, label: "Cartelle di ricerca", help: "Cartelle in più dove il Launcher cerca i file.", kind: Kind::Folders, keywords: &["file", "cartelle", "percorsi"], live: true },
+    Spec { key: "mc.hotkey", section: Section::MissionControl, label: "Scorciatoia di Mission Control", help: "Il tasto che apre e chiude la panoramica (vale al prossimo avvio).", kind: Kind::Hotkey, keywords: &["tastiera", "panoramica"], live: false },
+    Spec { key: "mc.corner", section: Section::MissionControl, label: "Angolo attivo", help: "Fermare il mouse nell'angolo in alto a sinistra apre la panoramica.", kind: Kind::Bool, keywords: &["angolo", "mouse"], live: true },
+    Spec { key: "mc.alttab", section: Section::MissionControl, label: "Alt+Tab di EosOS", help: "Al posto del selettore di Windows. Spento: resta quello di Windows.", kind: Kind::Bool, keywords: &["selettore", "finestre", "tastiera"], live: true },
+    Spec { key: "mc.wintab", section: Section::MissionControl, label: "Win+Tab di EosOS", help: "Apre Mission Control. Spento: resta la Visualizzazione attività di Windows.", kind: Kind::Bool, keywords: &["visualizzazione attività", "task view", "tastiera"], live: true },
+];
+
+/// L'impostazione con quella chiave, se esiste.
+pub fn spec(key: &str) -> Option<&'static Spec> {
+    SPECS.iter().find(|s| s.key == key)
+}
+
+/// Un valore. Dal JSON: `true`, `"standard"`, `["a", "b"]`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum Value {
+    Bool(bool),
+    Text(String),
+    List(Vec<String>),
+}
+
+/// Perché un valore non è stato accettato. I messaggi sono pensati per essere mostrati all'utente.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+pub struct SettingsError(pub String);
+
+impl SettingsError {
+    fn new(m: impl Into<String>) -> Self {
+        SettingsError(m.into())
+    }
+}
+
+/// Massimo di elementi in un elenco e di caratteri per elemento.
+pub const MAX_NAMES: usize = crate::menumodel::MAX_EXCLUDED;
+pub const MAX_FOLDERS: usize = 20;
+pub const MAX_NAME_LEN: usize = 60;
+pub const MAX_PATH_LEN: usize = 260;
+
+/// Un percorso di cartella accettabile: assoluto (lettera di unità o `\\\\server`), senza `..`, senza caratteri
+/// vietati né di controllo, non più lungo di `MAX_PATH_LEN`. Controlla solo la forma: se esiste lo vede chi scrive.
+/// Pura, testata.
+pub fn valid_folder(p: &str) -> bool {
+    let p = p.trim();
+    if p.is_empty() || p.chars().count() > MAX_PATH_LEN || p.chars().any(|c| c.is_control() || "<>\"|?*".contains(c)) {
+        return false;
+    }
+    let b = p.as_bytes();
+    let drive = b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/');
+    let unc = p.starts_with("\\\\") && p.len() > 2;
+    (drive || unc) && !p.split(['\\', '/']).any(|c| c == "..")
+}
+
+/// Ripulisce un elenco: elementi tagliati, vuoti scartati, doppi (senza badare alle maiuscole) tolti, ordine
+/// mantenuto. Pura, testata.
+pub fn clean_list(items: &[String], max_items: usize, max_len: usize) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for it in items {
+        let t = it.trim();
+        if t.is_empty() || t.chars().count() > max_len {
+            continue;
+        }
+        if !out.iter().any(|x| x.to_lowercase() == t.to_lowercase()) {
+            out.push(t.to_string());
+        }
+        if out.len() >= max_items {
+            break;
+        }
+    }
+    out
+}
+
+/// Controlla `raw` per l'impostazione `s` e lo restituisce normalizzato. Pura, testata.
+pub fn validate(s: &Spec, raw: &Value) -> Result<Value, SettingsError> {
+    match (s.kind, raw) {
+        (Kind::Bool, Value::Bool(b)) => Ok(Value::Bool(*b)),
+        (Kind::Bool, _) => Err(SettingsError::new("Serve un sì o un no.")),
+        (Kind::Choice(opts), Value::Text(t)) => opts
+            .iter()
+            .find(|(id, _)| id == t)
+            .map(|(id, _)| Value::Text((*id).to_string()))
+            .ok_or_else(|| SettingsError::new("Valore non ammesso per questa impostazione.")),
+        (Kind::Choice(_), _) => Err(SettingsError::new("Serve una delle scelte indicate.")),
+        (Kind::Hotkey, Value::Text(t)) => crate::launcherwin::parse_hotkey(t)
+            .map(|h| Value::Text(crate::launcherwin::format_hotkey(h)))
+            .ok_or_else(|| SettingsError::new("Scorciatoia non valida: serve almeno un modificatore (Ctrl, Alt, Win) e un tasto ammesso.")),
+        (Kind::Hotkey, _) => Err(SettingsError::new("Serve una scorciatoia scritta, per esempio Ctrl+Alt+Up.")),
+        (Kind::Names, Value::List(l)) => Ok(Value::List(clean_list(l, MAX_NAMES, MAX_NAME_LEN))),
+        (Kind::Names, _) => Err(SettingsError::new("Serve un elenco di nomi.")),
+        (Kind::Folders, Value::List(l)) => {
+            if let Some(bad) = l.iter().find(|p| !p.trim().is_empty() && !valid_folder(p)) {
+                return Err(SettingsError::new(format!("Cartella non valida: {}", bad.chars().take(60).collect::<String>())));
+            }
+            Ok(Value::List(clean_list(l, MAX_FOLDERS, MAX_PATH_LEN)))
+        }
+        (Kind::Folders, _) => Err(SettingsError::new("Serve un elenco di cartelle.")),
+    }
+}
+
+/// Com'è andata una scrittura: applicata subito o dopo il riavvio.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Applied {
+    pub live: bool,
+}
+
+/// Dove stanno davvero i valori. Il vero (`settingslive`) tocca i depositi; i test usano uno finto.
+pub trait Backend {
+    fn get(&self, key: &str) -> Option<Value>;
+    fn set(&mut self, key: &str, value: &Value) -> Result<(), SettingsError>;
+}
+
+/// Cambia un'impostazione: la chiave deve esistere, il valore essere ammesso; poi lo scrive il deposito. Pura nel
+/// senso che dipende solo dal `Backend` passato; testata.
+pub fn set_value(b: &mut dyn Backend, key: &str, raw: &Value) -> Result<Applied, SettingsError> {
+    let s = spec(key).ok_or_else(|| SettingsError::new("Impostazione sconosciuta."))?;
+    let v = validate(s, raw)?;
+    b.set(s.key, &v)?;
+    Ok(Applied { live: s.live })
+}
+
+/// Una riga dello stato di tutte le impostazioni, per la pagina.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+pub struct Entry {
+    pub key: &'static str,
+    pub section: Section,
+    pub section_label: &'static str,
+    pub label: &'static str,
+    pub help: &'static str,
+    pub kind: KindOut,
+    pub live: bool,
+    pub value: Option<Value>,
+}
+
+/// Il tipo come lo vede la pagina.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum KindOut {
+    Bool,
+    Choice { options: Vec<(String, String)> },
+    Hotkey,
+    Names { max: usize },
+    Folders { max: usize },
+}
+
+fn kind_out(k: Kind) -> KindOut {
+    match k {
+        Kind::Bool => KindOut::Bool,
+        Kind::Choice(o) => KindOut::Choice { options: o.iter().map(|(a, b)| ((*a).to_string(), (*b).to_string())).collect() },
+        Kind::Hotkey => KindOut::Hotkey,
+        Kind::Names => KindOut::Names { max: MAX_NAMES },
+        Kind::Folders => KindOut::Folders { max: MAX_FOLDERS },
+    }
+}
+
+/// Lo stato di tutte le impostazioni, nell'ordine dell'elenco.
+pub fn snapshot(b: &dyn Backend) -> Vec<Entry> {
+    SPECS
+        .iter()
+        .map(|s| Entry {
+            key: s.key,
+            section: s.section,
+            section_label: s.section.label(),
+            label: s.label,
+            help: s.help,
+            kind: kind_out(s.kind),
+            live: s.live,
+            value: b.get(s.key),
+        })
+        .collect()
+}
+
+/// Toglie accenti e maiuscole per la ricerca. Pura, testata.
+pub fn fold(s: &str) -> String {
+    s.chars()
+        .flat_map(|c| c.to_lowercase())
+        .map(|c| match c {
+            'à' | 'á' | 'â' | 'ä' => 'a',
+            'è' | 'é' | 'ê' | 'ë' => 'e',
+            'ì' | 'í' | 'î' | 'ï' => 'i',
+            'ò' | 'ó' | 'ô' | 'ö' => 'o',
+            'ù' | 'ú' | 'û' | 'ü' => 'u',
+            _ => c,
+        })
+        .collect()
+}
+
+/// Le chiavi delle impostazioni che corrispondono a `query`: ogni parola deve comparire nell'etichetta, nella
+/// sezione, nell'aiuto o nelle parole chiave (accenti e maiuscole ignorati). Prima quelle con la parola
+/// nell'etichetta, poi le altre, a parità l'ordine dell'elenco. Query vuota = nessuna. Pura, testata.
+pub fn search(query: &str) -> Vec<&'static str> {
+    let q = fold(query);
+    let words: Vec<&str> = q.split_whitespace().collect();
+    if words.is_empty() {
+        return Vec::new();
+    }
+    let mut hits: Vec<(u8, usize, &'static str)> = Vec::new();
+    for (i, s) in SPECS.iter().enumerate() {
+        let label = fold(s.label);
+        let hay = format!("{} {} {} {}", label, fold(s.section.label()), fold(s.help), s.keywords.iter().map(|k| fold(k)).collect::<Vec<_>>().join(" "));
+        if !words.iter().all(|w| hay.contains(w)) {
+            continue;
+        }
+        let rank = if words.iter().all(|w| label.contains(w)) { 0 } else { 1 };
+        hits.push((rank, i, s.key));
+    }
+    hits.sort();
+    hits.into_iter().map(|(_, _, k)| k).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    /// Un deposito finto in memoria.
+    #[derive(Default)]
+    struct Fake {
+        data: HashMap<String, Value>,
+        fail: bool,
+    }
+    impl Backend for Fake {
+        fn get(&self, key: &str) -> Option<Value> {
+            self.data.get(key).cloned()
+        }
+        fn set(&mut self, key: &str, v: &Value) -> Result<(), SettingsError> {
+            if self.fail {
+                return Err(SettingsError("deposito non scrivibile".into()));
+            }
+            self.data.insert(key.to_string(), v.clone());
+            Ok(())
+        }
+    }
+    fn t(s: &str) -> Value {
+        Value::Text(s.into())
+    }
+    fn l(items: &[&str]) -> Value {
+        Value::List(items.iter().map(|s| s.to_string()).collect())
+    }
+
+    #[test]
+    fn the_list_is_well_formed() {
+        let mut keys: Vec<&str> = SPECS.iter().map(|s| s.key).collect();
+        let n = keys.len();
+        keys.sort();
+        keys.dedup();
+        assert_eq!(keys.len(), n, "chiavi doppie");
+        for s in SPECS {
+            assert!(!s.label.trim().is_empty() && !s.help.trim().is_empty(), "{}", s.key);
+            assert!(s.key.contains('.') && s.key == s.key.to_lowercase(), "{}", s.key);
+            if let Kind::Choice(o) = s.kind {
+                assert!(!o.is_empty(), "{}", s.key);
+            }
+        }
+        // Ogni sezione ha almeno un'impostazione, e l'ordine dell'elenco segue quello delle sezioni.
+        let order = [Section::Dock, Section::MenuBar, Section::Launcher, Section::MissionControl];
+        let mut last = 0;
+        for s in SPECS {
+            let pos = order.iter().position(|o| *o == s.section).unwrap();
+            assert!(pos >= last, "{} fuori ordine", s.key);
+            last = pos;
+        }
+        for o in order {
+            assert!(SPECS.iter().any(|s| s.section == o));
+        }
+    }
+
+    #[test]
+    fn unknown_keys_and_wrong_types_are_refused() {
+        let mut f = Fake::default();
+        assert!(set_value(&mut f, "dock.nope", &Value::Bool(true)).is_err());
+        assert!(set_value(&mut f, "dock.autohide", &t("si")).is_err(), "un testo non e' un booleano");
+        assert!(set_value(&mut f, "dock.autohide", &l(&["a"])).is_err());
+        assert!(set_value(&mut f, "dock.glass", &Value::Bool(true)).is_err());
+        assert!(set_value(&mut f, "menu.excluded", &t("Chrome")).is_err(), "un elenco non e' un testo");
+        assert!(f.data.is_empty(), "nulla e' stato scritto");
+    }
+
+    #[test]
+    fn choices_accept_only_their_options() {
+        let mut f = Fake::default();
+        for ok in ["clear", "standard", "solid"] {
+            assert_eq!(set_value(&mut f, "dock.glass", &t(ok)), Ok(Applied { live: true }));
+            assert_eq!(f.get("dock.glass"), Some(t(ok)));
+        }
+        for bad in ["", "Clear", "mezzo", "standard "] {
+            assert!(set_value(&mut f, "dock.glass", &t(bad)).is_err(), "{bad:?}");
+        }
+        assert_eq!(f.get("dock.glass"), Some(t("solid")), "un valore rifiutato non cambia lo stato");
+        assert!(set_value(&mut f, "launcher.hotkey", &t("Alt+F4")).is_err(), "solo le tre scorciatoie sicure");
+        assert!(set_value(&mut f, "launcher.hotkey", &t("Ctrl+Alt+Space")).is_ok());
+    }
+
+    #[test]
+    fn hotkeys_are_validated_and_written_in_a_canonical_form() {
+        let mut f = Fake::default();
+        assert!(set_value(&mut f, "mc.hotkey", &t("ctrl+alt+up")).is_ok());
+        assert_eq!(f.get("mc.hotkey"), Some(t("Ctrl+Alt+Up")), "forma canonica");
+        for bad in ["Up", "Shift+A", "Ctrl+Ctrl+A", "Alt+F4", "", "Ctrl+Alt+", "Ctrl+Alt+Su+Giu"] {
+            assert!(set_value(&mut f, "mc.hotkey", &t(bad)).is_err(), "{bad:?}");
+        }
+        assert_eq!(f.get("mc.hotkey"), Some(t("Ctrl+Alt+Up")));
+        // Mission Control si applica al prossimo avvio: lo dice.
+        assert_eq!(set_value(&mut f, "mc.hotkey", &t("Ctrl+Alt+K")), Ok(Applied { live: false }));
+    }
+
+    #[test]
+    fn name_lists_are_cleaned() {
+        let mut f = Fake::default();
+        let r = set_value(&mut f, "menu.excluded", &l(&[" Chrome ", "chrome", "", "  ", "Discord", &"x".repeat(200)]));
+        assert!(r.is_ok());
+        assert_eq!(f.get("menu.excluded"), Some(l(&["Chrome", "Discord"])), "trim, doppi, vuoti e troppo lunghi tolti");
+        let many: Vec<String> = (0..300).map(|i| format!("app{i}")).collect();
+        set_value(&mut f, "menu.excluded", &Value::List(many)).unwrap();
+        match f.get("menu.excluded") {
+            Some(Value::List(v)) => assert_eq!(v.len(), MAX_NAMES),
+            other => panic!("{other:?}"),
+        }
+        set_value(&mut f, "menu.excluded", &l(&[])).unwrap();
+        assert_eq!(f.get("menu.excluded"), Some(l(&[])), "svuotare e' ammesso");
+    }
+
+    #[test]
+    fn folders_must_be_absolute_and_safe() {
+        for ok in [r"D:\Progetti", r"C:\Users\x\Documents", "E:/Dati", r"\\server\share\cartella", r"c:\a b\c"] {
+            assert!(valid_folder(ok), "{ok}");
+        }
+        for bad in ["", "   ", "Documenti", r"..\x", r"C:\a\..\b", r"C:", r"C:\a|b", r"C:\a?b", "C:\\a\u{7}b", r"\\", "relative\\path", &format!("C:\\{}", "a".repeat(300))] {
+            assert!(!valid_folder(bad), "{bad:?}");
+        }
+        let mut f = Fake::default();
+        assert!(set_value(&mut f, "launcher.folders", &l(&[r"D:\Progetti", r"D:\progetti", r"E:\Dati"])).is_ok());
+        assert_eq!(f.get("launcher.folders"), Some(l(&[r"D:\Progetti", r"E:\Dati"])), "doppi tolti senza badare alle maiuscole");
+        assert!(set_value(&mut f, "launcher.folders", &l(&[r"D:\Ok", "non assoluta"])).is_err(), "una sola cartella non valida rifiuta tutto");
+        assert_eq!(f.get("launcher.folders"), Some(l(&[r"D:\Progetti", r"E:\Dati"])), "e lo stato resta com'era");
+        let many: Vec<String> = (0..50).map(|i| format!(r"D:\c{i}")).collect();
+        set_value(&mut f, "launcher.folders", &Value::List(many)).unwrap();
+        match f.get("launcher.folders") {
+            Some(Value::List(v)) => assert_eq!(v.len(), MAX_FOLDERS),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_failing_backend_reports_the_error_and_changes_nothing() {
+        let mut f = Fake { fail: true, ..Fake::default() };
+        let r = set_value(&mut f, "dock.autohide", &Value::Bool(true));
+        assert_eq!(r, Err(SettingsError("deposito non scrivibile".into())));
+        assert!(f.data.is_empty());
+    }
+
+    #[test]
+    fn the_snapshot_lists_every_setting_in_order() {
+        let mut f = Fake::default();
+        f.set("dock.autohide", &Value::Bool(true)).unwrap();
+        let snap = snapshot(&f);
+        assert_eq!(snap.len(), SPECS.len());
+        assert_eq!(snap[0].key, "dock.autohide");
+        assert_eq!(snap[0].value, Some(Value::Bool(true)));
+        assert_eq!(snap[1].value, None, "non ancora scritta nel deposito finto");
+        let glass = snap.iter().find(|e| e.key == "dock.glass").unwrap();
+        assert!(matches!(&glass.kind, KindOut::Choice { options } if options.len() == 3));
+        // Serializza senza errori e con i nomi che la pagina si aspetta.
+        let json = serde_json::to_string(&snap[0]).unwrap();
+        assert!(json.contains("\"section_label\":\"Dock\"") && json.contains("\"type\":\"bool\""), "{json}");
+    }
+
+    #[test]
+    fn values_parse_from_plain_json() {
+        assert_eq!(serde_json::from_str::<Value>("true").unwrap(), Value::Bool(true));
+        assert_eq!(serde_json::from_str::<Value>("\"solid\"").unwrap(), t("solid"));
+        assert_eq!(serde_json::from_str::<Value>("[\"a\",\"b\"]").unwrap(), l(&["a", "b"]));
+        for bad in ["1", "null", "{}", "[1]", "[true]"] {
+            assert!(serde_json::from_str::<Value>(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn search_finds_by_label_help_and_keywords_ignoring_accents() {
+        assert!(search("").is_empty() && search("   ").is_empty());
+        assert_eq!(search("autohide"), Vec::<&str>::new());
+        assert_eq!(search("nascondi")[0], "dock.autohide");
+        assert!(search("vetro").contains(&"dock.glass"));
+        // Accenti e maiuscole ignorati.
+        assert_eq!(search("VISUALIZZAZIONE ATTIVITA"), vec!["mc.wintab"]);
+        assert!(search("appunti").contains(&"launcher.clipboard"));
+        // Piu' parole: devono esserci tutte.
+        assert_eq!(search("alt tab")[0], "mc.alttab");
+        assert!(search("zzzz").is_empty());
+        // Chi ha la parola nell'etichetta viene prima di chi ce l'ha solo nell'aiuto.
+        let r = search("batteria");
+        assert_eq!(r[0], "bar.battery");
+        assert!(r.contains(&"bar.percent"));
+    }
+
+    #[test]
+    fn folding_removes_accents_and_case() {
+        assert_eq!(fold("Visualizzazione Attività"), "visualizzazione attivita");
+        assert_eq!(fold("ÈÉ"), "ee");
+        assert_eq!(fold(""), "");
+    }
+}
