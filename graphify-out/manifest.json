@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794140427.5810668,
-    "seen": 1794140429.8957965,
-    "ast_hash": "a3e24c9ef42dfc6de07218288f45f869",
+    "mtime": 1794141060.76333,
+    "seen": 1794141063.0891619,
+    "ast_hash": "80d3f8be5318fd51873c3c501d4b304e",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -858,9 +858,9 @@
     "semantic_hash": ""
   },
   "scripts/test-menusettings.ps1": {
-    "mtime": 1794105235.5108235,
-    "seen": 1794105674.6865077,
-    "ast_hash": "d0f160defe945810f739e903037c56c4",
+    "mtime": 1794140756.8295376,
+    "seen": 1794141063.089067,
+    "ast_hash": "b09d5fa9d5b9c4bdc35c77cf2b031366",
     "semantic_hash": ""
   },
   "scripts/test-menu-dpi.ps1": {
@@ -870,9 +870,9 @@
     "semantic_hash": ""
   },
   "docs/IMPOSTAZIONI.md": {
-    "mtime": 1794140427.5810668,
-    "seen": 1794140429.895799,
-    "ast_hash": "f6354d12d2cf568676dfee4a15bb63d1",
+    "mtime": 1794141060.762333,
+    "seen": 1794141063.0891645,
+    "ast_hash": "53bd8e61d9c126c38f54682395041516",
     "semantic_hash": ""
   },
   "scripts/test-settings.ps1": {
@@ -906,21 +906,21 @@
     "semantic_hash": ""
   },
   "src/components/Settings.tsx": {
-    "mtime": 1794139461.021019,
-    "seen": 1794139756.014687,
-    "ast_hash": "031c52dacf3e301ebdece8b16023335e",
+    "mtime": 1794140650.315555,
+    "seen": 1794141063.0891352,
+    "ast_hash": "3f42556fa993ccfe6c0c984369e5030e",
     "semantic_hash": ""
   },
   "src/lib/settings.test.ts": {
-    "mtime": 1794137959.6403456,
-    "seen": 1794138846.8917153,
-    "ast_hash": "a4f49a1f2f64687ee0abc8c88e6d84c2",
+    "mtime": 1794140512.3090427,
+    "seen": 1794141063.0891514,
+    "ast_hash": "76fd985b35e1ff074c061b57607fb1ed",
     "semantic_hash": ""
   },
   "src/lib/settings.ts": {
-    "mtime": 1794139461.021019,
-    "seen": 1794139756.014705,
-    "ast_hash": "d19fb0f32562191dc06778d1800118c7",
+    "mtime": 1794140512.3090427,
+    "seen": 1794141063.0891523,
+    "ast_hash": "7768c8c0a865acb2b695b222dc191286",
     "semantic_hash": ""
   },
   "scripts/test-settings-s3.ps1": {
@@ -951,6 +951,18 @@
     "mtime": 1794140084.6191165,
     "seen": 1794140429.8957083,
     "ast_hash": "cf32c48212559f6f82884d1aa9845113",
+    "semantic_hash": ""
+  },
+  "scripts/test-settings-dpi.ps1": {
+    "mtime": 1794140704.4577806,
+    "seen": 1794141063.0890703,
+    "ast_hash": "4ada35a30dfe2bb11e0131770266117d",
+    "semantic_hash": ""
+  },
+  "scripts/test-settings-s6.ps1": {
+    "mtime": 1794140592.156464,
+    "seen": 1794141063.0890741,
+    "ast_hash": "2501d522acb7711f10561c581f2ea674",
     "semantic_hash": ""
   },
   "package-lock.json": {
