@@ -2,7 +2,7 @@
 
 Obiettivo: cliccando l'orologio nella barra si apre un pannello in stile Centro notifiche di macOS: in alto le **notifiche recenti** raggruppate per app, sotto un **calendario** del mese. Oggi l'orologio è solo un testo.
 
-Stato: specifica (8 nov 2026) e **N1-N4 e N6 fatte (N5 saltata)**. **Decisioni dell'utente (8 nov 2026): sì a tutto**, cioè è questo il passo successivo, il calendario mostra **solo il mese e il giorno** (niente eventi), e **niente banner temporanei** per le notifiche nuove nella prima versione.
+Stato: specifica (8 nov 2026) e **N1-N6 tutte fatte**. **Decisioni dell'utente (8 nov 2026): sì a tutto**, cioè è questo il passo successivo, il calendario mostra **solo il mese e il giorno** (niente eventi), e **niente banner temporanei** per le notifiche nuove nella prima versione.
 
 ## Cosa fa macOS (da replicare)
 
@@ -122,9 +122,13 @@ Controllato anche con uno screenshot della struttura dell'elenco con dati finti 
 
 **Non provato:** **aprire davvero un'app** da una notifica (nelle prove non si lancia niente; si è provata solo la richiesta con l'identificatore giusto e il rifiuto di identificatori sospetti nei test puri); notifiche con immagini o pulsanti; il pannello con molte notifiche vere insieme (si è provato il tetto solo nei test puri); le notifiche che arrivano mentre il pannello è chiuso (si vedono alla prossima apertura); un secondo monitor.
 
-## N5 — Non disturbare: SALTATA (8 nov 2026)
+## N5 — Non disturbare: FATTA (8 nov 2026)
 
-Non fatta: l'utente ha chiesto di procedere con N6. Si puo' riprendere in futuro dopo aver verificato che Windows offra un modo documentato per leggere/impostare l'Assistente notifiche.
+**Scelta di perimetro:** Windows **non offre un'API documentata** per leggere o cambiare l'Assistente notifiche / Non disturbare, quindi EosOS **non lo tocca** (ne' lo legge). E non ci sono banner di EosOS da spegnere (decisione dell'utente: niente banner). N5 e' quindi un interruttore **interno a EosOS**: «Non disturbare».
+- **Acceso:** il pannello sotto l'orologio **non legge ne' mostra** le notifiche (Rust risponde `paused` senza leggere nulla; togliere/aprire/svuotare una notifica viene rifiutato). Il pannello lo dice («Non disturbare e' acceso... Restano nel Centro notifiche di Windows») e il calendario resta. Le notifiche di Windows e le sue impostazioni non cambiano.
+- **Dove:** pulsante «Non disturbare» / «Riprendi» nell'intestazione dell'elenco (visibile quando la lettura e' accesa) e impostazione «Non disturbare» in Impostazioni (`notif.dnd`, spento di default, vale subito). Vince sempre sulla lettura (`read_gate`, pura e testata).
+- **Prova dal vivo** (`scripts/test-notif-dnd.ps1`, 17 controlli, solo con una notifica mia): predefinito spento; pulsante assente a lettura spenta; acceso dal pannello -> impostazione, messaggio, nessuna notifica, `paused` da Rust, comandi rifiutati, resta in pausa dopo la rilettura; «Riprendi» -> la mia notifica ricompare (Windows intatto); acceso dalle Impostazioni a pannello aperto; valore non booleano rifiutato. Rust 351 test, pagina 153, clippy 0; regressioni (N3, N4, impostazioni x3, N6): OK. Impostazioni ora 24.
+- **Non fatto:** sincronizzazione con Non disturbare di Windows (nessuna API documentata).
 
 ## N6 — Rifiniture: FATTE (8 nov 2026)
 

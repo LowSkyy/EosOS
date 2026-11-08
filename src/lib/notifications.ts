@@ -2,7 +2,7 @@
 
 export type Notif = { id: number; title: string; body: string; time_ms: number; ago: string };
 export type NotifGroup = { app_id: string; app_name: string; items: Notif[]; hidden: number };
-export type NotifReply = { state: "off" | "ok" | "error"; groups: NotifGroup[]; total: number; message: string | null };
+export type NotifReply = { state: "off" | "paused" | "ok" | "error"; groups: NotifGroup[]; total: number; message: string | null };
 
 /** Ogni quanti millisecondi si rilegge l'elenco mentre il pannello è aperto. */
 export const REFRESH_MS = 4000;

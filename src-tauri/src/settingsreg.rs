@@ -96,6 +96,7 @@ pub const SPECS: &[Spec] = &[
     Spec { key: "mc.alttab", section: Section::MissionControl, label: "Alt+Tab di EosOS", help: "Al posto del selettore di Windows. Spento: resta quello di Windows.", kind: Kind::Bool, keywords: &["selettore", "finestre", "tastiera"], live: true },
     Spec { key: "mc.wintab", section: Section::MissionControl, label: "Win+Tab di EosOS", help: "Apre Mission Control. Spento: resta la Visualizzazione attività di Windows.", kind: Kind::Bool, keywords: &["visualizzazione attività", "task view", "tastiera"], live: true },
     Spec { key: "notif.read", section: Section::Notifications, label: "Mostra le notifiche", help: "EosOS legge le notifiche di Windows e le mostra nel pannello sotto l'orologio. Restano solo in memoria. Spento finché non lo accendi.", kind: Kind::Bool, keywords: &["centro notifiche", "avvisi", "toast", "privacy"], live: true },
+    Spec { key: "notif.dnd", section: Section::Notifications, label: "Non disturbare", help: "Il pannello sotto l'orologio non legge né mostra le notifiche finché è acceso. Riguarda solo EosOS: le notifiche e le impostazioni di Windows non cambiano.", kind: Kind::Bool, keywords: &["silenzioso", "concentrazione", "avvisi", "notifiche"], live: true },
     Spec { key: "calendar.week_start", section: Section::Notifications, label: "La settimana comincia da", help: "Nel calendario sotto l'orologio.", kind: Kind::Choice(WEEK_START), keywords: &["calendario", "lunedì", "domenica", "settimana", "orologio"], live: true },
 ];
 

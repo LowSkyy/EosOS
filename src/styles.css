@@ -785,6 +785,9 @@ body {
 
 /* ---- Notifiche sopra il calendario (dentro la finestra "panel") ---- */
 .notifs { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(128, 128, 128, 0.3); }
+.notifs-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.notifs-head .notifs-title { margin: 0; }
+.notifs-btn[aria-pressed="true"] { background: rgba(10, 132, 255, 0.35); }
 .notifs-title { margin: 0 0 6px; font-size: 13px; font-weight: var(--weight-strong); }
 .notifs-empty { margin: 4px 0; color: var(--bar-fg-muted); }
 .notifs-off p { margin: 0 0 8px; color: var(--bar-fg-muted); font-size: 12px; }

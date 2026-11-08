@@ -175,9 +175,29 @@ pub fn total(groups: &[Group]) -> usize {
     groups.iter().map(|g| g.items.len() + g.hidden).sum()
 }
 
+/// Cosa fare con le notifiche, dati i due interruttori: "paused" (Non disturbare), "off" (lettura spenta) o "go".
+/// Non disturbare vince sempre: con lui acceso non si legge niente. Pura.
+pub fn read_gate(read_on: bool, dnd: bool) -> &'static str {
+    if dnd {
+        "paused"
+    } else if !read_on {
+        "off"
+    } else {
+        "go"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gate_dnd_wins_over_everything() {
+        assert_eq!(read_gate(true, true), "paused");
+        assert_eq!(read_gate(false, true), "paused");
+        assert_eq!(read_gate(false, false), "off");
+        assert_eq!(read_gate(true, false), "go");
+    }
 
     const NOW: i64 = 1_794_000_000_000; // un istante qualunque di fine 2026
 

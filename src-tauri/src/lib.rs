@@ -176,12 +176,20 @@ fn now_ms() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64)
 }
 
+/// Lettura accesa e «Non disturbare» spento.
+fn notif_allowed() -> bool {
+    let s = mcstore::load();
+    notifmodel::read_gate(s.notif_read, s.notif_dnd) == "go"
+}
+
 /// Le notifiche di Windows, già raggruppate per app. Solo se l'utente ha acceso «Mostra le notifiche»: altrimenti
 /// risponde "off" senza leggere niente. I testi restano in memoria.
 #[tauri::command(async)]
 fn notif_list() -> NotifReply {
-    if !mcstore::load().notif_read {
-        return NotifReply { state: "off", groups: Vec::new(), total: 0, message: None };
+    let s = mcstore::load();
+    let gate = notifmodel::read_gate(s.notif_read, s.notif_dnd);
+    if gate != "go" {
+        return NotifReply { state: gate, groups: Vec::new(), total: 0, message: None };
     }
     match notifread::read_all() {
         Ok(raw) => {
@@ -196,7 +204,7 @@ fn notif_list() -> NotifReply {
 /// adesso (un id inventato si rifiuta).
 #[tauri::command(async)]
 fn notif_dismiss(id: u32) -> bool {
-    if !mcstore::load().notif_read {
+    if !notif_allowed() {
         return false;
     }
     let Ok(raw) = notifread::read_all() else { return false };
@@ -210,7 +218,7 @@ fn notif_dismiss(id: u32) -> bool {
 /// e per un id che c'è adesso.
 #[tauri::command(async)]
 fn notif_open(id: u32) -> bool {
-    if !mcstore::load().notif_read {
+    if !notif_allowed() {
         return false;
     }
     let Ok(raw) = notifread::read_all() else { return false };
@@ -229,7 +237,7 @@ fn notif_open(id: u32) -> bool {
 /// Risponde quante ne ha tolte.
 #[tauri::command(async)]
 fn notif_clear_app(app_id: String) -> usize {
-    if !mcstore::load().notif_read {
+    if !notif_allowed() {
         return 0;
     }
     let Ok(raw) = notifread::read_all() else { return 0 };

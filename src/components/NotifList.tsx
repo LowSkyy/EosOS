@@ -33,6 +33,11 @@ export default function NotifList() {
     await load();
   };
 
+  const setDnd = async (on: boolean) => {
+    await invoke("settings_set", { key: "notif.dnd", value: on }).catch(() => undefined);
+    await load();
+  };
+
   // Tolta subito dall'elenco mostrato; la rilettura che segue conferma lo stato vero.
   const dismiss = async (id: number) => {
     setReply((r) => (r ? { ...r, groups: withoutNotif(r.groups, id), total: Math.max(0, r.total - 1) } : r));
@@ -53,7 +58,19 @@ export default function NotifList() {
   if (!reply) return null;
   return (
     <section className="notifs" aria-label="Notifiche">
-      <h2 className="notifs-title">{headingLabel(reply.state === "ok" ? reply.total : 0)}</h2>
+      <div className="notifs-head">
+        <h2 className="notifs-title">{headingLabel(reply.state === "ok" ? reply.total : 0)}</h2>
+        {reply.state !== "off" && (
+          <button type="button" className="notifs-btn" aria-pressed={reply.state === "paused"} onClick={() => void setDnd(reply.state !== "paused")}>
+            {reply.state === "paused" ? "Riprendi" : "Non disturbare"}
+          </button>
+        )}
+      </div>
+      {reply.state === "paused" && (
+        <p className="notifs-empty" role="status">
+          Non disturbare è acceso: EosOS non legge né mostra le notifiche. Restano nel Centro notifiche di Windows.
+        </p>
+      )}
       {reply.state === "off" && (
         <div className="notifs-off">
           <p>La lettura delle notifiche è spenta. Accendendola, EosOS mostra qui le notifiche di Windows (restano solo in memoria).</p>

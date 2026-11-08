@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794144051.6065729,
-    "seen": 1794144060.5510895,
-    "ast_hash": "8d5f1464e4fd9f4126784c857fe4c578",
+    "mtime": 1794144558.337257,
+    "seen": 1794144560.6717043,
+    "ast_hash": "51c506bf569b354ab3a727bc110995c0",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794142997.2083993,
-    "seen": 1794143515.6778445,
-    "ast_hash": "91848b1973469aa9d2c6822679bcc53f",
+    "mtime": 1794144163.0615616,
+    "seen": 1794144560.671638,
+    "ast_hash": "809e363d63db8bde7b09f2fce0d812e5",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -702,9 +702,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/mcstore.rs": {
-    "mtime": 1794143605.2197022,
-    "seen": 1794144060.5510283,
-    "ast_hash": "017a1a5d142ff8e6420ed2b9215a250c",
+    "mtime": 1794144163.0605624,
+    "seen": 1794144560.6716435,
+    "ast_hash": "3eaa50c2216ed4dc563d252d860a468a",
     "semantic_hash": ""
   },
   "src-tauri/src/mctrigger.rs": {
@@ -876,21 +876,21 @@
     "semantic_hash": ""
   },
   "scripts/test-settings.ps1": {
-    "mtime": 1794143621.867149,
-    "seen": 1794144060.5509953,
-    "ast_hash": "47ffbdbf4b73be712bd4d3bbc1c37ace",
+    "mtime": 1794144163.0625615,
+    "seen": 1794144560.6716108,
+    "ast_hash": "0ea554709e91366835d1513f5c50a4d9",
     "semantic_hash": ""
   },
   "src-tauri/src/settingslive.rs": {
-    "mtime": 1794143605.2197022,
-    "seen": 1794144060.551037,
-    "ast_hash": "420f79462a7b7019032fcd39e00d9dd7",
+    "mtime": 1794144163.0615616,
+    "seen": 1794144560.6716526,
+    "ast_hash": "c0e36f6f0e4b3bbfcdf07d357add4a5a",
     "semantic_hash": ""
   },
   "src-tauri/src/settingsreg.rs": {
-    "mtime": 1794143605.2197022,
-    "seen": 1794144060.551038,
-    "ast_hash": "491d9a9a979d5ba9a1fd27e1560fbc65",
+    "mtime": 1794144163.0605624,
+    "seen": 1794144560.6716533,
+    "ast_hash": "0142c03cbe328bc460a42bfc3e9250a2",
     "semantic_hash": ""
   },
   "scripts/test-settingswin.ps1": {
@@ -966,9 +966,9 @@
     "semantic_hash": ""
   },
   "docs/NOTIFICHE.md": {
-    "mtime": 1794144051.6055727,
-    "seen": 1794144060.5510962,
-    "ast_hash": "782294fba7f5fce0afda64052c93173b",
+    "mtime": 1794144558.337257,
+    "seen": 1794144560.6717112,
+    "ast_hash": "e723821b6339087461e493d61a08e74e",
     "semantic_hash": ""
   },
   "scripts/test-notif-probe.ps1": {
@@ -1014,9 +1014,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/notifmodel.rs": {
-    "mtime": 1794142997.2083993,
-    "seen": 1794143515.677856,
-    "ast_hash": "4994bce6d6ffe8239c5cc8015f92b9ce",
+    "mtime": 1794144163.0615616,
+    "seen": 1794144560.671649,
+    "ast_hash": "113f62d2ebe1f8129229d97ddf4ce4c7",
     "semantic_hash": ""
   },
   "src-tauri/src/notifread.rs": {
@@ -1032,9 +1032,9 @@
     "semantic_hash": ""
   },
   "src/components/NotifList.tsx": {
-    "mtime": 1794143028.3087115,
-    "seen": 1794143515.6778805,
-    "ast_hash": "9548aefd1a64105cf09977c966651706",
+    "mtime": 1794144163.0625615,
+    "seen": 1794144560.6716728,
+    "ast_hash": "1e28a341e14e5496ddecd78586d56f44",
     "semantic_hash": ""
   },
   "src/lib/notifications.test.ts": {
@@ -1044,9 +1044,9 @@
     "semantic_hash": ""
   },
   "src/lib/notifications.ts": {
-    "mtime": 1794143028.1465948,
-    "seen": 1794143515.6779015,
-    "ast_hash": "2293bc2548b66d07a9c775745fdb368b",
+    "mtime": 1794144163.0625615,
+    "seen": 1794144560.6716933,
+    "ast_hash": "e77c83562fd6aa01c69e8a3163e585ee",
     "semantic_hash": ""
   },
   "scripts/test-calendar-dpi.ps1": {
@@ -1059,6 +1059,12 @@
     "mtime": 1794143651.099096,
     "seen": 1794144060.5509603,
     "ast_hash": "965c48978a1b41cce37364a7df444020",
+    "semantic_hash": ""
+  },
+  "scripts/test-notif-dnd.ps1": {
+    "mtime": 1794144366.550078,
+    "seen": 1794144560.6716008,
+    "ast_hash": "7421ee539fea04f31049ea4928a9af89",
     "semantic_hash": ""
   },
   "package-lock.json": {
