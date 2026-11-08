@@ -2,7 +2,7 @@
 
 Obiettivo: come su macOS, i menu dell'app in primo piano (File, Modifica, Visualizza...) compaiono **nella barra in alto di EosOS**, accanto al nome dell'app, invece che dentro la finestra. Un clic su una voce apre il menu a tendina e sceglierne una voce esegue il comando nell'app.
 
-Stato: specifica (8 nov 2026) e **G1, G2 e G3 fatte**. **Scelta dell'utente: opzione 1, ibrido.** Restano G4-G6.
+Stato: specifica (8 nov 2026) e **G1, G2, G3 e G4 fatte**. **Scelta dell'utente: opzione 1, ibrido.** Restano G5-G6.
 
 ## Cosa fa macOS (da replicare)
 
@@ -94,6 +94,24 @@ La barra in alto mostra ora il **nome dell'app in primo piano in grassetto** e, 
 **Verifica dal vivo** (`scripts/test-menubar.ps1`, 17 controlli, finestre di prova mie; nessun clic, nessun tasto, nessuna voce invocata): finestra con menu classico → nome, File, Modifica, Visualizza, Aiuto, Finestra, con acceleratore tolto, primo menu in grassetto, «File» con 3 voci («Apri» con scorciatoia Ctrl+O, separatore, «Esci»), percorso dell'azione `0,0`, e la barra mostra gli stessi titoli; finestra con `MenuStrip` → File, Modifica, Aiuto «pigri»; console → solo nome e Finestra; tre cambi rapidi → vince l'ultima finestra e la barra mostra la sua riga; tornare su una finestra già letta → riga completa in 74 ms. Con Visual Studio Code in primo piano la barra mostra davvero i suoi menu (File, Edit, Selection, View, Go, Run, Terminal, Help) senza aver fatto altro. Regressioni: hook di tastiera 41, panoramica 58, misura dei menu: tutti OK. Rust 297 test (3 a richiesta), pagina 105, clippy a 0 avvisi.
 
 **Non provato:** la barra con due monitor (una barra per monitor, stesso evento: dovrebbe coincidere, non l'ho guardato); il comportamento di app con menu che cambiano mentre sono in primo piano (la cache dura 5 s e si riprova solo al cambio di finestra); aspetto con tema chiaro (i colori vengono dalle variabili della barra); lettura di app molto grandi o lente oltre VS Code.
+
+## G4 — La tendina: FATTA (8 nov 2026)
+
+Un clic su un titolo della barra apre sotto di esso la **tendina del menu**; passando col mouse su un altro titolo mentre è aperta la tendina passa a quel menu; un secondo clic sullo stesso titolo, Esc o un clic fuori la chiudono. La tendina riusa la **finestra del pannello degli indicatori** (stessa sfocatura, stessi comportamenti di focus), con la chiave `menu:<indice>`: niente nuova finestra e nessun nuovo canale di cattura.
+
+**Cosa mostra:** voci con la **scorciatoia a destra** (solo testo), **separatori**, voci **disattivate** in grigio e non selezionabili, **segno di spunta**, **sottomenu** che si aprono sul posto, rientrati (non a lato: la finestra è larga 300 px, un secondo livello a fianco richiederebbe una finestra in più; scelta da rivedere se si vuole la fedeltà a macOS), a tastiera frecce su/giù (saltano separatori e voci disattivate, senza girare in tondo), destra/sinistra per aprire e chiudere i sottomenu, Invio e Spazio per scegliere, Esc per chiudere. La logica di selezione sta in funzioni pure testate (`flatRows`, `moveSelection`, `firstSelectable`).
+
+**Dove sta la decisione:** la pagina manda a Rust solo l'**indice del menu e il percorso della voce**; Rust ritrova la voce nella propria riga (`item_at`), controlla che esista, sia attiva e non sia un sottomenu né un separatore, e decide cosa fare. Indici o percorsi inventati vengono rifiutati.
+
+**Comandi di EosOS, già funzionanti** (agiscono sulla finestra a cui si riferisce la riga, non su quella in primo piano, che durante la tendina è EosOS): *Riduci a icona*, *Ingrandisci*/*Ripristina* (la voce cambia con lo stato della finestra), *Chiudi* (`WM_CLOSE`, come il pulsante X) ed *Esci da ...* (`WM_CLOSE` a tutte le finestre visibili di primo livello dell'app: il modo gentile, ogni finestra può chiedere di salvare; mai si termina un processo). Tolta la voce «Mostra nel Dock», che non aveva un significato chiaro (il Dock mostra già le app aperte).
+
+**Menu «pigri» (UI Automation):** le loro voci si leggono quando l'utente apre il menu: **si apre un istante il menu nell'app (ExpandCollapse) e si richiude**. È l'unico modo che l'accessibilità offre per le app che non espongono le voci a menu chiuso, ed è visibile come un lampo del menu nell'app (e, provato con Visual Studio Code, sposta il focus sull'app). Per questo il pannello ignora la perdita del focus mentre legge e lo riprende dopo (`busy_for`/`refocus`). Si legge **un solo livello** (le voci come discendenti del menu); i sottomenu di un'app UI Automation non sono ancora esplorati.
+
+**Difetto trovato e corretto dalla prova:** l'apertura di un menu pigro faceva perdere il focus alla tendina, che si chiudeva da sola mezzo secondo dopo averla aperta; l'avrei attribuito al test, ma la causa vera era l'app che si prendeva il focus.
+
+**Verifica dal vivo** (`scripts/test-menudrop.ps1`, 40 controlli, finestre di prova mie): tendina di un menu classico (4 voci con titoli giusti, separatore, scorciatoia `Ctrl+O`, voce disattivata, voce spuntata), apertura e chiusura dei sottomenu, passaggio da un titolo all'altro, secondo clic che chiude, **clic col mouse vero sul titolo** (verificato prima che sotto il cursore ci fosse proprio quel titolo), tastiera (frecce che saltano separatore e voce disattivata, Esc), scelta di una voce dell'app (per ora non fa nulla e non rompe nulla; indici e percorsi inventati, voci disattivate e sottomenu rifiutati), menu pigri di una finestra con `MenuStrip` (File mostra «Prima voce» e «Seconda voce» in 225 ms, la finestra resta viva), comandi di Finestra sulla console di prova (ingrandisce, ripristina, riduce a icona, chiude), «Esci da ...» che chiude solo l'app di prova e lascia viva l'altra. Regressioni: barra 17, pannello degli indicatori, hook di tastiera 41, tutti OK. Rust 300 test (3 a richiesta), pagina 108, clippy a 0 avvisi.
+
+**Non provato:** il lampo del menu pigro su app vere diverse da Visual Studio Code e dalla finestra di prova (Blocco note di Windows 11: la lettura delle voci dopo l'espansione non è stata verificata; è il prossimo candidato); tendina vicino al bordo destro dello schermo e con due monitor (il posizionamento è quello del pannello, già provato); menu molto lunghi (il pannello scorre oltre 400 px: non l'ho riempito); menu con tema chiaro.
 
 ## Fuori scopo
 

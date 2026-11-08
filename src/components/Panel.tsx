@@ -14,6 +14,7 @@ import {
   type VolumeValue,
 } from "../lib/indicators";
 import { Glyph } from "./IndicatorGlyph";
+import MenuPanel from "./MenuPanel";
 import { useBackdrop } from "./useBackdrop";
 import { useIndicators } from "./useIndicators";
 
@@ -30,6 +31,8 @@ const SEND_MS = 40;
 export default function Panel() {
   const state = useIndicators();
   const [key, setKey] = useState<IndicatorKey | null>(null);
+  // Tendina del menu globale: indice del menu della barra aperto (null = il pannello è degli indicatori).
+  const [menuIndex, setMenuIndex] = useState<number | null>(null);
   const [opens, setOpens] = useState(0);
   const [local, setLocal] = useState<VolumeValue | null>(null);
   const lastInput = useRef(0);
@@ -43,6 +46,14 @@ export default function Panel() {
 
   useEffect(() => {
     const onOpen = listen<string>("panel-open", (e) => {
+      const m = /^menu:(\d+)$/.exec(e.payload);
+      if (m) {
+        setKey(null);
+        setMenuIndex(Number(m[1]));
+        setOpens((n) => n + 1);
+        return;
+      }
+      setMenuIndex(null);
       if (e.payload === "battery" || e.payload === "network" || e.payload === "volume") {
         setKey(e.payload);
         setOpens((n) => n + 1);
@@ -52,6 +63,7 @@ export default function Panel() {
     });
     const onClose = listen("panel-close", () => {
       setKey(null);
+      setMenuIndex(null);
       setLocal(null);
     });
     return () => {
@@ -69,7 +81,7 @@ export default function Panel() {
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [key]);
+  }, [key, menuIndex]);
 
   // Esc chiude; all'apertura il focus va al primo controllo.
   useEffect(() => {
@@ -118,6 +130,7 @@ export default function Panel() {
   return (
     <div className="panel" ref={panel} role="dialog" aria-label={key ? panelTitle(key) : undefined}>
       <canvas className="panel-blur" ref={blurCanvas} aria-hidden />
+      {menuIndex !== null && <MenuPanel ref={body} index={menuIndex} opens={opens} />}
       {key && item && (
         <div className="panel-body" ref={body}>
           <h2 className="panel-title">{panelTitle(key)}</h2>

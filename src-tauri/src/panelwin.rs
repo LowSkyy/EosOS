@@ -38,6 +38,36 @@ const FOCUS_CHECK: Duration = Duration::from_millis(500);
 /// chiuso lui: non si riapre.
 const REOPEN_BLOCK: Duration = Duration::from_millis(400);
 
+/// Fino a quando (ms dall'avvio) la perdita del focus non chiude il pannello: mentre si legge un menu
+/// "pigro" l'app apre il suo menu e si prende il focus per un istante.
+static BUSY_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
+
+fn now_ms() -> u64 {
+    START.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(Instant::now).elapsed().as_millis() as u64
+}
+
+/// Per i prossimi `ms` millisecondi non si chiude il pannello se perde il focus.
+pub fn busy_for(ms: u64) {
+    BUSY_UNTIL_MS.store(now_ms() + ms, Ordering::Relaxed);
+}
+
+fn is_busy() -> bool {
+    now_ms() < BUSY_UNTIL_MS.load(Ordering::Relaxed)
+}
+
+/// Riporta il focus sul pannello (dopo che un'app glielo ha tolto per un istante).
+pub fn refocus(app: &AppHandle) {
+    if !is_visible() {
+        return;
+    }
+    if let Some(win) = win_of(app) {
+        if let Ok(hwnd) = win.hwnd() {
+            crate::dockact::focus(hwnd);
+        }
+        let _ = win.set_focus();
+    }
+}
+
 static VISIBLE: AtomicBool = AtomicBool::new(false);
 static SCALE_BITS: AtomicU64 = AtomicU64::new(0);
 static HWND_RAW: AtomicIsize = AtomicIsize::new(0);
@@ -111,7 +141,20 @@ pub fn clamp_height(h: f64) -> f64 {
 
 /// Gli indicatori che hanno un pannello. Pura, testata.
 pub fn is_panel_key(key: &str) -> bool {
-    matches!(key, "battery" | "network" | "volume")
+    matches!(key, "battery" | "network" | "volume") || menu_index(key).is_some()
+}
+
+/// `"menu:3"` → 3: la tendina del menu globale usa questa stessa finestra. Pura, testata.
+pub fn menu_index(key: &str) -> Option<usize> {
+    key.strip_prefix("menu:")?.parse().ok().filter(|i| *i < 64)
+}
+
+/// Il pannello è aperto su un menu della barra e quale (per il passaggio con il mouse da un titolo all'altro).
+pub fn open_menu() -> Option<usize> {
+    if !is_visible() {
+        return None;
+    }
+    lock().key.as_deref().and_then(menu_index)
 }
 
 /// Il rettangolo che la pagina descrive (px CSS, relativo alla finestra della barra) → px fisici
@@ -262,7 +305,7 @@ fn show(app: &AppHandle, key: &str, anchor: Rect) {
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(FOCUS_CHECK);
-        if !is_visible() {
+        if !is_visible() || is_busy() {
             return;
         }
         if let Some(win) = win_of(&app)
@@ -303,7 +346,7 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) -> bo
                 let st = lock();
                 (st.key.clone(), st.shown_at)
             };
-            let counts = shown.is_some_and(|t| t.elapsed() >= FOCUS_GRACE);
+            let counts = shown.is_some_and(|t| t.elapsed() >= FOCUS_GRACE) && !is_busy();
             if is_visible() && counts {
                 if let Some(k) = key {
                     lock().lost_focus = Some((k, Instant::now()));
@@ -324,6 +367,16 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) -> bo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn menu_keys_are_recognized_and_bounded() {
+        assert_eq!(menu_index("menu:0"), Some(0));
+        assert_eq!(menu_index("menu:11"), Some(11));
+        for bad in ["menu:", "menu:x", "menu:-1", "menu:64", "menu:1:2", "battery", "Menu:1", ""] {
+            assert_eq!(menu_index(bad), None, "{bad:?}");
+        }
+        assert!(is_panel_key("menu:3") && is_panel_key("volume") && !is_panel_key("menu:99"));
+    }
 
     const MON: Rect = Rect { x: 0, y: 0, w: 1920, h: 1080 };
     fn anchor(x: i32, w: i32) -> Rect {

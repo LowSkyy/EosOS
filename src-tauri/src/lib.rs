@@ -49,6 +49,47 @@ fn menubar_current() -> Option<menubar::Row> {
     menubar::current()
 }
 
+/// Clic su un titolo di menu della barra: apre (o chiude, se era già aperto) la tendina sotto il titolo.
+#[tauri::command]
+fn menubar_open(window: tauri::Window, app: tauri::AppHandle, index: usize, left: f64, top: f64, width: f64, height: f64) {
+    let (Ok(pos), Ok(scale)) = (window.inner_position(), window.scale_factor()) else { return };
+    if let Some(anchor) = panelwin::anchor_to_physical((pos.x, pos.y), scale, left, top, width, height) {
+        panelwin::toggle(&app, &format!("menu:{index}"), anchor);
+    }
+}
+
+/// Il mouse passa su un altro titolo mentre una tendina è aperta: la tendina passa a quel menu.
+#[tauri::command]
+fn menubar_hover(window: tauri::Window, app: tauri::AppHandle, index: usize, left: f64, top: f64, width: f64, height: f64) {
+    if panelwin::open_menu().is_some_and(|open| open != index) {
+        menubar_open(window, app, index, left, top, width, height);
+    }
+}
+
+/// Le voci del menu `index` della riga corrente (se è pigro lo apre un istante nell'app per leggerle).
+#[tauri::command(async)]
+fn menubar_menu(app: tauri::AppHandle, index: usize) -> Option<menumodel::TopMenu> {
+    let lazy = menubar::is_lazy(index);
+    if lazy {
+        // Leggendo le voci l'app apre il suo menu e si prende il focus: la tendina non deve chiudersi per questo.
+        panelwin::busy_for(6000);
+    }
+    let menu = menubar::menu(index);
+    if lazy {
+        panelwin::refocus(&app);
+        panelwin::busy_for(600);
+    }
+    menu
+}
+
+/// Sceglie una voce del menu (percorso nel modello). Dopo la scelta la tendina si chiude.
+#[tauri::command(async)]
+fn menubar_choose(app: tauri::AppHandle, index: usize, path: Vec<usize>) -> bool {
+    let ok = menubar::choose(index, &path);
+    panelwin::hide(&app);
+    ok
+}
+
 #[tauri::command]
 fn get_active_app() -> Option<foreground::ActiveApp> {
     foreground::current()
@@ -543,7 +584,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, menubar_current, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

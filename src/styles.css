@@ -34,10 +34,15 @@ body {
 .app-menus { display: flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; }
 .app-menu {
   padding: 2px 8px;
+  border: 0;
   border-radius: 5px;
+  background: none;
+  font: inherit;
   white-space: nowrap;
   color: var(--bar-fg);
+  cursor: default;
 }
+.app-menu:disabled { opacity: 1; }
 .app-menu-name { font-weight: var(--weight-strong); }
 .app-menu-openable:hover { background: rgba(255, 255, 255, 0.14); }
 .clock {
@@ -373,6 +378,30 @@ body {
   filter: blur(var(--dock-blur-radius)) saturate(1.8);
 }
 :root[data-blur="on"] .panel-blur { display: block; }
+
+/* ---- Tendina del menu globale (dentro la finestra "panel") ---- */
+.menu-panel { position: relative; padding: 6px; display: flex; flex-direction: column; max-height: 400px; overflow-y: auto; }
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--bar-fg);
+  font: inherit;
+  text-align: left;
+  cursor: default;
+}
+.menu-item-sel:not(:disabled) { background: rgba(10, 132, 255, 0.85); color: #fff; }
+.menu-item-off { color: var(--bar-fg-muted); opacity: 0.55; }
+.menu-check { width: 14px; flex: none; }
+.menu-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-short { flex: none; color: inherit; opacity: 0.6; font-size: 12px; padding-left: 18px; }
+.menu-sep { width: calc(100% - 16px); margin: 4px 8px; border: 0; border-top: 1px solid rgba(128, 128, 128, 0.35); }
+.menu-empty { padding: 8px 12px; color: var(--bar-fg-muted); }
 
 .panel-body { padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 10px; }
 .panel-title { margin: 0; font-size: 13px; font-weight: var(--weight-strong); }

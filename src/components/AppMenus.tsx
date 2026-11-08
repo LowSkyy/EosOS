@@ -3,6 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { acceptRow, isOpenable, type MbRow } from "../lib/menubar";
 
+/** Il rettangolo di un titolo, nelle unità che Rust si aspetta (px CSS relativi alla finestra della barra). */
+function rectArgs(el: HTMLElement) {
+  const r = el.getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+}
+
 /** Il nome dell'app in primo piano e la fila dei suoi menu (G3: solo titoli; la tendina arriva in G4). */
 export default function AppMenus() {
   const [row, setRow] = useState<MbRow | null>(null);
@@ -34,12 +40,17 @@ export default function AppMenus() {
   return (
     <nav className="app-menus" aria-label="Menu dell'app">
       {row.menus.map((m, i) => (
-        <span
+        <button
+          type="button"
           key={`${i}-${m.title}`}
           className={`app-menu${m.bold ? " app-menu-name" : ""}${isOpenable(m) ? " app-menu-openable" : ""}`}
+          disabled={!isOpenable(m)}
+          data-menu-index={i}
+          onClick={(e) => void invoke("menubar_open", { index: i, ...rectArgs(e.currentTarget) })}
+          onMouseEnter={(e) => isOpenable(m) && void invoke("menubar_hover", { index: i, ...rectArgs(e.currentTarget) })}
         >
           {m.title}
-        </span>
+        </button>
       ))}
     </nav>
   );

@@ -12,9 +12,13 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 use windows::Win32::Foundation::HWND;
-use windows::Win32::UI::WindowsAndMessaging::{IsIconic, IsZoomed};
+use windows::Win32::Foundation::{LPARAM, WPARAM};
+use windows::Win32::UI::WindowsAndMessaging::{
+    EnumWindows, GetWindowThreadProcessId, IsIconic, IsWindow, IsWindowVisible, IsZoomed, PostMessageW, ShowWindow,
+    SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, WM_CLOSE,
+};
 
-use crate::menumodel::{compose, name_only, raw_to_top, TopMenu, WinState};
+use crate::menumodel::{compose, item_at, name_only, normalize, raw_items, raw_to_top, Action, Cmd, TopMenu, WinState};
 
 pub const EVENT_NAME: &str = "menubar-row";
 
@@ -137,6 +141,121 @@ fn worker(rx: Receiver<Req>) {
     }
 }
 
+// ------------------------------------------------------------------ tendina (G4)
+
+/// Il menu `index` della riga corrente è «pigro» (voci da leggere)?
+pub fn is_lazy(index: usize) -> bool {
+    let g = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    g.as_ref().and_then(|r| r.menus.get(index)).is_some_and(|m| m.lazy)
+}
+
+/// Il menu `index` della riga corrente per la tendina. Se è «pigro» (voci non ancora lette) lo legge ora
+/// (apre un istante il menu nell'app e lo richiude) e lo ricorda nella riga. `None` se l'indice non c'è o la
+/// finestra è sparita.
+pub fn menu(index: usize) -> Option<TopMenu> {
+    let (hwnd, m) = {
+        let g = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        let row = g.as_ref()?;
+        (row.hwnd as usize, row.menus.get(index)?.clone())
+    };
+    if !unsafe { IsWindow(Some(HWND(hwnd as *mut _))) }.as_bool() {
+        return None;
+    }
+    if !m.lazy {
+        return Some(m);
+    }
+    let source = m.source?;
+    let items = normalize(raw_items(source, &crate::menuread::read_lazy_items(hwnd, source)), 0);
+    let filled = TopMenu { items, lazy: false, ..m };
+    let mut g = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(row) = g.as_mut()
+        && row.hwnd as usize == hwnd
+        && let Some(slot) = row.menus.get_mut(index)
+    {
+        *slot = filled.clone();
+    }
+    Some(filled)
+}
+
+/// Chiude con WM_CLOSE tutte le finestre visibili di primo livello del processo di `hwnd` (esci dall'app nel
+/// modo gentile: ogni finestra può chiedere di salvare). Mai si termina un processo.
+fn quit_app(hwnd: HWND) {
+    let mut pid = 0u32;
+    unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+    if pid == 0 {
+        return;
+    }
+    struct Ctx {
+        pid: u32,
+        wins: Vec<usize>,
+    }
+    unsafe extern "system" fn each(h: HWND, l: LPARAM) -> windows::core::BOOL {
+        let ctx = unsafe { &mut *(l.0 as *mut Ctx) };
+        let mut p = 0u32;
+        unsafe { GetWindowThreadProcessId(h, Some(&mut p)) };
+        if p == ctx.pid && unsafe { IsWindowVisible(h) }.as_bool() {
+            ctx.wins.push(h.0 as usize);
+        }
+        true.into()
+    }
+    let mut ctx = Ctx { pid, wins: Vec::new() };
+    unsafe {
+        let _ = EnumWindows(Some(each), LPARAM(&mut ctx as *mut Ctx as isize));
+    }
+    for w in ctx.wins {
+        unsafe {
+            let _ = PostMessageW(Some(HWND(w as *mut _)), WM_CLOSE, WPARAM(0), LPARAM(0));
+        }
+    }
+}
+
+/// Esegue un comando di EosOS sulla finestra `hwnd`. `false` se la finestra non c'è più.
+fn run_cmd(hwnd: usize, cmd: Cmd) -> bool {
+    let h = HWND(hwnd as *mut _);
+    if !unsafe { IsWindow(Some(h)) }.as_bool() {
+        return false;
+    }
+    unsafe {
+        match cmd {
+            Cmd::Minimize => {
+                let _ = ShowWindow(h, SW_MINIMIZE);
+            }
+            Cmd::Maximize => {
+                let _ = ShowWindow(h, SW_MAXIMIZE);
+            }
+            Cmd::Restore => {
+                let _ = ShowWindow(h, SW_RESTORE);
+            }
+            Cmd::Close => {
+                let _ = PostMessageW(Some(h), WM_CLOSE, WPARAM(0), LPARAM(0));
+            }
+            Cmd::Quit => quit_app(h),
+        }
+    }
+    true
+}
+
+/// Sceglie la voce `path` del menu `index` della riga corrente. Si agisce solo su una voce che esiste, è attiva
+/// e non è un sottomenu né un separatore; i comandi di EosOS si eseguono qui, quelli dell'app arrivano in G5.
+/// Restituisce se è stato eseguito qualcosa.
+pub fn choose(index: usize, path: &[usize]) -> bool {
+    let (hwnd, action) = {
+        let g = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(row) = g.as_ref() else { return false };
+        let Some(menu) = row.menus.get(index) else { return false };
+        let Some(item) = item_at(menu, path) else { return false };
+        if !item.enabled || item.separator || item.is_submenu() {
+            return false;
+        }
+        (row.hwnd as usize, item.action.clone())
+    };
+    match action {
+        Some(Action::Eos(cmd)) => run_cmd(hwnd, cmd),
+        Some(Action::App(_)) => false, // G5
+        None => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -168,6 +287,7 @@ mod tests {
             items: vec![Item::leaf("Nuovo", Action::App(vec![0, 0]))],
             bold: false,
             lazy: false,
+            source: None,
         }];
         let r = build_row("Blocco note", Some(read), state(), false);
         assert_eq!(r.iter().map(|m| m.title.as_str()).collect::<Vec<_>>(), vec!["Blocco note", "File", "Finestra"]);

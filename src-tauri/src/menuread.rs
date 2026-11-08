@@ -11,8 +11,8 @@ use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
 use windows::Win32::System::Variant::VARIANT;
 use windows::Win32::UI::Accessibility::{
-    CUIAutomation, IUIAutomation, TreeScope_Children, TreeScope_Descendants, UIA_ControlTypePropertyId,
-    UIA_MenuBarControlTypeId, UIA_MenuItemControlTypeId,
+    CUIAutomation, IUIAutomation, IUIAutomationExpandCollapsePattern, TreeScope_Children, TreeScope_Descendants,
+    UIA_ControlTypePropertyId, UIA_ExpandCollapsePatternId, UIA_MenuBarControlTypeId, UIA_MenuItemControlTypeId,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     GetMenu, GetMenuItemCount, GetMenuItemInfoW, GetMenuStringW, IsWindow, HMENU, MENUITEMINFOW, MFS_CHECKED, MFS_DISABLED,
@@ -208,6 +208,88 @@ pub fn read_menus(hwnd_id: usize) -> Option<Vec<RawMenu>> {
         _ => None,
     }
 }
+
+/// La barra dei menu "dell'app" fra quelle di UI Automation di una finestra: non quella di sistema, la più
+/// ricca (almeno `MIN_UIA_MENU_ITEMS` voci).
+fn best_bar(
+    auto: &IUIAutomation,
+    el: &windows::Win32::UI::Accessibility::IUIAutomationElement,
+) -> windows::core::Result<Option<windows::Win32::UI::Accessibility::IUIAutomationElement>> {
+    let (cond, item) = unsafe {
+        (
+            auto.CreatePropertyCondition(UIA_ControlTypePropertyId, &VARIANT::from(UIA_MenuBarControlTypeId.0))?,
+            auto.CreatePropertyCondition(UIA_ControlTypePropertyId, &VARIANT::from(UIA_MenuItemControlTypeId.0))?,
+        )
+    };
+    let bars = unsafe { el.FindAll(TreeScope_Descendants, &cond)? };
+    let mut best: Option<(windows::Win32::UI::Accessibility::IUIAutomationElement, i32)> = None;
+    for i in 0..unsafe { bars.Length()? } {
+        let bar = unsafe { bars.GetElement(i)? };
+        let id = unsafe { bar.CurrentAutomationId() }.map(|s| s.to_string()).unwrap_or_default();
+        if is_system_bar(&id) {
+            continue;
+        }
+        let n = unsafe { bar.FindAll(TreeScope_Children, &item).and_then(|a| a.Length()) }.unwrap_or(0);
+        if n as usize >= MIN_UIA_MENU_ITEMS && best.as_ref().is_none_or(|(_, b)| n > *b) {
+            best = Some((bar, n));
+        }
+    }
+    Ok(best.map(|(b, _)| b))
+}
+
+/// Le voci del menu `source` di una finestra con barra UI Automation. Per leggerle il menu si APRE un istante
+/// nell'app (ExpandCollapse) e si richiude: è l'unico modo che l'accessibilità offre per le app che non
+/// espongono le voci chiuse, e si fa solo quando l'utente apre quel menu nella barra.
+fn lazy_uia(hwnd_id: usize, source: usize) -> Vec<RawItem> {
+    unsafe {
+        let init = CoInitializeEx(None, COINIT_MULTITHREADED).is_ok();
+        let out = (|| -> windows::core::Result<Vec<RawItem>> {
+            let auto: IUIAutomation = CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER)?;
+            let el = auto.ElementFromHandle(HWND(hwnd_id as *mut _))?;
+            let Some(bar) = best_bar(&auto, &el)? else { return Ok(Vec::new()) };
+            let item = auto.CreatePropertyCondition(UIA_ControlTypePropertyId, &VARIANT::from(UIA_MenuItemControlTypeId.0))?;
+            let tops = bar.FindAll(TreeScope_Children, &item)?;
+            let top = tops.GetElement(source as i32)?;
+            let pattern: windows::core::Result<IUIAutomationExpandCollapsePattern> = top.GetCurrentPatternAs(UIA_ExpandCollapsePatternId);
+            if let Ok(p) = &pattern {
+                let _ = p.Expand();
+                std::thread::sleep(Duration::from_millis(120));
+            }
+            let kids = top.FindAll(TreeScope_Descendants, &item)?;
+            let mut out = Vec::new();
+            for i in 0..kids.Length()?.min(READ_ITEMS as i32) {
+                let k = kids.GetElement(i)?;
+                out.push(RawItem {
+                    text: k.CurrentName().map(|s| s.to_string()).unwrap_or_default(),
+                    separator: false,
+                    grayed: !k.CurrentIsEnabled().map(|b| b.as_bool()).unwrap_or(true),
+                    checked: false,
+                    children: Vec::new(),
+                });
+            }
+            if let Ok(p) = &pattern {
+                let _ = p.Collapse();
+            }
+            Ok(out)
+        })();
+        if init {
+            CoUninitialize();
+        }
+        out.unwrap_or_default()
+    }
+}
+
+/// Legge le voci del menu pigro `source` (con tempo massimo). Vuoto se non si riesce.
+pub fn read_lazy_items(hwnd_id: usize, source: usize) -> Vec<RawItem> {
+    let (tx, rx) = channel();
+    std::thread::spawn(move || {
+        let _ = tx.send(lazy_uia(hwnd_id, source));
+    });
+    rx.recv_timeout(LAZY_TIMEOUT).unwrap_or_default()
+}
+
+/// Tempo massimo per aprire e leggere un menu pigro.
+pub const LAZY_TIMEOUT: Duration = Duration::from_millis(2500);
 
 /// Misura la finestra `hwnd_id` (solo lettura). `None` se non è più una finestra.
 pub fn probe(hwnd_id: usize) -> Option<Probe> {
