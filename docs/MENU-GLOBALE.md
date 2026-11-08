@@ -2,7 +2,7 @@
 
 Obiettivo: come su macOS, i menu dell'app in primo piano (File, Modifica, Visualizza...) compaiono **nella barra in alto di EosOS**, accanto al nome dell'app, invece che dentro la finestra. Un clic su una voce apre il menu a tendina e sceglierne una voce esegue il comando nell'app.
 
-Stato: **solo specifica (8 nov 2026), niente codice.** Prima di scrivere la parte di invocazione c'è una fase di sola lettura (G1) che misura cosa si riesce a leggere davvero sulle app di questo PC: la fattibilità dipende da quel risultato.
+Stato: specifica (8 nov 2026) e **G1 fatta** (misura in sola lettura). **Scelta dell'utente: opzione 1, ibrido.** Restano G2-G6.
 
 ## Cosa fa macOS (da replicare)
 
@@ -40,6 +40,33 @@ Domande aperte: (a) l'ibrido va bene? (b) il menu dell'app deve **sostituire** c
 4. **G4 — Tendina.** Apertura, passaggio fra i titoli, sottomenu, voci disattivate, spunte, Esc e tastiera.
 5. **G5 — Invocazione.** Eseguire la voce scelta nell'app (solo su clic dell'utente), con verifica che la finestra sia ancora l'app giusta; errori gestiti senza chiudere né bloccare l'app bersaglio.
 6. **G6 — Impostazioni e rifiniture:** attivazione/disattivazione, app escluse, scale diverse e secondo monitor, ripartenza di Explorer, revisione del codice.
+
+## G1 — Misura in sola lettura: FATTA (8 nov 2026)
+
+`menuread.rs` misura per ogni finestra, senza invocare nulla, due letture: l'`HMENU` classico (`GetMenu`) e la barra dei menu di UI Automation (con un tempo massimo di 1,5 s, in un thread a parte per poter abbandonare una finestra che non risponde). Il risultato contiene solo conteggi, tempi e nomi tecnici delle barre, mai titoli di finestra né testi di menu. Il comando `menu_probe_all` lo espone alle prove; `scripts/test-menu-probe.ps1` lo prova su finestre mie e sulle tue, riportando le tue **per programma** (solo nome del programma e conteggi).
+
+**Difetti trovati misurando (e corretti):**
+- UI Automation espone anche il **menu di sistema della barra del titolo** come "barra dei menu" con una sola voce (Calcolatrice: identificatore `SystemMenuBar`; console classica ed Esplora risorse: identificatore generico `MenuBar` con una voce). Contarla avrebbe dato un "menu" falso a quasi ogni app. Ora si scarta `SystemMenuBar` per nome e **una barra con meno di 2 voci non conta come menu dell'app**.
+- Il Blocco note nuovo mostra due barre `MenuBar` nell'albero: si prende quella con più voci.
+
+**Risultati su questo PC (build 26300.9818):**
+
+| App | Come | Esito |
+|---|---|---|
+| Finestra con menu classico (WinForms `MainMenu`) | `HMENU` | **Leggibile**: 4 voci su 4, tutte con titolo, istantaneo; UI Automation ne vede le stesse 4 |
+| Finestra con barra `MenuStrip` (.NET) | UI Automation | **Leggibile**: 3 voci su 3, nessun `HMENU` |
+| **Blocco note** (Windows 11, WinUI) | UI Automation | **Leggibile**: 3 voci (File, Modifica, Visualizza), 54 ms |
+| **Visual Studio Code** (Electron) | UI Automation | **Leggibile** (barra con voci, 12 ms) |
+| Google Chrome, Discord | — | Nessun menu leggibile |
+| Esplora risorse | — | Nessuno (la barra dei comandi non è un menu) |
+| Calcolatrice (UWP) | — | Nessuno (solo il menu di sistema) |
+| Console classica, `cmd` | — | Nessuno |
+
+Tempi: UI Automation fra 3 e 112 ms, **nessuna finestra ha fatto scadere il limite** su circa 15 misurate. `mspaint.exe` e `wordpad.exe` non esistono su questo PC (non misurati).
+
+**Cosa dice questo per l'ibrido:** la lettura funziona per una parte reale delle app, comprese alcune moderne (Blocco note) e una Electron (VS Code), contro la mia ipotesi prudente. Per le altre (browser, chat, Esplora, app dello Store) l'ibrido dà il nome più il menu fatto da EosOS, come previsto.
+
+**Limiti della misura:** campione piccolo (aperte c'erano 3 tue finestre e le mie di prova): non so ancora come vadano Office, JetBrains, app Qt, Firefox, Teams e simili. Si legge la **struttura di primo livello**: i sottomenu e lo stato (attivo/spuntato/scorciatoia) non sono ancora misurati e si leggeranno in G2/G4. **Invocare una voce non è stato provato** (G5). Non so quanto siano stabili le letture quando l'app cambia menu mentre è in uso.
 
 ## Fuori scopo
 
