@@ -134,6 +134,22 @@ pub const ACTIONS: &[Action] = &[
         run: Run::Internal("mc-corner"),
     },
     Action {
+        id: "action:mc-alttab",
+        name: "Mission Control: Alt+Tab di Windows o di EosOS (cambia)",
+        keywords: &["alt tab", "alt+tab", "selettore", "finestre", "switcher"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("mc-alttab"),
+    },
+    Action {
+        id: "action:mc-wintab",
+        name: "Mission Control: Win+Tab di Windows o di EosOS (cambia)",
+        keywords: &["win tab", "win+tab", "visualizzazione attivita", "task view"],
+        confirm: false,
+        power: false,
+        run: Run::Internal("mc-wintab"),
+    },
+    Action {
         id: "action:vd-report",
         name: "Mission Control: rapporto dei desktop virtuali",
         keywords: &["desktop virtuali", "diagnostica", "rapporto", "report", "spaces"],
@@ -243,6 +259,14 @@ static MC_OPEN: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
 /// Funzione che accende o spegne l'angolo attivo di Mission Control, registrata all'avvio dell'app.
 static MC_CORNER: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
 
+/// Funzione che cambia Alt+Tab / Win+Tab fra Windows e Mission Control ("alt" o "win"), registrata all'avvio.
+static MC_KEYS: std::sync::OnceLock<fn(&str) -> bool> = std::sync::OnceLock::new();
+
+/// Registra la funzione di Alt+Tab e Win+Tab (la chiama l'avvio dell'app).
+pub fn set_mc_keys(f: fn(&str) -> bool) {
+    let _ = MC_KEYS.set(f);
+}
+
 /// Registra la funzione dell'angolo attivo (la chiama l'avvio dell'app).
 pub fn set_mc_corner(f: fn()) {
     let _ = MC_CORNER.set(f);
@@ -276,6 +300,8 @@ fn execute(action: &Action) -> bool {
             MC_OPEN.get().map(|f| f()).is_some()
         }
         Run::Internal("vd-report") => crate::vdreport::write_and_open(),
+        Run::Internal("mc-alttab") => MC_KEYS.get().is_some_and(|f| f("alt")),
+        Run::Internal("mc-wintab") => MC_KEYS.get().is_some_and(|f| f("win")),
         Run::Internal("mc-corner") => {
             MC_CORNER.get().map(|f| f()).is_some()
         }

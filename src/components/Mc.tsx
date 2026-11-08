@@ -65,6 +65,8 @@ export default function Mc() {
     const update = listen<McView>("mc-update", (e) => {
       if (e.payload.index === monitor) setView(e.payload);
     });
+    // Alt+Tab: Rust sposta l'evidenziazione (la finestra scelta si attiva rilasciando Alt).
+    const select = listen<number>("mc-select", (e) => setHover(e.payload));
     const closingEv = listen("mc-closing", () => setClosing(true));
     // Alla chiusura la pagina dimentica titoli, icone e sfondo.
     const close = listen("mc-close", () => {
@@ -76,7 +78,7 @@ export default function Mc() {
       if (c) c.getContext("2d")?.clearRect(0, 0, c.width, c.height);
     });
     return () => {
-      for (const p of [open, update, closingEv, close]) void p.then((f) => f());
+      for (const p of [open, update, select, closingEv, close]) void p.then((f) => f());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monitor]);

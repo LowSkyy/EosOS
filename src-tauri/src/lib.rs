@@ -19,6 +19,8 @@ mod launcherstore;
 mod launcherwin;
 mod mc;
 mod mclayout;
+mod mchook;
+mod mckeys;
 mod mcstore;
 mod mctrigger;
 mod mcwin;
@@ -471,6 +473,11 @@ pub fn run() {
         watchdog::run(pid);
     }
 
+    // Modalità hook di tastiera (Win+Tab e Alt+Tab di Mission Control): processo senza finestre.
+    if args.get(1).map(String::as_str) == Some("--keyhook") {
+        mchook::run_child();
+    }
+
     // Recupero: se un'esecuzione precedente è stata uccisa lasciando l'auto-nascondi attivo.
     taskbar::restore_autohide();
     install_local_safety_nets();
@@ -529,6 +536,7 @@ pub fn run() {
             mcwin::start(app.handle());
             launcheract::set_mc_open(mcwin::open_soon);
             launcheract::set_mc_corner(mcwin::toggle_corner);
+            launcheract::set_mc_keys(mcwin::toggle_key);
             foreground::start(app.handle().clone());
             Ok(())
         })

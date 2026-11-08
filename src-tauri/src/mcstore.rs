@@ -22,6 +22,12 @@ pub struct Settings {
     pub hot_corner: bool,
     /// Scorciatoia di apertura (per esempio "Ctrl+Alt+Up"); assente = predefinita.
     pub hotkey: Option<String>,
+    /// Alt+Tab resta quello di Windows (di default lo sostituisce il selettore di Mission Control).
+    #[serde(rename = "windowsAltTab")]
+    pub windows_alt_tab: bool,
+    /// Win+Tab resta la Visualizzazione attività di Windows (di default apre Mission Control).
+    #[serde(rename = "windowsWinTab")]
+    pub windows_win_tab: bool,
 }
 
 fn store_path() -> Option<PathBuf> {
@@ -127,9 +133,9 @@ pub fn load() -> Settings {
     load_full().0
 }
 
-/// Accende o spegne l'angolo attivo e salva. Se il file non si è potuto leggere non scrive nulla. Un file
+/// Applica `f` alle impostazioni e salva. Se il file non si è potuto leggere non scrive nulla. Un file
 /// non valido viene prima conservato come `.bad`. Restituisce le impostazioni risultanti.
-pub fn set_hot_corner(on: bool) -> Settings {
+fn update(f: impl FnOnce(&mut Settings)) -> Settings {
     let _g = lock();
     let broken = matches!(read_store(), Read::Text(t) if parse(&t).is_none());
     let (mut cur, reliable) = load_full();
@@ -141,9 +147,24 @@ pub fn set_hot_corner(on: bool) -> Settings {
     {
         let _ = std::fs::copy(&path, path.with_extension("json.bad"));
     }
-    cur.hot_corner = on;
+    f(&mut cur);
     write_file(&cur);
     cur
+}
+
+/// Accende o spegne l'angolo attivo e salva.
+pub fn set_hot_corner(on: bool) -> Settings {
+    update(|s| s.hot_corner = on)
+}
+
+/// Sceglie se Alt+Tab resta quello di Windows e salva.
+pub fn set_windows_alt_tab(keep: bool) -> Settings {
+    update(|s| s.windows_alt_tab = keep)
+}
+
+/// Sceglie se Win+Tab resta quello di Windows e salva.
+pub fn set_windows_win_tab(keep: bool) -> Settings {
+    update(|s| s.windows_win_tab = keep)
 }
 
 #[cfg(test)]
@@ -152,10 +173,18 @@ mod tests {
 
     #[test]
     fn defaults_keep_the_corner_off_and_the_default_hotkey() {
-        assert_eq!(Settings::default(), Settings { hot_corner: false, hotkey: None });
+        assert_eq!(Settings::default(), Settings::default());
         assert_eq!(parse("{}"), Some(Settings::default()));
-        assert_eq!(parse(r#"{"hotCorner":true}"#), Some(Settings { hot_corner: true, hotkey: None }));
+        assert_eq!(parse(r#"{"hotCorner":true}"#), Some(Settings { hot_corner: true, ..Settings::default() }));
         assert_eq!(parse(r#"{"hotkey":"Ctrl+Alt+K"}"#).unwrap().hotkey.as_deref(), Some("Ctrl+Alt+K"));
+    }
+
+    #[test]
+    fn the_replacements_of_alt_tab_and_win_tab_are_on_by_default() {
+        let d = Settings::default();
+        assert!(!d.windows_alt_tab && !d.windows_win_tab, "di default sostituiscono quelli di Windows");
+        let s = parse(r#"{"windowsAltTab":true}"#).unwrap();
+        assert!(s.windows_alt_tab && !s.windows_win_tab);
     }
 
     #[test]
@@ -169,14 +198,14 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()) }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }
 
     #[test]
     fn a_failed_read_is_never_treated_as_missing() {
-        let last = Settings { hot_corner: true, hotkey: None };
+        let last = Settings { hot_corner: true, ..Settings::default() };
         assert_eq!(decide(Read::Failed, Some(&last)), Decision::KeepLast(last.clone()));
         assert_eq!(decide(Read::Failed, None), Decision::KeepLast(Settings::default()));
         assert!(!decide(Read::Failed, None).is_reliable());

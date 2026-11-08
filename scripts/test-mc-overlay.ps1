@@ -182,7 +182,7 @@ try {
   Check 'e portato in primo piano' (Wait-Until { [MO]::GetForegroundWindow() -eq $note } 4)
 
   Write-Host 'G. pulsante di chiusura di una cella'
-  Check 'si riapre' (Open-Mc)
+  $okG = Open-Mc; Check 'si riapre' $okG; if (-not $okG) { Write-Host ('  DIAG ' + ((Inv 'mc_state') | ConvertTo-Json -Compress -Depth 4)); $tr = Js 'launcher' 0 "(async function(){await window.__TAURI_INTERNALS__.invoke('mc_open');var seen=[];var t0=performance.now();while(performance.now()-t0<2500){var s=await window.__TAURI_INTERNALS__.invoke('mc_state');var k=s.phase+'/'+s.thumbs;if(seen[seen.length-1]!==k)seen.push(k)}return seen.join(' ')})()"; Write-Host ('  TRACE ' + $tr) }
   $mc = Monitor-Of $calcId; $cc = Cell-Info $mc $calcId
   $p = Screen-Point $mc $cc 0.5 0.4
   [void][MO]::SetCursorPos($p.X, $p.Y); Start-Sleep -Milliseconds 400   # evidenzia la cella: il pulsante diventa visibile

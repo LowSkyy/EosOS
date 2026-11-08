@@ -102,6 +102,11 @@ fn launch(item: &DockItem) {
     }
 }
 
+/// Alt o Windows sono premuti adesso (sinistro, destro o generico).
+pub(crate) fn alt_or_win_down() -> bool {
+    [0x12, 0xA4, 0xA5, 0x5B, 0x5C].iter().any(|&vk| unsafe { windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState(vk) } < 0)
+}
+
 /// Porta `hwnd` in primo piano, ripristinandola se è minimizzata.
 pub(crate) fn focus(hwnd: HWND) {
     let mut ok;
@@ -113,7 +118,9 @@ pub(crate) fn focus(hwnd: HWND) {
         // finisca altrove: se l'app ha una finestra di dialogo aperta il primo piano va a lei
         // anche quando la richiesta riesce, e un Alt finto attiverebbe la barra dei menu.
         ok = SetForegroundWindow(hwnd).as_bool();
-        if !ok {
+        // Con Alt GIA' premuto (Alt+Tab di Mission Control) il trucco no: il suo rilascio finto
+        // azzererebbe l'Alt dell'utente nello stato di Windows e il Tab successivo non avrebbe piu' Alt.
+        if !ok && !alt_or_win_down() {
             // Windows nega il primo piano a chi non ha ricevuto input: premere
             // Alt un istante lo sblocca (trucco classico).
             keybd_event(VK_MENU.0 as u8, 0, Default::default(), 0);

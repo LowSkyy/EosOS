@@ -40,7 +40,7 @@ use windows::Win32::Graphics::Dwm::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, RegisterHotKey, HOT_KEY_MODIFIERS, MOD_NOREPEAT};
 use windows::Win32::UI::Shell::SHQueryUserNotificationState;
 use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, GetCursorPos, GetForegroundWindow, GetMessageW, GetWindowLongPtrW, IsIconic, IsWindow,
+    DispatchMessageW, GetCursorPos, GetForegroundWindow, GetMessageW, GetTopWindow, GetWindow, GWL_EXSTYLE, GW_HWNDNEXT, WS_EX_TOPMOST, GetWindowLongPtrW, IsIconic, IsWindow,
     IsWindowVisible, MessageBoxW, PostMessageW, SetTimer, SetWindowLongPtrW, SetWindowPos, ShowWindow,
     TranslateMessage, GWL_STYLE, HWND_TOPMOST, MB_ICONINFORMATION, MB_OK, MSG, SWP_FRAMECHANGED, SWP_NOACTIVATE,
     SW_RESTORE, WM_CLOSE, WM_HOTKEY, WM_TIMER, WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU, WS_THICKFRAME,
@@ -102,6 +102,9 @@ struct State {
     /// Fotogrammi e durata (ms) dell'ultima animazione (per la diagnostica e le prove).
     frames: u32,
     anim_ms: u64,
+    /// Alt+Tab: finestre in ordine di uso recente (la prima è quella che era in primo piano) e quella evidenziata.
+    order: Vec<u64>,
+    sel: Option<usize>,
 }
 
 static ST: Mutex<State> = Mutex::new(State {
@@ -113,6 +116,8 @@ static ST: Mutex<State> = Mutex::new(State {
     epoch: 0,
     frames: 0,
     anim_ms: 0,
+    order: Vec::new(),
+    sel: None,
 });
 
 fn st() -> std::sync::MutexGuard<'static, State> {
@@ -167,6 +172,8 @@ pub fn start(app: &AppHandle) {
     std::thread::spawn(move || hotkey_thread(a));
     let a = app.clone();
     std::thread::spawn(move || corner_thread(a));
+    let c = crate::mcstore::load();
+    crate::mchook::start(on_key_cmd, keys_config(&c));
 }
 
 /// Stili di cornice che la panoramica non deve avere: con una cornice la finestra esce dal monitor e le
@@ -369,6 +376,9 @@ pub fn open(app: &AppHandle) {
     st().backdrops = backdrops;
     // 3. Le finestre panoramica, a tutto monitor.
     let focus = cursor_monitor(&mons);
+    // Con Alt o Windows premuti (Alt+Tab, Win+Tab) il primo piano si prende dopo: il trucco dell'Alt di
+    // `focus` e di `set_focus` azzererebbe il tasto dell'utente nello stato di Windows.
+    let defer_focus = crate::dockact::alt_or_win_down();
     for (i, m) in mons.iter().enumerate() {
         let Some(win) = win_of(app, i) else { continue };
         let _ = win.set_position(PhysicalPosition::new(m.rect.x, m.rect.y));
@@ -382,12 +392,28 @@ pub fn open(app: &AppHandle) {
                 crate::launcherwin::apply_styles(h);
                 fit_exact(h, m.rect); // dopo show: Tauri puo' aver riapplicato qualcosa
             }
-            if i == focus {
+            if i == focus && !defer_focus {
                 crate::dockact::focus(h);
             }
         }
     }
-    if let Some(win) = win_of(app, focus) {
+    if defer_focus {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            // Si aspetta che l'utente lasci Alt/Windows (al massimo 3 s). Durante una sessione Alt+Tab il
+            // primo piano non serve (guida l'hook) e al rilascio di Alt la panoramica si chiude.
+            for _ in 0..60 {
+                if !crate::dockact::alt_or_win_down() {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            std::thread::sleep(Duration::from_millis(60));
+            if matches!(st().phase, Phase::Open | Phase::Opening) && !crate::mchook::diag().session {
+                take_focus(&app, focus);
+            }
+        });
+    } else if let Some(win) = win_of(app, focus) {
         let _ = win.set_focus();
     }
     // 4. Le miniature (sopra le finestre vere) e la vista per ogni pagina; poi l'animazione.
@@ -406,6 +432,16 @@ pub fn open(app: &AppHandle) {
     });
 }
 
+/// Porta in primo piano la finestra panoramica del monitor `focus`.
+fn take_focus(app: &AppHandle, focus: usize) {
+    if let Some(win) = win_of(app, focus) {
+        if let Some(h) = hwnd_of(&win) {
+            crate::dockact::focus(h);
+        }
+        let _ = win.set_focus();
+    }
+}
+
 /// Chiude subito, senza animazione: libera le miniature, nasconde le finestre e fa dimenticare tutto alle pagine.
 pub fn close(app: &AppHandle) {
     {
@@ -416,6 +452,8 @@ pub fn close(app: &AppHandle) {
         s.phase = Phase::Closed;
         s.epoch += 1;
         s.ids.clear();
+        s.order.clear();
+        s.sel = None;
         s.backdrops.clear();
     }
     unregister_all();
@@ -678,6 +716,12 @@ pub struct Diag {
     pub frames: u32,
     pub anim_ms: u64,
     pub corner: bool,
+    /// L'hook di Win+Tab e Alt+Tab.
+    pub keys: crate::mchook::Diag,
+    /// Alt+Tab: la finestra evidenziata.
+    pub selected: Option<u64>,
+    /// Alt+Tab: l'ordine di uso recente su cui si scorre (identificatori delle finestre).
+    pub order: Vec<u64>,
 }
 
 pub fn diag() -> Diag {
@@ -690,7 +734,146 @@ pub fn diag() -> Diag {
         frames: s.frames,
         anim_ms: s.anim_ms,
         corner: CORNER.load(Ordering::Relaxed),
+        keys: crate::mchook::diag(),
+        selected: s.sel.and_then(|i| s.order.get(i).copied()),
+        order: s.order.clone(),
     }
+}
+
+// ------------------------------------------------------------------ Win+Tab e Alt+Tab (hook di tastiera)
+
+fn keys_config(s: &crate::mcstore::Settings) -> crate::mckeys::Config {
+    crate::mckeys::Config { alt_tab: !s.windows_alt_tab, win_tab: !s.windows_win_tab }
+}
+
+/// Le finestre elencate in ordine di uso recente: l'ordine di sovrapposizione di Windows (la più in alto per prima).
+///
+/// Le finestre "sempre in primo piano" restano in fondo all'elenco (altrimenti passerebbero per prime senza che
+/// l'utente le abbia usate) e `front`, la finestra che era davanti prima di aprire, va comunque per prima.
+fn recent_order(ids: &[u64], front: Option<u64>) -> Vec<u64> {
+    let mut out = Vec::new();
+    let mut topmost = Vec::new();
+    let mut h = unsafe { GetTopWindow(None) }.ok();
+    let mut guard = 0;
+    while let Some(cur) = h {
+        let id = cur.0 as usize as u64;
+        if ids.contains(&id) {
+            let ex = unsafe { GetWindowLongPtrW(cur, GWL_EXSTYLE) } as u32;
+            if ex & WS_EX_TOPMOST.0 != 0 { topmost.push(id) } else { out.push(id) }
+        }
+        guard += 1;
+        if guard > 5000 {
+            break;
+        }
+        h = unsafe { GetWindow(cur, GW_HWNDNEXT) }.ok();
+    }
+    out.extend(topmost);
+    // Elencate ma non trovate nella catena (rarissimo): in coda, senza perderle.
+    for id in ids {
+        if !out.contains(id) {
+            out.push(*id);
+        }
+    }
+    if let Some(f) = front
+        && let Some(p) = out.iter().position(|&x| x == f)
+    {
+        let id = out.remove(p);
+        out.insert(0, id);
+    }
+    out
+}
+
+/// Esegue un comando dell'hook (nel suo thread, fuori dal callback).
+fn on_key_cmd(cmd: crate::mckeys::Cmd) {
+    use crate::mckeys::Cmd;
+    let Some(app) = APP.get().cloned() else { return };
+    match cmd {
+        Cmd::Toggle => toggle(&app),
+        Cmd::Next => alt_step(&app, 1),
+        Cmd::Prev => alt_step(&app, -1),
+        Cmd::Commit => alt_commit(&app),
+        Cmd::Cancel => {
+            reset_selection();
+            close_animated(&app, None);
+        }
+    }
+}
+
+fn reset_selection() {
+    let mut s = st();
+    s.sel = None;
+    s.order.clear();
+}
+
+/// Alt+Tab: apre la panoramica se serve, sposta l'evidenziazione di `delta` finestre e la comunica alle pagine.
+fn alt_step(app: &AppHandle, delta: i32) {
+    // La finestra davanti si legge PRIMA di aprire (poi il primo piano e' la panoramica).
+    let front = {
+        let h = unsafe { GetForegroundWindow() };
+        if h.0.is_null() { None } else { Some(h.0 as usize as u64) }
+    };
+    if !matches!(st().phase, Phase::Open | Phase::Opening) {
+        open(app);
+    }
+    let ids = {
+        let s = st();
+        if s.phase == Phase::Closed {
+            return;
+        }
+        if s.order.is_empty() { Some(s.ids.clone()) } else { None }
+    };
+    // L'ordine delle finestre si legge fuori dal lock (interroga Windows).
+    let fresh = ids.map(|ids| recent_order(&ids, front));
+    let picked = {
+        let mut s = st();
+        if let Some(order) = fresh
+            && s.order.is_empty()
+        {
+            s.order = order;
+        }
+        let next = crate::mckeys::cycle(s.order.len(), s.sel, delta);
+        s.sel = next;
+        next.and_then(|i| s.order.get(i).copied())
+    };
+    if let Some(id) = picked {
+        for l in all_labels(app) {
+            let _ = app.emit_to(l, "mc-select", id);
+        }
+    }
+}
+
+/// Alt rilasciato: attiva la finestra evidenziata (o chiude, se non ce n'è).
+fn alt_commit(app: &AppHandle) {
+    let target = {
+        let s = st();
+        s.sel.and_then(|i| s.order.get(i).copied())
+    };
+    reset_selection();
+    match target {
+        Some(id) if activate(app, id) => {}
+        _ => close_animated(app, None),
+    }
+}
+
+fn apply_keys() {
+    crate::mchook::set_config(keys_config(&crate::mcstore::load()));
+}
+
+/// Azione del Launcher: "alt" o "win" passa fra la scorciatoia di Windows e quella di Mission Control.
+pub fn toggle_key(which: &str) -> bool {
+    match which {
+        "alt" => {
+            let keep = !crate::mcstore::load().windows_alt_tab;
+            crate::mcstore::set_windows_alt_tab(keep);
+        }
+        "win" => {
+            let keep = !crate::mcstore::load().windows_win_tab;
+            crate::mcstore::set_windows_win_tab(keep);
+        }
+        _ => return false,
+    }
+    apply_keys();
+    true
 }
 
 // ------------------------------------------------------------------ scorciatoia
@@ -795,10 +978,16 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) -> bo
     match event {
         tauri::WindowEvent::Focused(false) => {
             let app = window.app_handle().clone();
+            // La generazione si legge ADESSO: se fra l'evento e il controllo la panoramica viene chiusa e
+            // riaperta (l'evento arriva dalla chiusura di prima), il controllo non riguarda la nuova.
+            let epoch = st().epoch;
             // Il focus può passare da una finestra panoramica all'altra (due monitor): si controlla dopo un attimo.
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(250));
-                if st().phase == Phase::Closed {
+                // Durante Alt+Tab il primo piano puo' restare all'app di prima (Windows lo nega senza input
+                // fresco, e il trucco dell'Alt non si puo' usare con l'Alt dell'utente premuto): la sessione,
+                // guidata dall'hook, chiude da sola al rilascio di Alt o con Esc.
+                if st().phase == Phase::Closed || st().epoch != epoch || crate::mchook::diag().session {
                     return;
                 }
                 let fg = unsafe { GetForegroundWindow() };
