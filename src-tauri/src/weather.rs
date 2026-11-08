@@ -145,27 +145,86 @@ fn bases() -> (String, String) {
     (GEOCODE_BASE.to_string(), FORECAST_BASE.to_string())
 }
 
-/// Scarica un indirizzo come testo, con un tempo massimo e una dimensione massima. Bloccante: va chiamata fuori dal thread UI.
+/// Spezza un indirizzo http(s) in (sicuro, server, porta, percorso con query). Pura, testata.
+pub fn split_url(url: &str) -> Option<(bool, String, u16, String)> {
+    let (secure, rest) = if let Some(r) = url.strip_prefix("https://") {
+        (true, r)
+    } else {
+        (false, url.strip_prefix("http://")?)
+    };
+    let (authority, path) = match rest.find('/') {
+        Some(i) => (&rest[..i], &rest[i..]),
+        None => (rest, "/"),
+    };
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((h, p)) => (h, p.parse::<u16>().ok()?),
+        None => (authority, if secure { 443 } else { 80 }),
+    };
+    (!host.is_empty() && !host.contains(['@', ' ']) && port != 0).then(|| (secure, host.to_string(), port, path.to_string()))
+}
+
+/// Scarica un indirizzo come testo con WinHTTP (la rete e il proxy di Windows, la stessa verifica dei certificati di
+/// PowerShell e di Edge), con un tempo massimo e una dimensione massima. Bloccante: fuori dal thread UI.
+///
+/// Non si usa `Windows.Web.Http`: sul PC di prova falliva con 0x80072F8F (certificato) verso siti che PowerShell raggiunge.
 fn get(url: &str) -> Result<String, String> {
-    use windows::core::HSTRING;
-    use windows::Foundation::Uri;
-    use windows::Web::Http::HttpClient;
-    let url = url.to_string();
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        let r = (|| -> windows::core::Result<String> {
-            // Il client HTTP di Windows vuole un apartment MTA sul thread (come le altre operazioni WinRT di EosOS).
-            let client = HttpClient::new()?;
-            let text = client.GetStringAsync(&Uri::CreateUri(&HSTRING::from(url))?)?.join()?;
-            Ok(text.to_string())
+    use windows::core::{w, HSTRING};
+    use windows::Win32::Networking::WinHttp::{
+        WinHttpCloseHandle, WinHttpConnect, WinHttpOpen, WinHttpOpenRequest, WinHttpQueryHeaders, WinHttpReadData, WinHttpReceiveResponse, WinHttpSendRequest, WinHttpSetTimeouts,
+        WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_FLAG_SECURE, WINHTTP_OPEN_REQUEST_FLAGS, WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_QUERY_STATUS_CODE,
+    };
+    let (secure, host, port, path) = split_url(url).ok_or_else(|| "Indirizzo non valido.".to_string())?;
+    let ms = TIMEOUT.as_millis() as i32;
+    unsafe {
+        let session = WinHttpOpen(w!("EosOS"), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, None, None, 0);
+        if session.is_null() {
+            return Err("errore di rete (sessione)".to_string());
+        }
+        let result = (|| -> Result<String, String> {
+            let _ = WinHttpSetTimeouts(session, ms, ms, ms, ms);
+            let conn = WinHttpConnect(session, &HSTRING::from(host), port, 0);
+            if conn.is_null() {
+                return Err("errore di rete (connessione)".to_string());
+            }
+            let inner = (|| -> Result<String, String> {
+                let flags = if secure { WINHTTP_FLAG_SECURE } else { WINHTTP_OPEN_REQUEST_FLAGS(0) };
+                let req = WinHttpOpenRequest(conn, w!("GET"), &HSTRING::from(path), None, None, std::ptr::null(), flags);
+                if req.is_null() {
+                    return Err("errore di rete (richiesta)".to_string());
+                }
+                let body = (|| -> Result<String, String> {
+                    let net = |e: windows::core::Error| format!("errore di rete {:#010X}", e.code().0);
+                    WinHttpSendRequest(req, None, None, 0, 0, 0).map_err(net)?;
+                    WinHttpReceiveResponse(req, std::ptr::null_mut()).map_err(net)?;
+                    let mut status = 0u32;
+                    let mut len = std::mem::size_of::<u32>() as u32;
+                    WinHttpQueryHeaders(req, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, None, Some(&mut status as *mut u32 as *mut _), &mut len, std::ptr::null_mut()).map_err(net)?;
+                    if status != 200 {
+                        return Err(format!("risposta {status} del servizio"));
+                    }
+                    let mut out: Vec<u8> = Vec::new();
+                    let mut buf = [0u8; 8192];
+                    loop {
+                        let mut n = 0u32;
+                        WinHttpReadData(req, buf.as_mut_ptr() as *mut _, buf.len() as u32, &mut n).map_err(net)?;
+                        if n == 0 {
+                            break;
+                        }
+                        out.extend_from_slice(&buf[..n as usize]);
+                        if out.len() > MAX_BODY {
+                            return Err("Risposta troppo grande.".to_string());
+                        }
+                    }
+                    String::from_utf8(out).map_err(|_| "Risposta non valida.".to_string())
+                })();
+                let _ = WinHttpCloseHandle(req);
+                body
+            })();
+            let _ = WinHttpCloseHandle(conn);
+            inner
         })();
-        let _ = tx.send(r.map_err(|e| e.message()));
-    });
-    match rx.recv_timeout(TIMEOUT) {
-        Ok(Ok(t)) if t.len() <= MAX_BODY => Ok(t),
-        Ok(Ok(_)) => Err("Risposta troppo grande.".to_string()),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err("Il servizio meteo non risponde.".to_string()),
+        let _ = WinHttpCloseHandle(session);
+        result
     }
 }
 
@@ -212,6 +271,16 @@ mod tests {
 
     const GEO: &str = r#"{"results":[{"id":1,"name":"Roma","latitude":41.89193,"longitude":12.51133,"country":"Italia"}],"generationtime_ms":0.1}"#;
     const FC: &str = r#"{"current":{"time":"2026-11-09T00:15","temperature_2m":10.1,"weather_code":3},"daily":{"time":["2026-11-09"],"temperature_2m_max":[17.3],"temperature_2m_min":[9.8]}}"#;
+
+    #[test]
+    fn urls_are_split() {
+        assert_eq!(split_url("https://api.open-meteo.com/v1/forecast?x=1"), Some((true, "api.open-meteo.com".into(), 443, "/v1/forecast?x=1".into())));
+        assert_eq!(split_url("http://127.0.0.1:19000/v1/search?name=Roma"), Some((false, "127.0.0.1".into(), 19000, "/v1/search?name=Roma".into())));
+        assert_eq!(split_url("http://host"), Some((false, "host".into(), 80, "/".into())));
+        for bad in ["", "ftp://x/y", "https://", "https://:80/x", "http://a b/x", "http://u@h/x", "http://h:0/x", "http://h:99999/x", "localhost/x"] {
+            assert_eq!(split_url(bad), None, "{bad:?}");
+        }
+    }
 
     #[test]
     fn city_names_are_checked() {
