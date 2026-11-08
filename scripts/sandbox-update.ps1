@@ -98,7 +98,17 @@ try {
   $ws = $null
   for ($i = 0; $i -lt 10 -and -not $ws; $i++) { try { $ws = Settings-Ws } catch {}; if (-not $ws) { Start-Sleep 2 } }
   Check 'pagina Impostazioni raggiungibile' ([bool]$ws) "ultimo errore: $script:lastErr; pagine viste: $script:targets"
-  if (-not $ws) { throw 'senza la pagina Impostazioni non si puo continuare' }
+  if (-not $ws) {
+    # Diagnostica: la porta di debug e' stata passata ai processi WebView2? E chi ascolta su quali porte?
+    $wv = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -notmatch '--type=' })
+    Log "Processi WebView2 principali: $($wv.Count)"
+    foreach ($w in $wv) { Log ("  pid $($w.ProcessId): " + ($w.CommandLine -replace '\s+', ' ').Substring(0, [math]::Min(400, $w.CommandLine.Length))) }
+    $ids = @(Get-Process eosos, msedgewebview2 -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+    $ports = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $ids -contains $_.OwningProcess } | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort)" })
+    Log "Porte in ascolto dei processi EosOS/WebView2: $($ports -join ', ')"
+    Log "Variabile nel processo della prova: $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"
+    throw 'senza la pagina Impostazioni non si puo continuare'
+  }
 
   $st = Cdp-Eval $ws "window.__TAURI_INTERNALS__.invoke('update_check').then(function(r){return JSON.stringify(r)},function(e){return 'ERR:'+e})"
   Log "update_check -> $st"

@@ -1194,9 +1194,9 @@
     "semantic_hash": ""
   },
   "scripts/sandbox-update.ps1": {
-    "mtime": 1794178449.8027582,
-    "seen": 1794178452.8409216,
-    "ast_hash": "b88bbaaf97acb9c9116d9f9e7a3c88f9",
+    "mtime": 1794178927.5192277,
+    "seen": 1794178929.338131,
+    "ast_hash": "b3ce08f50a1750456a5ee52cd41ca570",
     "semantic_hash": ""
   },
   "package-lock.json": {
