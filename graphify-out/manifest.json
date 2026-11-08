@@ -1187,6 +1187,18 @@
     "ast_hash": "1d428e5ecdaed649f4202fbcac162b8f",
     "semantic_hash": ""
   },
+  "scripts/prepare-sandbox-update.ps1": {
+    "mtime": 1794177863.6407466,
+    "seen": 1794178193.1544151,
+    "ast_hash": "f196ab26b8043d75f47302dfc48737da",
+    "semantic_hash": ""
+  },
+  "scripts/sandbox-update.ps1": {
+    "mtime": 1794177863.6259384,
+    "seen": 1794178193.1544194,
+    "ast_hash": "0a465d883cb72fb0e48a8f6d8cf9fb52",
+    "semantic_hash": ""
+  },
   "package-lock.json": {
     "mtime": 1794023864.0802197,
     "seen": 1794024042.3013453,

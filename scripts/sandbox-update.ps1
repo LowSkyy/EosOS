@@ -30,7 +30,19 @@ function Cdp-Eval([string]$wsUrl, [string]$expr, [int]$timeoutSec = 30, [bool]$w
     }
   } catch { return "ERRCDP: $_" } finally { try { $ws.Dispose() } catch {} }
 }
-function Settings-Ws { $t = Invoke-RestMethod 'http://127.0.0.1:9222/json' -TimeoutSec 5; ($t | Where-Object { $_.url -like '*view=settings*' } | Select-Object -First 1).webSocketDebuggerUrl }
+$script:lastErr = ''
+$script:targets = ''
+function Settings-Ws {
+  foreach ($h in 'localhost', '127.0.0.1') {
+    try {
+      $t = @(Invoke-RestMethod "http://${h}:9222/json" -TimeoutSec 5)
+      $script:targets = ($t | ForEach-Object { "$($_.type) $($_.url)" }) -join ' ; '
+      $w = ($t | Where-Object { $_.url -like '*view=settings*' } | Select-Object -First 1).webSocketDebuggerUrl
+      if ($w) { return $w }
+    } catch { $script:lastErr = "$h : $_" }
+  }
+  $null
+}
 function Installed-Version($exe) { (Get-Item $exe).VersionInfo.ProductVersion }
 
 try {
@@ -79,7 +91,8 @@ try {
   Check 'EosOS 0.1.0 in esecuzione' (@(Get-Process eosos -ErrorAction SilentlyContinue).Count -ge 1)
   $ws = $null
   for ($i = 0; $i -lt 10 -and -not $ws; $i++) { try { $ws = Settings-Ws } catch {}; if (-not $ws) { Start-Sleep 2 } }
-  Check 'pagina Impostazioni raggiungibile' ([bool]$ws)
+  Check 'pagina Impostazioni raggiungibile' ([bool]$ws) "ultimo errore: $script:lastErr; pagine viste: $script:targets"
+  if (-not $ws) { throw 'senza la pagina Impostazioni non si puo continuare' }
 
   $st = Cdp-Eval $ws "window.__TAURI_INTERNALS__.invoke('update_check').then(function(r){return JSON.stringify(r)},function(e){return 'ERR:'+e})"
   Log "update_check -> $st"
