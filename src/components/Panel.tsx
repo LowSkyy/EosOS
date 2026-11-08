@@ -14,6 +14,7 @@ import {
   type VolumeValue,
 } from "../lib/indicators";
 import { Glyph } from "./IndicatorGlyph";
+import StackPanel from "./StackPanel";
 import CalendarPanel from "./CalendarPanel";
 import MenuPanel from "./MenuPanel";
 import { useBackdrop } from "./useBackdrop";
@@ -36,6 +37,8 @@ export default function Panel() {
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
   // Calendario sotto l'orologio.
   const [calendar, setCalendar] = useState(false);
+  // Pila del Dock: indice della pila aperta (null = non è una pila).
+  const [stackIndex, setStackIndex] = useState<number | null>(null);
   const [opens, setOpens] = useState(0);
   const [local, setLocal] = useState<VolumeValue | null>(null);
   const lastInput = useRef(0);
@@ -49,6 +52,16 @@ export default function Panel() {
 
   useEffect(() => {
     const onOpen = listen<string>("panel-open", (e) => {
+      const st = /^stack:(\d+)$/.exec(e.payload);
+      if (st) {
+        setKey(null);
+        setMenuIndex(null);
+        setCalendar(false);
+        setStackIndex(Number(st[1]));
+        setOpens((n) => n + 1);
+        return;
+      }
+      setStackIndex(null);
       if (e.payload === "calendar") {
         setKey(null);
         setMenuIndex(null);
@@ -76,6 +89,7 @@ export default function Panel() {
       setKey(null);
       setMenuIndex(null);
       setCalendar(false);
+      setStackIndex(null);
       setLocal(null);
     });
     return () => {
@@ -93,7 +107,7 @@ export default function Panel() {
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [key, menuIndex, calendar]);
+  }, [key, menuIndex, calendar, stackIndex]);
 
   // Esc chiude; all'apertura il focus va al primo controllo.
   useEffect(() => {
@@ -144,6 +158,7 @@ export default function Panel() {
       <canvas className="panel-blur" ref={blurCanvas} aria-hidden />
       {menuIndex !== null && <MenuPanel ref={body} index={menuIndex} opens={opens} />}
       {calendar && <CalendarPanel ref={body} opens={opens} />}
+      {stackIndex !== null && <StackPanel ref={body} index={stackIndex} opens={opens} />}
       {key && item && (
         <div className="panel-body" ref={body}>
           <h2 className="panel-title">{panelTitle(key)}</h2>

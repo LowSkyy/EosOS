@@ -1,4 +1,5 @@
 mod appbar;
+mod stacks;
 mod cmdpolicy;
 mod backdrop;
 mod dock;
@@ -134,6 +135,45 @@ fn settings_pick_folder(window: tauri::Window, app: tauri::AppHandle) -> Option<
 fn settings_close(window: tauri::Window, app: tauri::AppHandle) {
     guard!(window, "settings_close");
     settingswin::hide(&app);
+}
+
+/// Le pile del Dock (cartelle con la loro icona). Solo il Dock.
+#[tauri::command(async)]
+fn dock_stacks(window: tauri::Window) -> Vec<stacks::StackItem> {
+    guard!(window, "dock_stacks", Vec::new());
+    stacks::items()
+}
+
+/// I file più recenti di una pila, per il pannello sopra l'icona. Solo il pannello.
+#[tauri::command(async)]
+fn stack_list(window: tauri::Window, index: usize) -> stacks::StackReply {
+    if cmdpolicy::guard(window.label(), "stack_list", None).is_err() {
+        return stacks::StackReply { title: String::new(), state: "missing", entries: Vec::new(), total: 0 };
+    }
+    stacks::list(index)
+}
+
+/// Apre un file della pila appena mostrato (i programmi e gli script si mostrano solo in Esplora risorse).
+#[tauri::command(async)]
+fn stack_open(window: tauri::Window, id: String) -> bool {
+    guard!(window, "stack_open", false);
+    stacks::open(&id)
+}
+
+/// Apre la cartella della pila in Esplora risorse.
+#[tauri::command(async)]
+fn stack_open_folder(window: tauri::Window, index: usize) -> bool {
+    guard!(window, "stack_open_folder", false);
+    stacks::open_folder(index)
+}
+
+/// L'ultima apertura registrata (solo build di prova con `EOSOS_TEST_NO_OPEN`): (percorso, solo-mostra).
+#[tauri::command]
+fn stack_last_open() -> Option<(String, bool)> {
+    #[cfg(feature = "test-hooks")]
+    return stacks::last_open();
+    #[cfg(not(feature = "test-hooks"))]
+    None
 }
 
 /// Lo stato di tutte le impostazioni (per la finestra delle impostazioni).
@@ -831,7 +871,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

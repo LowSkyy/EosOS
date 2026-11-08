@@ -43,6 +43,9 @@ pub struct Settings {
     /// «Non disturbare» di EosOS: il pannello non legge né mostra le notifiche (quelle di Windows restano dove sono).
     #[serde(rename = "notifDnd")]
     pub notif_dnd: bool,
+    /// Cartelle delle pile nel Dock (`None` = non scelte: c'è solo Download).
+    #[serde(rename = "dockStacks")]
+    pub dock_stacks: Option<Vec<String>>,
 }
 
 fn store_path() -> Option<PathBuf> {
@@ -187,6 +190,11 @@ pub fn set_calendar_sunday(on: bool) -> Settings {
     update(|s| s.calendar_sunday = on)
 }
 
+/// Salva le cartelle delle pile nel Dock (`None` = di nuovo solo Download).
+pub fn set_dock_stacks(v: Option<Vec<String>>) -> Settings {
+    update(|s| s.dock_stacks = v)
+}
+
 /// Accende o spegne «Non disturbare» di EosOS e salva.
 pub fn set_notif_dnd(on: bool) -> Settings {
     update(|s| s.notif_dnd = on)
@@ -237,6 +245,7 @@ mod tests {
         let d = Settings::default();
         assert!(!d.menu_off && d.menu_excluded.is_empty());
         assert!(!d.notif_read, "la lettura delle notifiche e' spenta di default");
+        assert!(d.dock_stacks.is_none(), "di default nessuna scelta: c'e' solo Download");
         assert!(!d.notif_dnd, "non disturbare e' spento di default");
         assert!(!d.calendar_sunday, "la settimana comincia da lunedi' di default");
         let s = parse(r#"{"menuOff":true,"menuExcluded":["Chrome","Discord"]}"#).unwrap();
@@ -255,7 +264,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]) }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

@@ -63,6 +63,7 @@ impl Backend for Live {
             "dock.autohide" => b(crate::dockwin::autohide()),
             "dock.reserve" => b(crate::dockwin::reserve_enabled()),
             "dock.blur" => b(crate::dockwin::blur_enabled()),
+            "dock.stacks" => Some(Value::List(crate::stacks::folders())),
             "dock.pinned" => Some(Value::List(crate::dockstore::load().into_iter().map(|p| p.name).collect())),
             "dock.glass" => Some(Value::Text(crate::dockstore::nearest_glass_id(crate::dockstore::settings().glass).to_string())),
             "bar.battery" => b(ind().battery),
@@ -143,6 +144,10 @@ impl Backend for Live {
                 if crate::dockwin::blur_enabled() != want_bool(value)? {
                     crate::dockwin::toggle_blur();
                 }
+                self.dock_changed();
+            }
+            "dock.stacks" => {
+                crate::mcstore::set_dock_stacks(Some(want_list(value)?));
                 self.dock_changed();
             }
             "dock.pinned" => {

@@ -201,6 +201,11 @@ fn known_folder(id: &GUID) -> Option<PathBuf> {
     }
 }
 
+/// La cartella Download dell'utente (percorso vero, anche se spostata).
+pub fn downloads_folder() -> Option<PathBuf> {
+    known_folder(&FOLDERID_Downloads)
+}
+
 /// Cartelle personali dove si cerca (percorsi veri, anche se spostate su OneDrive), più quelle
 /// aggiunte dall'utente in `launcher.json` (`searchFolders`) che esistono davvero. Senza doppioni.
 pub fn search_roots() -> Vec<PathBuf> {

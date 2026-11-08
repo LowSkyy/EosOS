@@ -11,7 +11,9 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         // Il pannello sotto l'orologio può solo accendere/spegnere la lettura delle notifiche e «Non disturbare».
         "settings_set" => label == "settings" || (label == "panel" && matches!(key, Some("notif.read" | "notif.dnd"))),
         // Dock: aprire app e cambiare le app fissate.
-        "dock_activate" | "dock_reorder" => label == "dock",
+        "dock_activate" | "dock_reorder" | "dock_stacks" => label == "dock",
+        // Contenuto delle pile: lo chiede solo il pannello.
+        c if c.starts_with("stack_") => label == "panel",
         // Pannello degli indicatori: volume vero, apertura delle impostazioni di Windows, scelta di una voce di menu di
         // un'altra app.
         "indicator_open" | "volume_set" | "volume_mute" | "menubar_choose" => label == "panel",
@@ -79,7 +81,10 @@ mod tests {
 
     #[test]
     fn dock_panel_and_mission_control_actions_have_one_owner() {
-        for c in ["dock_activate", "dock_reorder"] {
+        for c in ["stack_list", "stack_open", "stack_open_folder"] {
+            assert!(allowed("panel", c, None) && !allowed("dock", c, None) && !allowed("bar-0", c, None) && !allowed("launcher", c, None), "{c}");
+        }
+        for c in ["dock_activate", "dock_reorder", "dock_stacks"] {
             assert!(allowed("dock", c, None) && !allowed("bar-0", c, None) && !allowed("panel", c, None) && !allowed("launcher", c, None), "{c}");
         }
         for c in ["indicator_open", "volume_set", "volume_mute", "menubar_choose"] {

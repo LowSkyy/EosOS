@@ -81,8 +81,11 @@ struct State {
     shown_at: Option<Instant>,
     /// Ultima chiusura per perdita di focus: (indicatore, istante).
     lost_focus: Option<(String, Instant)>,
+    /// Dove è ancorato il pannello aperto: (indicatore, monitor) in px fisici. Serve a riposizionarlo quando cambia
+    /// altezza: sopra l'icona (pile del Dock) deve crescere verso l'alto, non coprire l'icona.
+    anchored: Option<(Rect, Rect)>,
 }
-static STATE: Mutex<State> = Mutex::new(State { key: None, shown_at: None, lost_focus: None });
+static STATE: Mutex<State> = Mutex::new(State { key: None, shown_at: None, lost_focus: None, anchored: None });
 
 fn lock() -> std::sync::MutexGuard<'static, State> {
     STATE.lock().unwrap_or_else(|e| e.into_inner())
@@ -141,7 +144,12 @@ pub fn clamp_height(h: f64) -> f64 {
 
 /// Gli indicatori che hanno un pannello. Pura, testata.
 pub fn is_panel_key(key: &str) -> bool {
-    matches!(key, "battery" | "network" | "volume" | "calendar") || menu_index(key).is_some()
+    matches!(key, "battery" | "network" | "volume" | "calendar") || menu_index(key).is_some() || stack_index(key).is_some()
+}
+
+/// `"stack:2"` → 2: la pila del Dock usa questa stessa finestra (si apre sopra l'icona). Pura, testata.
+pub fn stack_index(key: &str) -> Option<usize> {
+    key.strip_prefix("stack:")?.parse().ok().filter(|i| *i < crate::stacks::MAX_STACKS)
 }
 
 /// `"menu:3"` → 3: la tendina del menu globale usa questa stessa finestra. Pura, testata.
@@ -291,6 +299,7 @@ fn show(app: &AppHandle, key: &str, anchor: Rect) {
         st.key = Some(key.to_string());
         st.shown_at = Some(Instant::now());
         st.lost_focus = None;
+        st.anchored = Some((anchor, monitor));
     }
     VISIBLE.store(true, Ordering::Relaxed);
     update_affinity();
@@ -319,7 +328,11 @@ fn show(app: &AppHandle, key: &str, anchor: Rect) {
 
 pub fn hide(app: &AppHandle) {
     VISIBLE.store(false, Ordering::Relaxed);
-    lock().key = None;
+    {
+        let mut st = lock();
+        st.key = None;
+        st.anchored = None;
+    }
     if let Some(win) = win_of(app) {
         let _ = win.hide();
     }
@@ -331,6 +344,14 @@ pub fn fit(app: &AppHandle, height_css: f64) {
     let Some(win) = win_of(app) else { return };
     let scale = f64::from_bits(SCALE_BITS.load(Ordering::Relaxed));
     let scale = if scale > 0.0 { scale } else { win.scale_factor().unwrap_or(1.0) };
+    // Con l'ancora nota si ricalcola anche la posizione: se il pannello sta sopra l'icona cresce verso l'alto.
+    let anchored = lock().anchored;
+    if let Some((anchor, monitor)) = anchored {
+        let r = place(anchor, monitor, scale, height_css);
+        let _ = win.set_position(PhysicalPosition::new(r.x, r.y));
+        let _ = win.set_size(PhysicalSize::new(r.w as u32, r.h as u32));
+        return;
+    }
     let _ = win.set_size(PhysicalSize::new((WIDTH * scale).round() as u32, (clamp_height(height_css) * scale).round() as u32));
 }
 
@@ -376,12 +397,25 @@ mod tests {
             assert_eq!(menu_index(bad), None, "{bad:?}");
         }
         assert!(is_panel_key("menu:3") && is_panel_key("volume") && !is_panel_key("menu:99"));
+        assert!(is_panel_key("stack:0") && is_panel_key("stack:4") && !is_panel_key("stack:5") && !is_panel_key("stack:") && !is_panel_key("stack:-1") && !is_panel_key("Stack:0"));
+        assert_eq!(stack_index("stack:3"), Some(3));
         assert!(is_panel_key("calendar") && !is_panel_key("Calendar") && !is_panel_key("calendar "));
     }
 
     const MON: Rect = Rect { x: 0, y: 0, w: 1920, h: 1080 };
     fn anchor(x: i32, w: i32) -> Rect {
         Rect { x, y: 3, w, h: 22 }
+    }
+
+    #[test]
+    fn a_panel_above_the_icon_keeps_its_bottom_when_it_grows() {
+        // Icona del Dock in basso: il pannello sta sopra e, più alto, sale ancora (il fondo resta sopra l'icona).
+        let icon = Rect { x: 900, y: 971, w: 56, h: 62 };
+        let small = place(icon, MON, 1.0, 150.0);
+        let big = place(icon, MON, 1.0, 400.0);
+        assert!(small.y + small.h <= icon.y && big.y + big.h <= icon.y, "mai sopra l'icona");
+        assert_eq!(small.y + small.h, big.y + big.h, "il fondo non si sposta");
+        assert!(big.y < small.y && big.h > small.h);
     }
 
     #[test]

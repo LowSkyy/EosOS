@@ -21,6 +21,7 @@ import {
   type DockSettings,
 } from "../lib/dock";
 import { parseFrame, sourceRect, type Frame } from "../lib/backdrop";
+import { sameStacks, type StackItem } from "../lib/stacks";
 
 /** Contorno (px CSS) di sfondo disegnato oltre la capsula: la sfocatura ne ha bisogno ai bordi. */
 const BLUR_MARGIN = 28;
@@ -80,8 +81,28 @@ function Icon({
   );
 }
 
+/** Una pila: la cartella nel Dock. Un clic apre il pannello con i file più recenti sopra l'icona. */
+function StackIcon({ stack }: { stack: StackItem }) {
+  const open = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    void invoke("panel_toggle", { key: `stack:${stack.index}`, left: r.left, top: r.top, width: r.width, height: r.height });
+  };
+  return (
+    <div className="dock-item dock-stack" title={stack.title} role="button" aria-label={`Pila ${stack.title}`} aria-haspopup="dialog" onClick={open}>
+      {stack.icon ? (
+        <img className="dock-icon" src={stack.icon} alt="" draggable={false} />
+      ) : (
+        <div className="dock-icon dock-icon-fallback" aria-hidden>
+          {stack.title.charAt(0).toUpperCase()}
+        </div>
+      )}
+      <span className="dock-dot" />
+    </div>
+  );
+}
+
 /** Stesso aspetto della capsula a riposo, invisibile: se ne misura la dimensione. */
-function Ghost({ items, ref }: { items: DockItem[]; ref: React.Ref<HTMLDivElement> }) {
+function Ghost({ items, stacks, ref }: { items: DockItem[]; stacks: StackItem[]; ref: React.Ref<HTMLDivElement> }) {
   const { pinned, others } = splitDock(items);
   const cell = (i: DockItem) => (
     <div className="dock-item" key={i.id}>
@@ -94,6 +115,13 @@ function Ghost({ items, ref }: { items: DockItem[]; ref: React.Ref<HTMLDivElemen
       {pinned.map(cell)}
       {pinned.length > 0 && others.length > 0 && <div className="dock-separator" />}
       {others.map(cell)}
+      {stacks.length > 0 && (pinned.length > 0 || others.length > 0) && <div className="dock-separator dock-separator-stacks" />}
+      {stacks.map((s) => (
+        <div className="dock-item" key={`stack${s.index}`}>
+          <div className="dock-icon" />
+          <span className="dock-dot" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -103,6 +131,7 @@ const cssPx = (name: string) =>
 
 export default function Dock() {
   const [items, setItems] = useState<DockItem[]>([]);
+  const [stacks, setStacks] = useState<StackItem[]>([]);
   const [bouncing, setBouncing] = useState<Set<string>>(new Set());
   const zone = useRef<HTMLDivElement>(null);
   const pill = useRef<HTMLDivElement>(null);
@@ -137,6 +166,18 @@ export default function Dock() {
     [],
   );
 
+  // Pile: all'avvio, a ogni cambio di impostazioni e ogni minuto (Rust tiene le icone in cache).
+  const loadStacks = useCallback(() => {
+    invoke<StackItem[]>("dock_stacks")
+      .then((next) => alive.current && setStacks((cur) => (sameStacks(cur, next) ? cur : next)))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    loadStacks();
+    const t = setInterval(loadStacks, 60_000);
+    return () => clearInterval(t);
+  }, [loadStacks]);
+
   // Vetro: la trasparenza scelta dal menu arriva da Rust, all'avvio e a ogni cambio.
   useEffect(() => {
     const apply = (st: Partial<DockSettings> | null) => {
@@ -146,7 +187,10 @@ export default function Dock() {
     };
     let unlisten: (() => void) | undefined;
     let cancelled = false;
-    listen<DockSettings>("dock-settings-changed", (e) => apply(e.payload)).then((fn) => {
+    listen<DockSettings>("dock-settings-changed", (e) => {
+      apply(e.payload);
+      loadStacks();
+    }).then((fn) => {
       if (cancelled) fn();
       else unlisten = fn;
     });
@@ -155,7 +199,7 @@ export default function Dock() {
       cancelled = true;
       unlisten?.();
     };
-  }, []);
+  }, [loadStacks]);
 
   // Sfondo sfocato: disegna nel canvas della capsula la parte di schermo che sta
   // dietro di lei. Il CSS lo sfoca e lo ritaglia con la forma della capsula.
@@ -458,8 +502,12 @@ export default function Dock() {
         {pinned.map(icon)}
         {pinned.length > 0 && others.length > 0 && <div className="dock-separator" />}
         {others.map(icon)}
+        {stacks.length > 0 && (pinned.length > 0 || others.length > 0) && <div className="dock-separator dock-separator-stacks" />}
+        {stacks.map((s) => (
+          <StackIcon key={`stack${s.index}`} stack={s} />
+        ))}
       </div>
-      <Ghost items={items} ref={ghost} />
+      <Ghost items={items} stacks={stacks} ref={ghost} />
     </div>
   );
 }
