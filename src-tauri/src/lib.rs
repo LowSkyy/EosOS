@@ -19,6 +19,7 @@ mod launcherstore;
 mod launcherwin;
 mod mc;
 mod mclayout;
+mod menumodel;
 mod menuread;
 mod mchook;
 mod mckeys;

@@ -2,7 +2,7 @@
 
 Obiettivo: come su macOS, i menu dell'app in primo piano (File, Modifica, Visualizza...) compaiono **nella barra in alto di EosOS**, accanto al nome dell'app, invece che dentro la finestra. Un clic su una voce apre il menu a tendina e sceglierne una voce esegue il comando nell'app.
 
-Stato: specifica (8 nov 2026) e **G1 fatta** (misura in sola lettura). **Scelta dell'utente: opzione 1, ibrido.** Restano G2-G6.
+Stato: specifica (8 nov 2026) e **G1 e G2 fatte**. **Scelta dell'utente: opzione 1, ibrido.** Restano G3-G6.
 
 ## Cosa fa macOS (da replicare)
 
@@ -67,6 +67,17 @@ Tempi: UI Automation fra 3 e 112 ms, **nessuna finestra ha fatto scadere il limi
 **Cosa dice questo per l'ibrido:** la lettura funziona per una parte reale delle app, comprese alcune moderne (Blocco note) e una Electron (VS Code), contro la mia ipotesi prudente. Per le altre (browser, chat, Esplora, app dello Store) l'ibrido dà il nome più il menu fatto da EosOS, come previsto.
 
 **Limiti della misura:** campione piccolo (aperte c'erano 3 tue finestre e le mie di prova): non so ancora come vadano Office, JetBrains, app Qt, Firefox, Teams e simili. Si legge la **struttura di primo livello**: i sottomenu e lo stato (attivo/spuntato/scorciatoia) non sono ancora misurati e si leggeranno in G2/G4. **Invocare una voce non è stato provato** (G5). Non so quanto siano stabili le letture quando l'app cambia menu mentre è in uso.
+
+## G2 — Modello e disposizione (puri): FATTA (8 nov 2026)
+
+`menumodel.rs`, 11 test, nessun Windows. Il modello è pronto ma **non è ancora collegato a nulla** (la barra è G3, la tendina G4): fino ad allora solo i test lo chiamano.
+
+- **Voce di menu** (`Item`): titolo, scorciatoia (solo testo, la gestisce l'app), attiva, spuntata, separatore, sottomenu e azione, che è un comando di EosOS (`Cmd`: esci, riduci a icona, ingrandisci, ripristina, chiudi, mostra nel Dock) oppure `App(percorso)`, la posizione della voce nel menu originale dell'app, da invocare in G5.
+- **Pulizia dei titoli** (`split_label`): toglie gli acceleratori `&` (`&&` resta una e commerciale vera), separa la scorciatoia dopo la tabulazione (`"&Apri...	Ctrl+O"` → `Apri...` e `Ctrl+O`), toglie i caratteri di controllo e accorcia a 60 caratteri con «…» senza spezzare un carattere.
+- **Limiti** (`normalize`): voci senza titolo scartate; separatori iniziali, finali e ripetuti tolti; al massimo 40 voci per livello e 3 livelli (oltre, un sottomenu diventa voce semplice); i percorsi delle azioni non cambiano, così G5 trova sempre la voce giusta anche dopo i tagli.
+- **L'ibrido** (`compose`): la fila della barra è il menu col **nome dell'app in grassetto** («Mostra nel Dock», «Esci da ...»), poi i menu letti dall'app (puliti; un menu vuoto o senza titolo non si mostra; al massimo 12 in tutto), poi «**Finestra**» fatto da EosOS (Riduci a icona, Ingrandisci o Ripristina secondo lo stato, Chiudi) **salvo che l'app ne abbia già uno** (riconosciuto in italiano, inglese, francese e tedesco). Senza un menu leggibile restano solo il nome dell'app e «Finestra»: la barra non è mai vuota.
+
+Scelte da confermare: i comandi della prima versione sono quelli sopra; «Sposta su un altro desktop» è escluso (serve l'elenco dei desktop e il backend di M5, non ancora collaudato in scrittura).
 
 ## Fuori scopo
 

@@ -1,8 +1,8 @@
 {
   "PIANO.md": {
-    "mtime": 1794099592.234825,
-    "seen": 1794099594.1745098,
-    "ast_hash": "f5bf84c12a185eefe375c77b32656d7d",
+    "mtime": 1794099998.3603983,
+    "seen": 1794100000.5128472,
+    "ast_hash": "d09b9f63099f592e9ed722f08f2cd62e",
     "semantic_hash": ""
   },
   ".claude/settings.json": {
@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794098393.4102182,
-    "seen": 1794099517.4724226,
-    "ast_hash": "ffc749b5e105ad5517542670eb139996",
+    "mtime": 1794099746.1425705,
+    "seen": 1794100000.5127974,
+    "ast_hash": "8aad113a5c274d9675dba059ba7c0402",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -792,9 +792,21 @@
     "semantic_hash": ""
   },
   "docs/MENU-GLOBALE.md": {
-    "mtime": 1794099591.9776633,
-    "seen": 1794099594.1745152,
-    "ast_hash": "da87ad762a224c1672fd975cf88ca795",
+    "mtime": 1794099998.3603983,
+    "seen": 1794100000.5128517,
+    "ast_hash": "6e968755f2bcd91582fd3487460a2748",
+    "semantic_hash": ""
+  },
+  "scripts/test-menu-probe.ps1": {
+    "mtime": 1794099953.710266,
+    "seen": 1794100000.51277,
+    "ast_hash": "dcda67f3d707a1c62a2b225de97ec710",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/menuread.rs": {
+    "mtime": 1794099886.8805,
+    "seen": 1794100000.512806,
+    "ast_hash": "3e3d574d1948e6d222b8a1bf96d34432",
     "semantic_hash": ""
   },
   "package-lock.json": {
