@@ -13,6 +13,15 @@ use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 use crate::dockgeom::Rect;
 
 pub const LABEL: &str = "settings";
+/// Id della voce «Impostazioni di EosOS…» nei menu nativi (Dock, barra).
+pub const MENU_ID: &str = "eos:settings";
+/// Testo della voce, uguale ovunque compaia.
+pub const MENU_LABEL: &str = "Impostazioni di EosOS…";
+
+/// L'id di una voce di menu nativo è quello delle impostazioni? Pura, testata.
+pub fn is_menu_id(id: &str) -> bool {
+    id == MENU_ID
+}
 /// Dimensioni della finestra, in px CSS.
 pub const WIDTH: f64 = 780.0;
 pub const HEIGHT: f64 = 560.0;
@@ -132,6 +141,14 @@ mod tests {
 
     fn mon(x: i32, y: i32, w: i32, h: i32) -> Rect {
         Rect { x, y, w, h }
+    }
+
+    #[test]
+    fn only_the_exact_menu_id_opens_the_settings() {
+        assert!(is_menu_id("eos:settings"));
+        for other in ["", "eos:settings ", "Eos:settings", "ind:battery", "dock:open:x", "eos:setting"] {
+            assert!(!is_menu_id(other), "{other:?}");
+        }
     }
 
     #[test]

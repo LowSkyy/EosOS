@@ -25,6 +25,8 @@ pub enum Cmd {
     Maximize,
     Restore,
     Close,
+    /// Apre le impostazioni di EosOS (la voce nel menu del nome quando non c'è un'app).
+    OpenSettings,
 }
 
 /// Cosa succede scegliendo una voce.
@@ -270,9 +272,16 @@ pub fn app_menu(app_name: &str) -> TopMenu {
     }
 }
 
-/// La riga della barra quando non c'è un'app (il desktop): solo il nome, in grassetto, senza voci. Pura, testata.
+/// La riga della barra quando non si mostrano i menu di un'app (il desktop, menu globale spento, app esclusa): solo
+/// il nome, in grassetto, con l'unica voce «Impostazioni di EosOS…» (così da lì si può sempre riaccenderlo). Pura, testata.
 pub fn name_only(name: &str) -> Vec<TopMenu> {
-    vec![TopMenu { title: limit_title(name.trim()), items: Vec::new(), bold: true, lazy: false, source: None }]
+    vec![TopMenu {
+        title: limit_title(name.trim()),
+        items: vec![Item::leaf("Impostazioni di EosOS…", Action::Eos(Cmd::OpenSettings))],
+        bold: true,
+        lazy: false,
+        source: None,
+    }]
 }
 
 /// Il menu "Finestra" fatto da EosOS. Pura, testata.
@@ -500,7 +509,9 @@ mod tests {
     fn the_desktop_row_is_only_a_name() {
         let r = name_only(" Desktop ");
         assert_eq!(r.len(), 1);
-        assert!(r[0].bold && r[0].items.is_empty() && r[0].title == "Desktop");
+        assert!(r[0].bold && r[0].title == "Desktop");
+        assert_eq!(r[0].items.len(), 1, "l'unica voce e' quella delle impostazioni");
+        assert_eq!(r[0].items[0].action, Some(Action::Eos(Cmd::OpenSettings)));
     }
 
     #[test]

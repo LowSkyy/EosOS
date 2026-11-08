@@ -2,7 +2,7 @@
 
 Obiettivo: una finestra «Impostazioni di EosOS», in stile Impostazioni di Sistema di macOS, dove si cambiano **tutte** le preferenze di EosOS con il mouse. Oggi le preferenze ci sono, ma sono sparse e quasi nascoste: menu contestuali del Dock e della barra, voci del Launcher che accendono e spengono cose, e file JSON da modificare a mano.
 
-Stato: specifica (8 nov 2026); **decisioni dell'utente (8 nov 2026): sì a tutto**, cioè questo è il passo successivo, l'avvio automatico con Windows è incluso (S4) e la finestra è senza bordi in vetro come Launcher e pannelli. **S1-S4 fatte.** La roadmap precedente è finita (Dock, Launcher, Indicatori, Mission Control, Menu globale); questo è il passo che ho scelto come successivo perché è il buco più evidente in uso quotidiano. 
+Stato: specifica (8 nov 2026); **decisioni dell'utente (8 nov 2026): sì a tutto**, cioè questo è il passo successivo, l'avvio automatico con Windows è incluso (S4) e la finestra è senza bordi in vetro come Launcher e pannelli. **S1-S5 fatte.** La roadmap precedente è finita (Dock, Launcher, Indicatori, Mission Control, Menu globale); questo è il passo che ho scelto come successivo perché è il buco più evidente in uso quotidiano. 
 
 ## Cosa fa macOS (da replicare) e da dove viene
 
@@ -131,6 +131,20 @@ Regressioni (aggiornate dove cambiavano le sezioni): impostazioni S1 (67), fines
 ### Incidente durante la prova (8 nov 2026)
 
 **La prima esecuzione di `test-settings-s4.ps1` ha cancellato i valori di `HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run`.** Lo script usava `New-Item -Path <chiave> -Force` su quella chiave, che esisteva già: in PowerShell `-Force` su una chiave esistente **la ricrea vuota**. Quella chiave contiene, per ogni programma che parte all'accesso, un valore che Gestione attività usa per sapere se è **attivato o disattivato**. Prima della prova c'erano 9 valori (Medal, Spotify, Docker Desktop, electron.app.Vaydeer keyboard, Gemini, GoogleUpdaterTaskUser156.0.8067.0, Discord, LGHUB, GoogleUpdaterTaskUser157.0.8089.0); ora la chiave è vuota. **Un valore mancante vale «attivata»**: i programmi della chiave `Run` partono come prima, ma **quelli che l'utente aveva disattivato da Gestione attività ripartirebbero** al prossimo accesso. Non avevo una copia completa (salvavo solo il valore `EosOS`), e non c'è una copia di ripristino accessibile: **non si può ricostruire quali fossero disattivati**. Da rifare a mano: Gestione attività → App di avvio → disattivare quelle che non si vogliono. Lo script è corretto: niente `-Force` su chiavi esistenti, **esportazione completa delle chiavi con `reg export` prima** e `reg import` dalla copia se alla fine il registro non coincide. Regola salvata in memoria per le prove future.
+
+## S5 — Punti d'ingresso: FATTA (8 nov 2026)
+
+La finestra si apre ora da quattro posti (la stessa finestra: se è già aperta la porta davanti):
+1. **Launcher:** azione «Impostazioni di EosOS» (già da S2).
+2. **Barra, menu del nome:** la voce «**Impostazioni di EosOS…**» compare nel menu col nome quando **non ci sono menu dell'app da mostrare**: sul **Desktop**, con il **menu globale spento** o per un'**app esclusa**. Per questo ultimo caso è importante: da lì si può sempre riaccenderlo (prima, con il menu spento, il nome non apriva niente). Nelle altre app il menu del nome resta «Esci da ...».
+3. **Barra, clic destro:** in fondo al menu degli indicatori, dopo un separatore.
+4. **Dock, clic destro sullo sfondo:** in fondo al menu delle impostazioni del Dock, dopo un separatore.
+
+Dettagli: la voce dei menu nativi ha un id fisso (`eos:settings`) e il gestore dei menu riconosce solo quell'id esatto (`is_menu_id`, testato); la voce del menu del nome è un comando di EosOS (`Cmd::OpenSettings`) che non riguarda nessuna finestra (si esegue anche se la finestra del desktop non risponde ai comandi). Si apre con 250 ms di ritardo, perché il menu o la tendina da cui parte finisca di chiudersi e non si riprenda il primo piano.
+
+**Verifica dal vivo** (`scripts/test-settings-s5.ps1`, **12 controlli**, quattro file delle impostazioni ripristinati identici): con il menu globale spento la riga di una finestra di prova è solo il nome, si apre e ha l'unica voce, scegliendola si apre la finestra delle impostazioni; con il **Desktop** in primo piano la riga è «Desktop» con la stessa voce e scegliendola si apre; **menu nativo della barra e menu nativo del Dock**: si aprono davvero (verificato che il menu a comparsa sia di un processo EosOS prima di fare qualunque cosa), **si clicca col mouse la loro ultima riga** e si apre la finestra delle impostazioni; il menu non resta aperto e nessuna impostazione cambia per sbaglio. (La tastiera, Fine e Invio, non funzionava sul menu nativo perché la barra non è la finestra in primo piano: la prova usa il mouse.) Rust 332 test (3 a richiesta), clippy a 0 avvisi. Regressioni: barra, tendina, indicatori e impostazioni: OK. `test-menusettings.ps1` è fallito UNA volta su tre esecuzioni (7 controlli, tutti legati al ritardo con cui la barra segue la finestra in primo piano) e poi passato due volte di fila: **ha un'instabilità di tempi nota** (la barra impiega fino a 300 ms ad accorgersi del cambio di finestra), da irrobustire nelle rifiniture.
+
+**Non provato:** la voce nel menu a tendina del Dock aperto da un clic reale (la prova chiama lo stesso comando e clicca il menu vero); l'apertura da tastiera dei menu nativi.
 
 ## Decisioni (prese dall'utente, 8 nov 2026)
 

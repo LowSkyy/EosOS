@@ -324,7 +324,9 @@ fn indicators_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Resul
     let network = item(Toggle::Network, "Mostra la rete", s.network)?;
     let volume = item(Toggle::Volume, "Mostra l'audio", s.volume)?;
     let sep = PredefinedMenuItem::separator(&app)?;
-    let menu = Menu::with_items(&app, &[&battery, &percent, &sep, &network, &volume])?;
+    let sep2 = PredefinedMenuItem::separator(&app)?;
+    let settings = tauri::menu::MenuItem::with_id(&app, settingswin::MENU_ID, settingswin::MENU_LABEL, true, None::<&str>)?;
+    let menu = Menu::with_items(&app, &[&battery, &percent, &sep, &network, &volume, &sep2, &settings])?;
     window.popup_menu(&menu)
 }
 
@@ -532,8 +534,12 @@ fn dock_settings_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Re
         dockwin::reserve_enabled(),
         None::<&str>,
     )?;
+    let sep2 = tauri::menu::PredefinedMenuItem::separator(&app)?;
+    let settings = tauri::menu::MenuItem::with_id(&app, settingswin::MENU_ID, settingswin::MENU_LABEL, true, None::<&str>)?;
     let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&hide, &reserve, &blur, &sep];
     items.extend(levels.iter().map(|l| l as &dyn tauri::menu::IsMenuItem<tauri::Wry>));
+    items.push(&sep2);
+    items.push(&settings);
     let menu = Menu::with_items(&app, &items)?;
     dockwin::set_menu_open(true);
     let r = window.popup_menu(&menu);
@@ -636,7 +642,9 @@ pub fn run() {
 
     tauri::Builder::default()
         .on_menu_event(|app, event| {
-            if let Some(t) = indicatorstore::parse_menu_id(event.id().as_ref()) {
+            if settingswin::is_menu_id(event.id().as_ref()) {
+                settingswin::open_soon(None);
+            } else if let Some(t) = indicatorstore::parse_menu_id(event.id().as_ref()) {
                 // Fuori dal thread UI: scrive il file e fa rileggere lo stato.
                 std::thread::spawn(move || {
                     indicatorstore::toggle(t);

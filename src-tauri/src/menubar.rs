@@ -305,6 +305,11 @@ fn quit_app(hwnd: HWND) {
 
 /// Esegue un comando di EosOS sulla finestra `hwnd`. `false` se la finestra non c'è più.
 fn run_cmd(hwnd: usize, cmd: Cmd) -> bool {
+    // Le impostazioni non riguardano nessuna finestra (nemmeno il desktop): si aprono e basta.
+    if cmd == Cmd::OpenSettings {
+        crate::settingswin::open_soon(None);
+        return true;
+    }
     let h = HWND(hwnd as *mut _);
     if !unsafe { IsWindow(Some(h)) }.as_bool() {
         return false;
@@ -324,6 +329,7 @@ fn run_cmd(hwnd: usize, cmd: Cmd) -> bool {
                 let _ = PostMessageW(Some(h), WM_CLOSE, WPARAM(0), LPARAM(0));
             }
             Cmd::Quit => quit_app(h),
+            Cmd::OpenSettings => {}
         }
     }
     true
@@ -398,7 +404,7 @@ mod tests {
     fn the_desktop_shows_only_its_name() {
         let r = build_row("Desktop", None, state(), true);
         assert_eq!(r.len(), 1);
-        assert!(r[0].items.is_empty());
+        assert_eq!(r[0].items.len(), 1, "solo la voce delle impostazioni");
     }
 
     #[test]
