@@ -14,6 +14,7 @@ import {
   type VolumeValue,
 } from "../lib/indicators";
 import { Glyph } from "./IndicatorGlyph";
+import CalendarPanel from "./CalendarPanel";
 import MenuPanel from "./MenuPanel";
 import { useBackdrop } from "./useBackdrop";
 import { useIndicators } from "./useIndicators";
@@ -33,6 +34,8 @@ export default function Panel() {
   const [key, setKey] = useState<IndicatorKey | null>(null);
   // Tendina del menu globale: indice del menu della barra aperto (null = il pannello è degli indicatori).
   const [menuIndex, setMenuIndex] = useState<number | null>(null);
+  // Calendario sotto l'orologio.
+  const [calendar, setCalendar] = useState(false);
   const [opens, setOpens] = useState(0);
   const [local, setLocal] = useState<VolumeValue | null>(null);
   const lastInput = useRef(0);
@@ -46,6 +49,14 @@ export default function Panel() {
 
   useEffect(() => {
     const onOpen = listen<string>("panel-open", (e) => {
+      if (e.payload === "calendar") {
+        setKey(null);
+        setMenuIndex(null);
+        setCalendar(true);
+        setOpens((n) => n + 1);
+        return;
+      }
+      setCalendar(false);
       const m = /^menu:(\d+)$/.exec(e.payload);
       if (m) {
         setKey(null);
@@ -64,6 +75,7 @@ export default function Panel() {
     const onClose = listen("panel-close", () => {
       setKey(null);
       setMenuIndex(null);
+      setCalendar(false);
       setLocal(null);
     });
     return () => {
@@ -81,7 +93,7 @@ export default function Panel() {
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [key, menuIndex]);
+  }, [key, menuIndex, calendar]);
 
   // Esc chiude; all'apertura il focus va al primo controllo.
   useEffect(() => {
@@ -131,6 +143,7 @@ export default function Panel() {
     <div className="panel" ref={panel} role="dialog" aria-label={key ? panelTitle(key) : undefined}>
       <canvas className="panel-blur" ref={blurCanvas} aria-hidden />
       {menuIndex !== null && <MenuPanel ref={body} index={menuIndex} opens={opens} />}
+      {calendar && <CalendarPanel ref={body} opens={opens} />}
       {key && item && (
         <div className="panel-body" ref={body}>
           <h2 className="panel-title">{panelTitle(key)}</h2>

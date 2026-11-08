@@ -46,11 +46,18 @@ body {
 .app-menu-name { font-weight: var(--weight-strong); }
 .app-menu-openable:hover { background: rgba(255, 255, 255, 0.14); }
 .clock {
+  font: inherit;
   font-weight: var(--weight-regular);
   color: var(--bar-fg-muted);
   white-space: pre;
   font-variant-numeric: tabular-nums;
+  background: none;
+  border: 0;
+  padding: 2px 6px;
+  border-radius: 5px;
+  cursor: default;
 }
+.clock:hover { background: rgba(255, 255, 255, 0.14); color: var(--bar-fg); }
 
 /* ---- Dock (finestra "dock", vista ?view=dock) ---- */
 
@@ -758,3 +765,20 @@ body {
 .pinned-item button { border: 0; background: none; color: var(--bar-fg-muted); font-size: 14px; line-height: 1; padding: 2px 6px; border-radius: 5px; cursor: default; }
 .pinned-item button:hover:not(:disabled) { background: rgba(128, 128, 128, 0.3); color: var(--bar-fg); }
 .pinned-item button:disabled { opacity: 0.3; }
+
+/* ---- Calendario sotto l'orologio (dentro la finestra "panel") ---- */
+.calendar { position: relative; padding: 12px 12px 10px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-title { margin: 0; font-size: 14px; font-weight: var(--weight-strong); text-transform: capitalize; }
+.cal-nav { display: flex; gap: 2px; }
+.cal-btn { border: 0; border-radius: 6px; background: none; color: var(--bar-fg); font: inherit; padding: 2px 8px; cursor: default; }
+.cal-btn:hover:not(:disabled) { background: rgba(128, 128, 128, 0.28); }
+.cal-btn:disabled { opacity: 0.4; }
+.cal-btn:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 1px; }
+.cal-grid { border-collapse: collapse; width: 100%; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.cal-grid th { font-size: 11px; font-weight: normal; color: var(--bar-fg-muted); padding: 2px 0 4px; }
+.cal-grid .cal-week { width: 24px; font-size: 10px; color: var(--bar-fg-muted); opacity: 0.7; }
+.cal-day { text-align: center; height: 28px; border-radius: 50%; font-size: 12px; }
+.cal-out { color: var(--bar-fg-muted); opacity: 0.45; }
+.cal-weekend { color: var(--bar-fg-muted); }
+.cal-today { background: rgba(10, 132, 255, 0.95); color: #fff !important; font-weight: var(--weight-strong); opacity: 1 !important; }

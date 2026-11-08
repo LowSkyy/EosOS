@@ -966,9 +966,9 @@
     "semantic_hash": ""
   },
   "docs/NOTIFICHE.md": {
-    "mtime": 1794141827.0031502,
-    "seen": 1794141829.5361576,
-    "ast_hash": "637f0e6e9a049fe0063925f50946ab65",
+    "mtime": 1794141834.0167024,
+    "seen": 1794141835.441338,
+    "ast_hash": "29e8c6b93485ea684f807933f4dc057c",
     "semantic_hash": ""
   },
   "scripts/test-notif-probe.ps1": {

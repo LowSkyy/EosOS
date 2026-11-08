@@ -2,7 +2,7 @@
 
 Obiettivo: cliccando l'orologio nella barra si apre un pannello in stile Centro notifiche di macOS: in alto le **notifiche recenti** raggruppate per app, sotto un **calendario** del mese. Oggi l'orologio è solo un testo.
 
-Stato: specifica (8 nov 2026) e **N1 fatta** (prova di fattibilità). **Decisioni dell'utente (8 nov 2026): sì a tutto**, cioè è questo il passo successivo, il calendario mostra **solo il mese e il giorno** (niente eventi), e **niente banner temporanei** per le notifiche nuove nella prima versione.
+Stato: specifica (8 nov 2026) e **N1 e N2 fatte**. **Decisioni dell'utente (8 nov 2026): sì a tutto**, cioè è questo il passo successivo, il calendario mostra **solo il mese e il giorno** (niente eventi), e **niente banner temporanei** per le notifiche nuove nella prima versione.
 
 ## Cosa fa macOS (da replicare)
 
@@ -59,6 +59,23 @@ Le notifiche di Windows, inoltre, **restano comunque quelle del sistema**: EosOS
 - `notif_count_for` (conta le notifiche di una app per identificatore) esiste solo nelle build con `test-hooks`: nelle build normali risponde sempre «niente».
 
 **Verifica** (`scripts/test-notif-probe.ps1`, tutti OK): EosOS senza identità; il listener risponde; contare funziona; il conteggio per l'app di prova sale di uno con la mia notifica e torna a zero quando la tolgo. Durante la prova compare per un attimo un avviso a schermo («EosOS-N1-prova»). Rust 337 test (3 a richiesta), clippy a 0 avvisi (anche con la feature di prova).
+
+## N2 — Il calendario: FATTO (8 nov 2026)
+
+**Cosa fa.** L'orologio nella barra ora è un pulsante («Calendario»): un clic apre sotto di lui il pannello con il **calendario del mese**; un secondo clic, Esc o un clic fuori lo chiudono. È la **stessa finestra dei pannelli degli indicatori** (stessa sfocatura e stessi comportamenti di focus, chiave `calendar`): niente finestra nuova.
+
+- **Il mese:** titolo («Novembre 2026»), sei righe da sette giorni con i giorni dei mesi vicini in grigio, **settimana che comincia da lunedì**, sabato e domenica attenuati, **numeri di settimana ISO 8601** nella prima colonna, il **giorno di oggi** evidenziato in blu.
+- **Navigazione:** pulsanti «‹» e «›» (e freccia sinistra/destra, PagSu/PagGiù) cambiano mese attraversando gli anni; **«Oggi»** (o Home) torna al mese corrente (disattivato quando ci si è già); a ogni apertura si riparte dal mese di oggi.
+- **Mezzanotte:** il giorno di oggi si riallinea da solo al cambio di data (timer fino alla prossima mezzanotte locale, mai sotto il secondo).
+- **Accessibilità:** gruppo «Calendario», tabella con intestazioni di colonna e di riga, ogni giorno con la sua descrizione completa («domenica 8 novembre 2026», con `aria-current="date"` per oggi), settimane con «Settimana 45», titolo del mese con `aria-live`.
+
+**Logica pura e testata** (`lib/calendar.ts`, 18 test, indipendente dal fuso e dalla lingua del sistema: date come terne e calcoli con `Date.UTC`, così un cambio d'ora legale non sposta mai un giorno): anni bisestili (regola dei secoli), giorni del mese, giorno della settimana (con date prima del 1970), somma di giorni, settimana ISO (anni a cavallo come 29 dicembre 2025 = settimana 1, 1 gennaio 2021 = settimana 53, 31 dicembre 2026 = settimana 53), cambio di mese attraverso l'anno, griglia di sei settimane (febbraio 2027 che comincia di lunedì: la sesta riga è tutta di marzo), un solo «oggi», millisecondi alla mezzanotte.
+
+**Verifica dal vivo** (`scripts/test-calendar.ps1`, **23 controlli**): l'orologio è un pulsante con il titolo giusto; un clic apre il pannello e mostra il mese di oggi **confrontato con il calendario di .NET** (nome del mese e anno, colonna del primo del mese, giorni del mese, e **la settimana ISO della prima riga calcolata da .NET Framework**, indipendente dal codice della pagina); un solo giorno evidenziato (oggi, con `aria-current`); pulsanti e tastiera: avanti, indietro due volte, «Oggi», freccia destra, PagSu, Home, **14 mesi avanti attraversando l'anno**; secondo clic chiude, riaperto riparte da oggi, **Esc con la tastiera vera lo chiude** (solo dopo aver verificato che il pannello fosse in primo piano); il pannello degli indicatori (volume) funziona ancora e **non** mostra il calendario. Screenshot reale controllato: la tabella entra nei 300 px del pannello (276/276, nessun scorrimento orizzontale), tema scuro leggibile. Rust 337 test (3 a richiesta), pagina 142, clippy a 0 avvisi. Regressioni: pannello degli indicatori, barra, impostazioni: OK.
+
+**Un test vecchio rimesso a posto:** la sezione G di `test-indicators.ps1` («un clic vero sull'indicatore di rete apre le Impostazioni di Windows») era **rimasta indietro dalla fase I3**: da allora il clic apre il pannello e le Impostazioni di Windows si aprono dal link nel pannello. Falliva già prima di questa fase; ora controlla che il clic apra il pannello.
+
+**Non provato:** il calendario a scale diverse dal 100% (stessa finestra del pannello, già provata nella fase degli indicatori, ma non con il calendario dentro); il cambio di data a mezzanotte dal vivo (la funzione è testata, non ho aspettato la mezzanotte); la settimana che comincia da domenica (non c'è l'impostazione: sarà in N6 se la vuoi).
 
 ## Principi (gli stessi di sempre)
 

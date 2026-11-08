@@ -126,7 +126,7 @@ try {
   Write-Fake '{"battery":{"percent":50},"network":{"kind":"wifi","online":"internet","name":"Casa","bars":5},"volume":{"percent":50,"muted":false}}'
   Check 'ricompaiono quando tornano' (Wait-Until { (BarJs 0 "document.querySelectorAll('.indicator').length") -eq 3 })
 
-  Write-Host 'G. clic vero sull indicatore di rete apre le Impostazioni giuste'
+  Write-Host 'G. clic vero sull indicatore di rete apre il suo pannello'
   $settingsBefore = [IB]::FindLike('Impostazioni')
   $rect = BarJs 0 "(function(){var r=document.querySelector('.indicator[data-key=network]').getBoundingClientRect();return [r.left+r.width/2, r.top+r.height/2, window.devicePixelRatio, window.screenX, window.screenY]})()"
   $bars = [IB]::Titled('EosOS')
@@ -141,12 +141,12 @@ try {
     [void][IB]::SetCursorPos($px, $py); Start-Sleep -Milliseconds 400
     $under = [IB]::Root($px, $py)
     Check 'sotto il cursore c e la barra di EosOS (si clicca solo se e vero)' ($under -eq $barWin)
-    if ($under -eq $barWin -and $settingsBefore -eq [IntPtr]::Zero) {
-      [IB]::Click(); Start-Sleep -Seconds 3
-      $sw = [IB]::FindLike('Impostazioni')
-      Check 'si apre la finestra Impostazioni' ($sw -ne [IntPtr]::Zero)
-      if ($sw -ne [IntPtr]::Zero) { [void][IB]::PostMessage($sw, 0x10, [IntPtr]::Zero, [IntPtr]::Zero); Start-Sleep -Milliseconds 800 }
-    } elseif ($settingsBefore -ne [IntPtr]::Zero) { Write-Host '  (Impostazioni era gia aperta: clic non provato)' -ForegroundColor Yellow }
+    if ($under -eq $barWin) {
+      # Dalla fase I3 il clic apre il pannello dell'indicatore (le Impostazioni di Windows si aprono dal link nel pannello).
+      [IB]::Click(); Start-Sleep -Seconds 2
+      Check 'il clic apre il pannello della rete' ([IB]::FindLike('EosOS Pannello') -ne [IntPtr]::Zero)
+      [void](BarJs 0 "window.__TAURI_INTERNALS__.invoke('panel_hide')"); Start-Sleep -Milliseconds 500
+    }
     [void][IB]::SetCursorPos($pb.X + [int]($pb.Width / 2), $pb.Y + [int]($pb.Height / 2))
   } else { Check 'barra del monitor principale trovata' $false }
 

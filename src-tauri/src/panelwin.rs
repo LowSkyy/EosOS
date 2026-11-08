@@ -141,7 +141,7 @@ pub fn clamp_height(h: f64) -> f64 {
 
 /// Gli indicatori che hanno un pannello. Pura, testata.
 pub fn is_panel_key(key: &str) -> bool {
-    matches!(key, "battery" | "network" | "volume") || menu_index(key).is_some()
+    matches!(key, "battery" | "network" | "volume" | "calendar") || menu_index(key).is_some()
 }
 
 /// `"menu:3"` → 3: la tendina del menu globale usa questa stessa finestra. Pura, testata.
@@ -376,6 +376,7 @@ mod tests {
             assert_eq!(menu_index(bad), None, "{bad:?}");
         }
         assert!(is_panel_key("menu:3") && is_panel_key("volume") && !is_panel_key("menu:99"));
+        assert!(is_panel_key("calendar") && !is_panel_key("Calendar") && !is_panel_key("calendar "));
     }
 
     const MON: Rect = Rect { x: 0, y: 0, w: 1920, h: 1080 };
