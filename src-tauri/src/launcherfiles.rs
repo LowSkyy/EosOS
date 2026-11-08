@@ -170,6 +170,21 @@ pub fn remember(hits: &[Hit]) {
     }
 }
 
+/// Percorso di rete (UNC o `//server`). Pura, testata.
+pub fn is_network_path(p: &str) -> bool {
+    let p = p.trim_start();
+    p.starts_with(r"\\") || p.starts_with("//")
+}
+
+/// Tipi di file che eseguono codice: dal Launcher non si aprono (si possono solo mostrare in Esplora risorse), così una
+/// ricerca non lancia mai un programma o uno script. Pura, testata.
+pub fn is_risky_file(p: &Path) -> bool {
+    const RISKY: &[&str] = &[
+        "exe", "com", "scr", "pif", "bat", "cmd", "ps1", "psm1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "hta", "msi", "msp", "lnk", "url", "reg", "cpl", "jar", "dll", "appx", "msix", "application", "gadget",
+    ];
+    p.extension().and_then(|e| e.to_str()).is_some_and(|e| RISKY.contains(&e.to_ascii_lowercase().as_str()))
+}
+
 /// Il percorso è tra quelli mostrati di recente? Pura rispetto al disco; testata.
 pub fn is_known(path: &Path) -> bool {
     KNOWN.lock().unwrap_or_else(|e| e.into_inner()).contains(&key(path))
@@ -192,7 +207,8 @@ pub fn search_roots() -> Vec<PathBuf> {
     let known = [&FOLDERID_Documents, &FOLDERID_Desktop, &FOLDERID_Downloads, &FOLDERID_Pictures, &FOLDERID_Music, &FOLDERID_Videos]
         .into_iter()
         .filter_map(known_folder);
-    let extra = crate::launcherstore::settings().search_folders.into_iter().map(PathBuf::from);
+    // Mai percorsi di rete: enumerarli manda le credenziali a quel server.
+    let extra = crate::launcherstore::settings().search_folders.into_iter().filter(|p| !is_network_path(p)).map(PathBuf::from);
     merge_roots(known.chain(extra).collect())
 }
 
@@ -302,7 +318,7 @@ pub fn search(query: &str) -> Vec<Hit> {
 /// Apre il file (o lo mostra in Esplora risorse con `reveal`), solo se è tra i risultati recenti.
 pub fn open(path: &str, reveal: bool) -> bool {
     let p = PathBuf::from(path);
-    if !is_known(&p) || !p.exists() {
+    if !is_known(&p) || !p.exists() || (!reveal && is_risky_file(&p)) {
         return false;
     }
     unsafe {
@@ -324,6 +340,18 @@ pub fn open(path: &str, reveal: bool) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn network_paths_and_risky_files_are_recognised() {
+        assert!(is_network_path(r"\\evil\share") && is_network_path("//evil/share") && is_network_path(r"  \\x\y"));
+        assert!(!is_network_path(r"C:\Users\x") && !is_network_path("D:/a"));
+        for r in [r"C:\a\x.exe", r"C:\a\X.BAT", r"C:\a\s.ps1", r"C:\a\l.lnk", r"C:\a\m.msi", r"C:\a\h.hta", r"C:\a\a.cmd"] {
+            assert!(is_risky_file(Path::new(r)), "{r}");
+        }
+        for ok in [r"C:\a\doc.pdf", r"C:\a\foto.jpg", r"C:\a\nota.txt", r"C:\a\senza", r"C:\a\exe"] {
+            assert!(!is_risky_file(Path::new(ok)), "{ok}");
+        }
+    }
 
     fn hit(path: &str) -> Hit {
         let p = PathBuf::from(path);

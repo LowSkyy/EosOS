@@ -142,8 +142,8 @@ pub fn valid_folder(p: &str) -> bool {
     }
     let b = p.as_bytes();
     let drive = b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/');
-    let unc = p.starts_with("\\\\") && p.len() > 2;
-    (drive || unc) && !p.split(['\\', '/']).any(|c| c == "..")
+    // I percorsi di rete (`\\server\...`) non si accettano: enumerarli manda le credenziali a quel server.
+    drive && !p.split(['\\', '/']).any(|c| c == "..")
 }
 
 /// Ripulisce un elenco: elementi tagliati, vuoti scartati, doppi (senza badare alle maiuscole) tolti, ordine
@@ -457,10 +457,10 @@ mod tests {
 
     #[test]
     fn folders_must_be_absolute_and_safe() {
-        for ok in [r"D:\Progetti", r"C:\Users\x\Documents", "E:/Dati", r"\\server\share\cartella", r"c:\a b\c"] {
+        for ok in [r"D:\Progetti", r"C:\Users\x\Documents", "E:/Dati", r"c:\a b\c"] {
             assert!(valid_folder(ok), "{ok}");
         }
-        for bad in ["", "   ", "Documenti", r"..\x", r"C:\a\..\b", r"C:", r"C:\a|b", r"C:\a?b", "C:\\a\u{7}b", r"\\", "relative\\path", &format!("C:\\{}", "a".repeat(300))] {
+        for bad in ["", "   ", "Documenti", r"..\x", r"C:\a\..\b", r"C:", r"C:\a|b", r"C:\a?b", "C:\\a\u{7}b", r"\\", r"\\server\share\cartella", "relative\\path", &format!("C:\\{}", "a".repeat(300))] {
             assert!(!valid_folder(bad), "{bad:?}");
         }
         let mut f = Fake::default();
