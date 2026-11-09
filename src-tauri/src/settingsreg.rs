@@ -78,6 +78,7 @@ const LAUNCHER_HOTKEYS: &[(&str, &str)] = &[("Alt+Space", "Alt+Spazio"), ("Ctrl+
 /// L'elenco chiuso di tutte le impostazioni. Le chiavi sono stabili: la pagina e i test le usano.
 pub const SPECS: &[Spec] = &[
     Spec { key: "general.autostart", section: Section::General, label: "Apri EosOS all'accesso", help: "EosOS parte da solo quando accedi a Windows. Vale solo per il tuo utente e si spegne da qui o da Gestione attività.", kind: Kind::Bool, keywords: &["avvio automatico", "accesso", "login", "avvia con windows", "esecuzione automatica"], live: true },
+    Spec { key: "general.hide_taskbar", section: Section::General, label: "Nascondi la barra delle applicazioni di Windows", help: "Il Dock prende il suo posto. Vale dal prossimo avvio di EosOS. In ogni momento Ctrl+Alt+Maiusc+Esc la rimette; se EosOS si chiude, Windows la ritrova da sola.", kind: Kind::Bool, keywords: &["taskbar", "barra delle applicazioni", "start", "nascondi", "windows"], live: false },
     Spec { key: "general.update_auto", section: Section::General, label: "Cerca aggiornamenti all'avvio", help: "All'avvio EosOS chiede al sito degli aggiornamenti se c'è una versione nuova (una richiesta di rete, senza inviare dati tuoi). Non installa mai da solo: lo decidi tu dal pulsante qui sotto. Spento di base.", kind: Kind::Bool, keywords: &["aggiornamenti", "versione", "update", "novità", "rete"], live: true },
     Spec { key: "general.language", section: Section::General, label: "Lingua", help: "Per ora EosOS parla solo italiano.", kind: Kind::Choice(LANGUAGES), keywords: &["italiano", "traduzione"], live: true },
     Spec { key: "general.report", section: Section::General, label: "Rapporto sui desktop virtuali", help: "Scrive e apre un file tecnico con la versione di Windows e l'esito dei controlli sui desktop virtuali. Non contiene dati personali.", kind: Kind::Action, keywords: &["diagnostica", "rapporto", "desktop virtuali", "spaces", "problemi"], live: true },
@@ -572,7 +573,8 @@ mod tests {
     fn search_finds_by_label_help_and_keywords_ignoring_accents() {
         assert!(search("").is_empty() && search("   ").is_empty());
         assert_eq!(search("autohide"), Vec::<&str>::new());
-        assert_eq!(search("nascondi")[0], "dock.autohide");
+        let nascondi = search("nascondi");
+        assert!(nascondi.contains(&"dock.autohide") && nascondi.contains(&"general.hide_taskbar"), "le due voci con «Nascondi» nell etichetta");
         assert!(search("vetro").contains(&"dock.glass"));
         // Accenti e maiuscole ignorati.
         assert_eq!(search("VISUALIZZAZIONE ATTIVITA"), vec!["mc.wintab"]);

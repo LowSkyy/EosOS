@@ -30,7 +30,7 @@ try {
 
   Write-Host 'A. lo stato di tutte le impostazioni'
   $all = All-S
-  Check 'ci sono tutte le 31 impostazioni' ($all.Count -eq 31) ("trovate " + $all.Count)
+  Check 'ci sono tutte le 32 impostazioni' ($all.Count -eq 32) ("trovate " + $all.Count)
   Check 'ognuna ha un valore (tranne il pulsante del rapporto)' (@($all | Where-Object { $null -eq $_.value -and $_.key -ne 'general.report' }).Count -eq 0) ("senza valore: " + (@($all | Where-Object { $null -eq $_.value } | ForEach-Object { $_.key }) -join ','))
   Check 'predefiniti: Dock non nasconde, menu globale acceso, Alt+Tab e Win+Tab di EosOS, angolo spento' ((Val 'dock.autohide') -eq $false -and (Val 'menu.enabled') -eq $true -and (Val 'mc.alttab') -eq $true -and (Val 'mc.wintab') -eq $true -and (Val 'mc.corner') -eq $false)
   Check 'predefiniti: Launcher Alt+Space, Mission Control Ctrl+Alt+Up' ((Val 'launcher.hotkey') -eq 'Alt+Space' -and (Val 'mc.hotkey') -eq 'Ctrl+Alt+Up')

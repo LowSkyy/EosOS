@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794183862.836141,
-    "seen": 1794184159.6894221,
-    "ast_hash": "fa612e089649829b9d2843bf002f8068",
+    "mtime": 1794185008.4174533,
+    "seen": 1794185807.259628,
+    "ast_hash": "1be93f0384888ce1ee24637113a1b693",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1794102823.313277,
-    "seen": 1794103696.3689961,
-    "ast_hash": "61a9c6494334bdbd95c644fe3731d007",
+    "mtime": 1794185794.4420035,
+    "seen": 1794185807.259662,
+    "ast_hash": "f36f7c7c89618256eb75d2a303f56354",
     "semantic_hash": ""
   },
   "src/main.tsx": {
@@ -222,9 +222,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/appbar.rs": {
-    "mtime": 1794079910.0194857,
-    "seen": 1794080426.1263185,
-    "ast_hash": "be94f7621bb4f29a4ed64460fc16feef",
+    "mtime": 1794185011.06117,
+    "seen": 1794185807.2596054,
+    "ast_hash": "08649aae0bf5818ed664e199ecf13b4b",
     "semantic_hash": ""
   },
   "src-tauri/src/foreground.rs": {
@@ -408,21 +408,21 @@
     "semantic_hash": ""
   },
   "src-tauri/src/backdrop.rs": {
-    "mtime": 1794146298.347882,
-    "seen": 1794146790.7933445,
-    "ast_hash": "29e759ac54a833a8cf710194d6a9669a",
+    "mtime": 1794185794.4299958,
+    "seen": 1794185807.2596078,
+    "ast_hash": "a570bbd2fd7a215531f66f4c74619183",
     "semantic_hash": ""
   },
   "src/lib/backdrop.test.ts": {
-    "mtime": 1794067469.7903275,
-    "seen": 1794067716.7920365,
-    "ast_hash": "e925dbd4aebadd9a427c3a59b4a3e99a",
+    "mtime": 1794185104.489624,
+    "seen": 1794185807.2596796,
+    "ast_hash": "6dfdd7137678d20d40a4fd2eb29760a5",
     "semantic_hash": ""
   },
   "src/lib/backdrop.ts": {
-    "mtime": 1794067469.7893274,
-    "seen": 1794067716.7920377,
-    "ast_hash": "33656d016183360b454b4965abcd5da3",
+    "mtime": 1794185104.489624,
+    "seen": 1794185807.2596803,
+    "ast_hash": "a165dedd8019f54853ff0e4e2967c10a",
     "semantic_hash": ""
   },
   "scripts/test-dock-reserve.ps1": {
@@ -546,9 +546,9 @@
     "semantic_hash": ""
   },
   "src/components/useBackdrop.ts": {
-    "mtime": 1794086125.36896,
-    "seen": 1794086353.0276556,
-    "ast_hash": "7e30c3fc568f9b0679236b82af24e184",
+    "mtime": 1794185104.489624,
+    "seen": 1794185807.2596772,
+    "ast_hash": "dddd1fc5ba7455777273814a4de3fbe0",
     "semantic_hash": ""
   },
   "scripts/test-launcher-dpi.ps1": {
@@ -1263,6 +1263,12 @@
     "mtime": 1794184891.0474672,
     "seen": 1794184912.0184908,
     "ast_hash": "b0cc13781709320210ef6075aaa3f206",
+    "semantic_hash": ""
+  },
+  "scripts/test-bar-glass.ps1": {
+    "mtime": 1794185153.3714015,
+    "seen": 1794185807.259545,
+    "ast_hash": "203a805501ebdfddec03998a3781207c",
     "semantic_hash": ""
   },
   "package-lock.json": {

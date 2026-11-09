@@ -176,3 +176,19 @@ fn only_explorer_windows_are_accepted_for_hiding() {
         assert!(taskbar::owned_by_explorer(*h));
     }
 }
+
+#[test]
+fn the_windows_taskbar_is_hidden_by_default_but_never_by_test_builds() {
+    use super::should_hide;
+    // Di base (build di produzione, nessuna scelta): si nasconde.
+    assert!(should_hide(None, false, false));
+    // Se l'utente la vuole visibile: resta.
+    assert!(!should_hide(None, true, false));
+    // Le build di prova non la nascondono mai da sole.
+    assert!(!should_hide(None, false, true));
+    // L'ambiente vince su tutto: «1» nasconde sempre (le prove della taskbar), «0» non la nasconde mai.
+    assert!(should_hide(Some("1"), true, true));
+    assert!(!should_hide(Some("0"), false, false));
+    // Altri valori non contano.
+    assert!(should_hide(Some("si"), false, false) && !should_hide(Some("si"), true, false));
+}

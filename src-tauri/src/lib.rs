@@ -863,10 +863,20 @@ fn glass_state() -> &'static str {
     glass::state().as_str()
 }
 
-/// Il nascondimento della taskbar è disattivato di default: serve
-/// esplicitamente `EOSOS_HIDE_TASKBAR=1`.
+/// Decide se nascondere la taskbar di Windows. Pura, testata: `env` è il valore di `EOSOS_HIDE_TASKBAR` (se c'è),
+/// `keep` è la scelta dell'utente di lasciarla visibile, `test_build` dice se è una build di prova.
+/// «1» e «0» nell'ambiente vincono su tutto; altrimenti di base si nasconde (il Dock la sostituisce), tranne nelle
+/// build di prova, dove i test non devono mai nascondere la taskbar vera.
+fn should_hide(env: Option<&str>, keep: bool, test_build: bool) -> bool {
+    match env {
+        Some("1") => true,
+        Some("0") => false,
+        _ => !keep && !test_build,
+    }
+}
+
 fn hide_requested() -> bool {
-    std::env::var("EOSOS_HIDE_TASKBAR").is_ok_and(|v| v == "1")
+    should_hide(std::env::var("EOSOS_HIDE_TASKBAR").ok().as_deref(), mcstore::load().keep_taskbar, cfg!(feature = "test-hooks"))
 }
 
 /// Annulla tutto ciò che EosOS ha cambiato nel sistema. Idempotente, chiamabile
