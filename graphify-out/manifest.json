@@ -30,9 +30,9 @@
     "semantic_hash": ""
   },
   "src-tauri/Cargo.toml": {
-    "mtime": 1794180261.5453825,
-    "seen": 1794181690.7167873,
-    "ast_hash": "f4cf3a0942a3dfa5705ea50cd2261c0b",
+    "mtime": 1794181822.1341703,
+    "seen": 1794182058.306333,
+    "ast_hash": "44734012a1c1520acfcca70e48529aea",
     "semantic_hash": ""
   },
   "src-tauri/build.rs": {
@@ -1218,9 +1218,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/weather.rs": {
-    "mtime": 1794180355.813722,
-    "seen": 1794181690.7168756,
-    "ast_hash": "c2b6c449b18dc91523619fe16f482647",
+    "mtime": 1794181822.1060376,
+    "seen": 1794182058.306386,
+    "ast_hash": "e27f5bc3333f2b1c125ab36227ff1072",
     "semantic_hash": ""
   },
   "src/components/OggiBox.tsx": {
@@ -1242,9 +1242,9 @@
     "semantic_hash": ""
   },
   "docs/OGGI.md": {
-    "mtime": 1794181700.572173,
-    "seen": 1794181702.0453112,
-    "ast_hash": "9a9394d83c7777ab850cdeb6e3c5732b",
+    "mtime": 1794182054.013887,
+    "seen": 1794182058.306446,
+    "ast_hash": "020644038a258fc82089bf92f6c97c92",
     "semantic_hash": ""
   },
   "package-lock.json": {

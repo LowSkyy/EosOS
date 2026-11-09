@@ -82,23 +82,22 @@ try {
   Check "il fondo dell'area di lavoro sale (di $reduced px, atteso > 60)" ($reduced -gt 60)
   $capTop = $dr.T + 90
   Check "il Dock sta appoggiato in basso e non si sposta verso l'alto (fondo finestra = fondo schermo - margine)" ([Math]::Abs($dr.B - ($before.B - 8)) -le 2)
-  # Blocco note massimizzato (nessun clic: lo si massimizza via API)
-  # Il nuovo Blocco note parte tramite un lanciatore che termina subito: lo si cerca per nome, ma
-  # SOLO tra i processi nati dopo l'avvio. Un Blocco note gia' aperto dall'utente (magari con testo
-  # non salvato) non va ne' massimizzato ne' chiuso.
-  $notepadBefore = $script:notepadBefore
-  Start-Process notepad.exe; Start-Sleep 4
-  $mine = @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $notepadBefore -notcontains $_.Id -and $_.MainWindowHandle -ne [IntPtr]::Zero })
-  $h = if ($mine.Count -gt 0) { $mine[0].MainWindowHandle } else { [IntPtr]::Zero }
-  if ($h -eq [IntPtr]::Zero) { Write-Host "[SALTATO] nessun Blocco note nuovo trovato: non tocco quelli gia' aperti" -ForegroundColor Yellow }
+  # Una finestra MIA massimizzata (nessun clic: la si massimizza via API). Prima si usava il Blocco note, ma quello di
+  # Windows 11 parte da un lanciatore e ripristina uno stato proprio: il controllo falliva anche senza il Dock.
+  $form = Start-Process powershell -ArgumentList '-NoProfile', '-WindowStyle', 'Hidden', '-Command', "Add-Type -AssemblyName System.Windows.Forms; `$f = New-Object System.Windows.Forms.Form; `$f.Text = 'EOSOS-RESERVE-TEST'; `$f.Width = 500; `$f.Height = 300; [System.Windows.Forms.Application]::Run(`$f)" -PassThru -WindowStyle Hidden
+  Start-Sleep 5
+  $h = [IntPtr]::Zero
+  try { $h = (Get-Process -Id $form.Id -ErrorAction Stop).MainWindowHandle } catch {}
+  if ($h -eq [IntPtr]::Zero) { Write-Host "[SALTATO] la finestra di prova non si e aperta" -ForegroundColor Yellow }
   if ($h -ne [IntPtr]::Zero) {
     [void][DR]::ShowWindow($h, 3); Start-Sleep 1.5
     $nr = New-Object DR+R; [void][DR]::GetWindowRect($h, [ref]$nr)
-    Write-Host "Blocco note massimizzato: $($nr.T)..$($nr.B)   capsula del Dock: da $capTop"
+    Write-Host "Finestra di prova massimizzata: $($nr.T)..$($nr.B)   capsula del Dock: da $capTop"
     # Una finestra massimizzata ha ~8 px di cornice invisibile oltre l'area di lavoro.
-    Check "il Blocco note massimizzato finisce sopra la capsula (fondo <= $($capTop + 8 + 2))" ($nr.B -le ($capTop + 8 + 2))
+    Check "la finestra massimizzata finisce sopra la capsula (fondo <= $($capTop + 8 + 2))" ($nr.B -le ($capTop + 8 + 2))
     Check "e arriva comunque fin dove consentito (fondo >= area di lavoro)" ($nr.B -ge $a.B)
   }
+  if ($form) { Stop-Process -Id $form.Id -Force -ErrorAction SilentlyContinue }
   Stop-NewNotepad
 
   Write-Host "`n=== D. uscita normale ==="
