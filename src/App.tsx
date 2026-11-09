@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import AppMenus from "./components/AppMenus";
 import Clock from "./components/Clock";
 import EosButton from "./components/EosButton";
+import ControlButton from "./components/ControlButton";
 import Indicators from "./components/Indicators";
 import { useBackdrop } from "./components/useBackdrop";
 
@@ -78,6 +79,7 @@ export default function App() {
       </div>
       <div className="menubar-right">
         <Indicators />
+        <ControlButton />
         <Clock />
       </div>
     </header>

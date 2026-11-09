@@ -144,7 +144,7 @@ pub fn clamp_height(h: f64) -> f64 {
 
 /// Gli indicatori che hanno un pannello. Pura, testata.
 pub fn is_panel_key(key: &str) -> bool {
-    matches!(key, "battery" | "network" | "volume" | "calendar" | "eos") || menu_index(key).is_some() || stack_index(key).is_some()
+    matches!(key, "battery" | "network" | "volume" | "calendar" | "eos" | "control") || menu_index(key).is_some() || stack_index(key).is_some()
 }
 
 /// `"stack:2"` → 2: la pila del Dock usa questa stessa finestra (si apre sopra l'icona). Pura, testata.
@@ -403,6 +403,7 @@ mod tests {
         assert!(is_panel_key("stack:0") && is_panel_key("stack:4") && !is_panel_key("stack:5") && !is_panel_key("stack:") && !is_panel_key("stack:-1") && !is_panel_key("Stack:0"));
         assert_eq!(stack_index("stack:3"), Some(3));
         assert!(is_panel_key("calendar") && !is_panel_key("Calendar") && !is_panel_key("calendar "));
+        assert!(is_panel_key("control") && !is_panel_key("Control") && !is_panel_key("control:1"));
         assert!(is_panel_key("eos") && !is_panel_key("Eos") && !is_panel_key("eos:1"));
     }
 

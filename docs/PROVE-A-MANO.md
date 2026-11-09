@@ -53,3 +53,9 @@ il punto da guardare è `mckeys::step` in `src-tauri/src/mckeys.rs` (logica pura
 - [ ] PagGiù / PagSu la sposta sull altro monitor; la metà sul secondo schermo usa il suo spazio.
 - [ ] Su app moderne (Impostazioni di Windows, Esplora file) la finestra si dispone senza bordi vuoti o sovrapposizioni.
 - [ ] Nessuna combinazione ti disturba in altre app (es. Ctrl+Alt+← in un editor): in tal caso scegli un altro modificatore o spegni.
+
+## 8. Centro di controllo (nuovo)
+- [ ] Il pulsante a due cursori (a destra, vicino all orologio) apre il pannello; si chiude con Esc o un clic fuori.
+- [ ] Wi-Fi e Bluetooth: appaiono solo se il PC li ha; spegnere e riaccendere funziona (attenzione: spegnere il Wi-Fi taglia la rete).
+- [ ] Non disturbare e Mantieni sveglio cambiano stato; con Mantieni sveglio acceso lo schermo non si spegne per inattività.
+- [ ] Il cursore del volume muove il volume vero.

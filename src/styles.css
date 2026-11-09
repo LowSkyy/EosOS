@@ -924,3 +924,22 @@ body {
 .launchpad-empty { grid-column: 1 / -1; color: rgba(255, 255, 255, 0.7); }
 .launchpad-app:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 1px; }
 .dock-launchpad-icon { display: flex; align-items: center; justify-content: center; border-radius: 22%; background: linear-gradient(160deg, #6b6f7a, #2c2d33); color: #f5f5f7; }
+
+.control-btn { flex: none; display: flex; align-items: center; justify-content: center; width: 26px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--bar-fg); cursor: default; }
+.control-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.control-btn:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 1px; }
+.control { padding: 10px; min-width: 280px; }
+.control-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.control-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border: 0; border-radius: 12px; background: rgba(128, 128, 128, 0.18); color: var(--bar-fg); font: inherit; text-align: left; cursor: default; }
+.control-tile:hover { background: rgba(128, 128, 128, 0.28); }
+.control-tile[data-on="true"] { background: rgba(10, 132, 255, 0.9); color: #fff; }
+.control-tile:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.9); outline-offset: 1px; }
+.control-tile-label { font-weight: 600; }
+.control-tile-sub { font-size: 11px; color: var(--bar-fg-muted); }
+.control-tile[data-on="true"] .control-tile-sub { color: rgba(255, 255, 255, 0.85); }
+.control-volume { display: flex; align-items: center; gap: 10px; padding: 6px 4px; }
+.control-volume-label { flex: none; font-size: 12px; color: var(--bar-fg-muted); }
+.control-volume .panel-slider { flex: 1; }
+.control-link { display: block; width: 100%; padding: 5px 8px; border: 0; border-radius: 6px; background: none; color: var(--bar-fg); font: inherit; text-align: left; cursor: default; }
+.control-link:hover, .control-link:focus-visible { background: rgba(10, 132, 255, 0.85); color: #fff; outline: none; }
+.control-error { margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: rgba(255, 59, 48, 0.2); color: #ff6961; font-size: 12px; }
