@@ -10,6 +10,9 @@
   --bar-bg-solid: #f6f6f8;
   --bar-fg: #1c1c1e;
   --bar-fg-muted: #3a3a3c;
+  /* Vetro «liquido» della barra (con la sfocatura reale): tinta molto leggera e filo di luce sul bordo basso. */
+  --bar-blur-bg: rgba(246, 246, 248, 0.34);
+  --bar-edge: rgba(255, 255, 255, 0.55);
 
   /* Dock: vetro chiaro, bordo interno luminoso, puntino delle app aperte. */
   /* Tinta del vetro: colore e due estremi di opacità; --glass (0..1) sceglie il punto in mezzo. */
@@ -34,6 +37,8 @@
     --bar-bg-solid: #1e1e20;
     --bar-fg: #f5f5f7;
     --bar-fg-muted: #c7c7cc;
+    --bar-blur-bg: rgba(30, 30, 32, 0.3);
+    --bar-edge: rgba(255, 255, 255, 0.16);
 
     --dock-rgb: 38, 38, 42;
   --dock-alpha-lo: 0.45;
@@ -54,6 +59,8 @@
   --bar-bg-solid: #1e1e20;
   --bar-fg: #f5f5f7;
   --bar-fg-muted: #c7c7cc;
+  --bar-blur-bg: rgba(30, 30, 32, 0.3);
+  --bar-edge: rgba(255, 255, 255, 0.16);
 
   --dock-rgb: 38, 38, 42;
   --dock-alpha-lo: 0.45;

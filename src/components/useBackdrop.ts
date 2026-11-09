@@ -17,7 +17,14 @@ export function useBackdrop(
   canvas: RefObject<HTMLCanvasElement | null>,
   margin: number,
   resetKey: number,
+  /** `needFocus`: chiede fotogrammi solo con la finestra in primo piano (i pannelli); le barre sono sempre visibili e
+   *  non hanno mai il focus. `pollMs`: ogni quanto chiede (le barre cambiano poco: meno spesso). */
+  opts: { needFocus?: boolean; pollMs?: number; onFrame?: (f: Frame) => void } = {},
 ) {
+  const needFocus = opts.needFocus ?? true;
+  const pollMs = opts.pollMs ?? POLL_MS;
+  const onFrame = useRef(opts.onFrame);
+  onFrame.current = opts.onFrame;
   const frame = useRef<Frame | null>(null);
   const source = useRef<HTMLCanvasElement | null>(null);
 
@@ -50,7 +57,7 @@ export function useBackdrop(
     };
 
     const t = setInterval(() => {
-      if (busy || !document.hasFocus()) return;
+      if (busy || (needFocus && !document.hasFocus())) return;
       busy = true;
       invoke<ArrayBuffer>(command, { since: seq })
         .then((buf) => {
@@ -64,10 +71,11 @@ export function useBackdrop(
           frame.current = f;
           root.setAttribute("data-blur", "on");
           paint();
+          onFrame.current?.(f);
         })
         .catch(() => {})
         .finally(() => (busy = false));
-    }, POLL_MS);
+    }, pollMs);
 
     // Il pannello cambia altezza con i risultati: lo sfondo va ridisegnato.
     const ro = new ResizeObserver(paint);
@@ -77,5 +85,5 @@ export function useBackdrop(
       clearInterval(t);
       ro.disconnect();
     };
-  }, [command, panel, canvas, margin, resetKey]);
+  }, [command, panel, canvas, margin, resetKey, needFocus, pollMs]);
 }

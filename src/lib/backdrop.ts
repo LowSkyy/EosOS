@@ -57,3 +57,26 @@ export function sourceRect(
     sh: (pill.height + 2 * margin) * k,
   };
 }
+
+/** Luminosità media (0 = nero, 1 = bianco) di un fotogramma RGBA, campionando un pixel ogni `step` (per non pesare). Pura. */
+export function meanLuminance(data: Uint8ClampedArray, step = 16): number {
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i + 2 < data.length; i += 4 * step) {
+    // Luminanza relativa approssimata (Rec. 709) sui valori di schermo.
+    sum += 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+    n++;
+  }
+  return n === 0 ? 0.5 : sum / n / 255;
+}
+
+/**
+ * La tinta della barra per la luminosità dello sfondo: il vetro «liquido» si adatta a ciò che c'è dietro. Con il tema
+ * scuro (testo chiaro) lo sfondo chiaro riceve una tinta più scura, così il testo si legge; con il tema chiaro (testo
+ * scuro) lo sfondo scuro riceve una tinta più chiara. L'opacità resta sempre nel vetro (mai pieno). Pura, testata.
+ */
+export function barTint(dark: boolean, lum: number): string {
+  const l = Math.min(1, Math.max(0, Number.isFinite(lum) ? lum : 0.5));
+  const alpha = (dark ? 0.26 + 0.36 * l : 0.64 - 0.34 * l).toFixed(2);
+  return dark ? `rgba(30, 30, 32, ${alpha})` : `rgba(246, 246, 248, ${alpha})`;
+}

@@ -61,3 +61,31 @@ describe("sourceRect", () => {
     expect(b.sy).toBe(a.sy);
   });
 });
+
+describe("bar glass tint", () => {
+  it("measures the mean luminance", async () => {
+    const { meanLuminance } = await import("./backdrop");
+    const white = new Uint8ClampedArray(4 * 64).fill(255);
+    const black = new Uint8ClampedArray(4 * 64).fill(0);
+    expect(meanLuminance(white, 1)).toBeCloseTo(1, 5);
+    expect(meanLuminance(black, 1)).toBe(0);
+    expect(meanLuminance(new Uint8ClampedArray(0))).toBe(0.5);
+    const grey = new Uint8ClampedArray(4 * 64).fill(128);
+    expect(meanLuminance(grey, 4)).toBeCloseTo(128 / 255, 2);
+  });
+  it("makes the tint stronger when the text would be hard to read", async () => {
+    const { barTint } = await import("./backdrop");
+    const a = (s: string) => Number(/, ([\d.]+)\)$/.exec(s)![1]);
+    // Tema scuro (testo chiaro): più chiaro lo sfondo, più scura la tinta.
+    expect(a(barTint(true, 1))).toBeGreaterThan(a(barTint(true, 0)));
+    // Tema chiaro (testo scuro): più scuro lo sfondo, più chiara la tinta.
+    expect(a(barTint(false, 0))).toBeGreaterThan(a(barTint(false, 1)));
+    // Resta vetro: mai opaco.
+    for (const dark of [true, false]) for (const l of [0, 0.5, 1]) expect(a(barTint(dark, l))).toBeLessThan(0.7);
+    expect(barTint(true, 0.5)).toMatch(/^rgba\(30, 30, 32, /);
+    expect(barTint(false, 0.5)).toMatch(/^rgba\(246, 246, 248, /);
+    // Valori assurdi non rompono nulla.
+    expect(barTint(true, NaN)).toBe(barTint(true, 0.5));
+    expect(a(barTint(true, 99))).toBe(a(barTint(true, 1)));
+  });
+});

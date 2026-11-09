@@ -10,7 +10,7 @@
 //! chiamata periodicamente da un thread.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use tauri::{
@@ -250,6 +250,64 @@ pub fn remove_if_registered() {
 type AppliedMap = HashMap<String, (MonitorInfo, (i32, i32, i32, i32))>;
 static APPLIED: Mutex<Option<AppliedMap>> = Mutex::new(None);
 
+static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
+/// Le barre già escluse dalle catture dello schermo (serve per il vetro: vedi `capture_info`).
+static EXCLUDED_BARS: Mutex<Option<HashSet<String>>> = Mutex::new(None);
+
+/// Le etichette delle barre in ordine stabile: prima quella del monitor primario, poi le altre per nome. Pura, testata.
+pub fn ordered_labels<'a>(labels: impl Iterator<Item = &'a String>) -> Vec<String> {
+    let mut v: Vec<String> = labels.cloned().collect();
+    v.sort_by(|a, b| (a != MAIN_LABEL, a.as_str()).cmp(&(b != MAIN_LABEL, b.as_str())));
+    v
+}
+
+/// Il numero d'ordine della barra `label` (0 = primario), per scegliere il suo canale di sfondo.
+pub fn bar_index(label: &str) -> Option<usize> {
+    let g = APPLIED.lock().unwrap_or_else(|e| e.into_inner());
+    ordered_labels(g.as_ref()?.keys()).iter().position(|l| l == label)
+}
+
+/// Cosa catturare per il vetro della barra numero `index`: (finestra, zona da catturare), in px fisici. Con la sfocatura
+/// accesa (stessa impostazione del Dock) la barra viene esclusa dalle catture dello schermo, come il Dock, e si
+/// disegna il suo sfondo sfocato nella pagina; con la sfocatura spenta non si cattura niente e resta l'acrilico di
+/// Windows. `None` se la barra non c'è o la sfocatura è spenta.
+pub fn capture_info(index: usize) -> Option<(crate::dockgeom::Rect, crate::dockgeom::Rect)> {
+    use crate::dockgeom::{capture_margin, capture_rect, Rect};
+    let want = crate::dockwin::blur_enabled();
+    let (label, info, rc) = {
+        let g = APPLIED.lock().unwrap_or_else(|e| e.into_inner());
+        let map = g.as_ref()?;
+        let label = ordered_labels(map.keys()).get(index)?.clone();
+        let (info, rc) = map.get(&label)?.clone();
+        (label, info, rc)
+    };
+    // L'esclusione dalle catture segue l'impostazione, ma si cambia solo quando cambia.
+    let mut ex = EXCLUDED_BARS.lock().unwrap_or_else(|e| e.into_inner());
+    let set = ex.get_or_insert_with(HashSet::new);
+    if set.contains(&label) != want {
+        use windows::Win32::UI::WindowsAndMessaging::{SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE, WDA_NONE};
+        let ok = APP_HANDLE
+            .get()
+            .and_then(|a| a.get_webview_window(&label))
+            .and_then(|w| w.hwnd().ok())
+            .is_some_and(|h| unsafe { SetWindowDisplayAffinity(h, if want { WDA_EXCLUDEFROMCAPTURE } else { WDA_NONE }) }.is_ok());
+        if ok {
+            if want {
+                set.insert(label.clone());
+            } else {
+                set.remove(&label);
+            }
+        }
+    }
+    drop(ex);
+    if !want {
+        return None;
+    }
+    let window = Rect { x: rc.0, y: rc.1, w: rc.2 - rc.0, h: rc.3 - rc.1 };
+    let monitor = Rect { x: info.x, y: info.y, w: info.width, h: info.height };
+    capture_rect(window, monitor, capture_margin(info.scale)).map(|c| (window, c))
+}
+
 fn debug_enabled() -> bool {
     std::env::var("EOSOS_DEBUG_APPBAR").is_ok()
 }
@@ -424,6 +482,7 @@ pub fn reconcile(app: &AppHandle) {
 
 /// Primo allineamento e thread che segue i cambi di monitor/scala.
 pub fn start(app: &AppHandle) {
+    let _ = APP_HANDLE.set(app.clone());
     reconcile(app);
     let app = app.clone();
     std::thread::spawn(move || loop {
@@ -434,6 +493,15 @@ pub fn start(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn bars_are_ordered_primary_first_then_by_name() {
+        let labels: Vec<String> = ["bar-DISPLAY3", "main", "bar-DISPLAY2"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(ordered_labels(labels.iter()), ["main", "bar-DISPLAY2", "bar-DISPLAY3"]);
+        let only_others: Vec<String> = ["bar-B", "bar-A"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(ordered_labels(only_others.iter()), ["bar-A", "bar-B"]);
+        assert!(ordered_labels(Vec::<String>::new().iter()).is_empty());
+    }
+
     use super::*;
 
     fn mon(key: &str, x: i32, y: i32, w: i32, h: i32, scale: f64, primary: bool) -> MonitorInfo {

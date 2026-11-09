@@ -39,6 +39,14 @@ const IDLE_INTERVAL: Duration = Duration::from_millis(120);
 const QUIET_AFTER: Duration = Duration::from_millis(1000);
 
 /// Quanto aspettare prima del prossimo giro, dato da quanto tempo lo sfondo è fermo. Pura, testata.
+/// Ogni quanto si cattura lo sfondo delle barre dei menu.
+const BAR_INTERVAL: Duration = Duration::from_millis(500);
+
+/// Il canale è quello di una barra dei menu? Pura, testata.
+fn is_bar(ch: Channel) -> bool {
+    matches!(ch, Channel::Bar0 | Channel::Bar1 | Channel::Bar2 | Channel::Bar3)
+}
+
 pub fn next_interval(since_change: Duration) -> Duration {
     if since_change >= QUIET_AFTER {
         IDLE_INTERVAL
@@ -66,11 +74,23 @@ pub enum Channel {
     Dock = 0,
     Launcher = 1,
     Panel = 2,
+    /// Le barre dei menu, una per monitor (fino a quattro): il vetro «liquido» come per il resto.
+    Bar0 = 3,
+    Bar1 = 4,
+    Bar2 = 5,
+    Bar3 = 6,
 }
 
-const CHANNELS: [Channel; 3] = [Channel::Dock, Channel::Launcher, Channel::Panel];
+impl Channel {
+    /// Il canale della barra numero `i` (0 = quella del monitor primario). Pura, testata.
+    pub fn bar(i: usize) -> Option<Channel> {
+        [Channel::Bar0, Channel::Bar1, Channel::Bar2, Channel::Bar3].get(i).copied()
+    }
+}
 
-static FRAMES: [Mutex<Option<Frame>>; 3] = [const { Mutex::new(None) }; 3];
+const CHANNELS: [Channel; 7] = [Channel::Dock, Channel::Launcher, Channel::Panel, Channel::Bar0, Channel::Bar1, Channel::Bar2, Channel::Bar3];
+
+static FRAMES: [Mutex<Option<Frame>>; 7] = [const { Mutex::new(None) }; 7];
 static SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Riduce di `f` un'immagine BGRA e la converte in RGBA opaco, mediando ogni
@@ -178,14 +198,24 @@ pub fn capture_bytes(r: Rect) -> Option<Vec<u8>> {
 /// Avvia il thread di cattura (un giro per canale, solo se ha qualcosa da catturare).
 pub fn start() {
     std::thread::spawn(|| {
-        let mut last: [Vec<u8>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+        let mut last: [Vec<u8>; 7] = std::array::from_fn(|_| Vec::new());
         let mut changed_at = std::time::Instant::now();
+        let mut bar_at: Option<std::time::Instant> = None;
         loop {
             std::thread::sleep(next_interval(changed_at.elapsed()));
+            // Le barre cambiano poco (sfondo fermo, finestre che passano sotto di rado): si catturano al massimo ogni
+            // `BAR_INTERVAL`, così non pesano a riposo e non rallentano il Dock e i pannelli.
+            let bars_due = bar_at.is_none_or(|t| t.elapsed() >= BAR_INTERVAL);
+            if bars_due {
+                bar_at = Some(std::time::Instant::now());
+            }
             for ch in CHANNELS {
+                if is_bar(ch) && !bars_due {
+                    continue;
+                }
                 // Un panic nella cattura non deve fermare né il Dock né il Launcher.
                 let l = &mut last[ch as usize];
-                if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| step(ch, l))).unwrap_or(false) {
+                if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| step(ch, l))).unwrap_or(false) && !is_bar(ch) {
                     changed_at = std::time::Instant::now();
                 }
             }
@@ -199,6 +229,10 @@ fn step(ch: Channel, last: &mut Vec<u8>) -> bool {
         Channel::Dock => crate::dockwin::capture_info(),
         Channel::Launcher => crate::launcherwin::capture_info(),
         Channel::Panel => crate::panelwin::capture_info(),
+        Channel::Bar0 => crate::appbar::capture_info(0),
+        Channel::Bar1 => crate::appbar::capture_info(1),
+        Channel::Bar2 => crate::appbar::capture_info(2),
+        Channel::Bar3 => crate::appbar::capture_info(3),
     };
     let Some((window, capture)) = info else {
         last.clear(); // al prossimo giro si ripubblica: lo sfondo può essere cambiato
@@ -228,6 +262,26 @@ fn step(ch: Channel, last: &mut Vec<u8>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_bar_channels_are_bars() {
+        assert!(is_bar(Channel::Bar0) && is_bar(Channel::Bar3));
+        assert!(!is_bar(Channel::Dock) && !is_bar(Channel::Launcher) && !is_bar(Channel::Panel));
+        assert!(BAR_INTERVAL > INTERVAL);
+    }
+
+    #[test]
+    fn there_is_a_channel_for_each_of_the_first_four_bars() {
+        assert_eq!(Channel::bar(0), Some(Channel::Bar0));
+        assert_eq!(Channel::bar(3), Some(Channel::Bar3));
+        assert_eq!(Channel::bar(4), None);
+        // Ogni canale ha il suo posto nel deposito dei fotogrammi.
+        assert!(CHANNELS.iter().all(|c| (*c as usize) < FRAMES.len()));
+        let mut seen: Vec<usize> = CHANNELS.iter().map(|c| *c as usize).collect();
+        seen.sort_unstable();
+        seen.dedup();
+        assert_eq!(seen.len(), CHANNELS.len());
+    }
 
     #[test]
     fn capture_slows_down_only_after_a_quiet_second() {
