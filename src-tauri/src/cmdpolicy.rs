@@ -19,6 +19,8 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         "indicator_open" | "volume_set" | "volume_mute" | "menubar_choose" => label == "panel",
         // Mission Control: attivare e chiudere finestre vere, cambiare e modificare i desktop virtuali.
         "mc_activate" | "mc_close_window" | "mc_switch_desktop" | "mc_new_desktop" | "mc_move_window" | "mc_remove_desktop" | "mc_rename_desktop" => label.starts_with("mc-"),
+        // Menu EosOS (il «menu mela» a sinistra della barra): lo gestisce il pannello.
+        c if c.starts_with("eosmenu_") => label == "panel",
         // Impostazioni di Windows: l'elenco e l'apertura sono della finestra Impostazioni.
         c if c.starts_with("winsettings_") => label == "settings",
         // Aggiornamenti: li gestisce solo la finestra Impostazioni.
@@ -84,6 +86,16 @@ mod tests {
             }
         }
         assert!(allowed("panel", "settings_set", Some("notif.read")) && !allowed("panel", "settings_set", Some("oggi.city")));
+    }
+
+    #[test]
+    fn the_eos_menu_belongs_to_the_panel() {
+        for c in ["eosmenu_run", "eosmenu_about"] {
+            assert!(allowed("panel", c, None), "{c}");
+            for other in ["settings", "launcher", "dock", "bar-0", "main", "mc-0"] {
+                assert!(!allowed(other, c, None), "{other} {c}");
+            }
+        }
     }
 
     #[test]

@@ -4,6 +4,7 @@ import { barColors, meanLuminance, type Frame } from "./lib/backdrop";
 import { invoke } from "@tauri-apps/api/core";
 import AppMenus from "./components/AppMenus";
 import Clock from "./components/Clock";
+import EosButton from "./components/EosButton";
 import Indicators from "./components/Indicators";
 import { useBackdrop } from "./components/useBackdrop";
 
@@ -71,7 +72,10 @@ export default function App() {
       }}
     >
       <canvas className="menubar-blur" ref={blurCanvas} aria-hidden />
-      <AppMenus />
+      <div className="menubar-left">
+        <EosButton />
+        <AppMenus />
+      </div>
       <div className="menubar-right">
         <Indicators />
         <Clock />

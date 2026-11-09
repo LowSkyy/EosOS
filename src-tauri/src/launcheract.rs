@@ -399,6 +399,16 @@ fn native_confirm(name: &str) -> bool {
     }
 }
 
+/// Esegue subito l'azione `id`, senza la doppia pressione della pagina (per le voci di menu scelte con un clic deliberato):
+/// per spegnere o riavviare resta la finestra di Windows «Sì/No». `Unknown` se l'id non è nella tabella.
+pub fn run_now(id: &str) -> Outcome {
+    let Some(action) = find(id) else { return Outcome::Unknown };
+    if action.confirm && !native_confirm(action.name) {
+        return Outcome::Failed;
+    }
+    if execute(action) { Outcome::Done } else { Outcome::Failed }
+}
+
 /// Esegue l'azione `id` (con la conferma, se serve). Il frontend può chiedere solo ciò che sta
 /// nella tabella.
 pub fn run(id: &str) -> Outcome {

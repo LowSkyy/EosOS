@@ -15,6 +15,7 @@ import {
 } from "../lib/indicators";
 import { Glyph } from "./IndicatorGlyph";
 import StackPanel from "./StackPanel";
+import EosMenuPanel from "./EosMenuPanel";
 import CalendarPanel from "./CalendarPanel";
 import MenuPanel from "./MenuPanel";
 import { useBackdrop } from "./useBackdrop";
@@ -39,6 +40,8 @@ export default function Panel() {
   const [calendar, setCalendar] = useState(false);
   // Pila del Dock: indice della pila aperta (null = non è una pila).
   const [stackIndex, setStackIndex] = useState<number | null>(null);
+  // Menu EosOS (il «menu mela» a sinistra della barra).
+  const [eosMenu, setEosMenu] = useState(false);
   const [opens, setOpens] = useState(0);
   const [local, setLocal] = useState<VolumeValue | null>(null);
   const lastInput = useRef(0);
@@ -52,6 +55,16 @@ export default function Panel() {
 
   useEffect(() => {
     const onOpen = listen<string>("panel-open", (e) => {
+      if (e.payload === "eos") {
+        setKey(null);
+        setMenuIndex(null);
+        setCalendar(false);
+        setStackIndex(null);
+        setEosMenu(true);
+        setOpens((n) => n + 1);
+        return;
+      }
+      setEosMenu(false);
       const st = /^stack:(\d+)$/.exec(e.payload);
       if (st) {
         setKey(null);
@@ -90,6 +103,7 @@ export default function Panel() {
       setMenuIndex(null);
       setCalendar(false);
       setStackIndex(null);
+      setEosMenu(false);
       setLocal(null);
     });
     return () => {
@@ -107,7 +121,7 @@ export default function Panel() {
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [key, menuIndex, calendar, stackIndex]);
+  }, [key, menuIndex, calendar, stackIndex, eosMenu]);
 
   // Esc chiude; all'apertura il focus va al primo controllo.
   useEffect(() => {
@@ -159,6 +173,7 @@ export default function Panel() {
       {menuIndex !== null && <MenuPanel ref={body} index={menuIndex} opens={opens} />}
       {calendar && <CalendarPanel ref={body} opens={opens} />}
       {stackIndex !== null && <StackPanel ref={body} index={stackIndex} opens={opens} />}
+      {eosMenu && <EosMenuPanel ref={body} opens={opens} />}
       {key && item && (
         <div className="panel-body" ref={body}>
           <h2 className="panel-title">{panelTitle(key)}</h2>

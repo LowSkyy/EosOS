@@ -893,3 +893,19 @@ body {
 .winset-tile:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 2px; }
 .winset-label { font-weight: var(--weight-strong); }
 .winset-hint { color: var(--bar-fg-muted); font-size: 12px; }
+
+/* Menu EosOS (il «menu mela») */
+.menubar-left { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
+.eos-btn { flex: none; display: flex; align-items: center; justify-content: center; width: 26px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--bar-fg); cursor: default; }
+.eos-btn:hover, .eos-btn[aria-expanded="true"] { background: rgba(255, 255, 255, 0.14); }
+.eos-btn:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 1px; }
+.eosmenu { padding: 6px; min-width: 240px; }
+.eosmenu-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 5px 10px; border: 0; border-radius: 6px; background: none; color: var(--bar-fg); font: inherit; text-align: left; cursor: default; }
+.eosmenu-item:hover, .eosmenu-item:focus-visible { background: rgba(10, 132, 255, 0.85); color: #fff; outline: none; }
+.eosmenu-item[data-danger="true"] { color: #ff6961; }
+.eosmenu-item[data-danger="true"]:hover, .eosmenu-item[data-danger="true"]:focus-visible { color: #fff; background: rgba(255, 59, 48, 0.85); }
+.eosmenu-hint { color: var(--bar-fg-muted); font-size: 11px; }
+.eosmenu-item:hover .eosmenu-hint, .eosmenu-item:focus-visible .eosmenu-hint { color: rgba(255, 255, 255, 0.85); }
+.eosmenu-sep { height: 1px; margin: 5px 6px; background: rgba(128, 128, 128, 0.3); }
+.eosmenu-about { margin: 2px 10px 6px; padding: 6px 8px; border-radius: 6px; background: rgba(128, 128, 128, 0.14); font-size: 12px; color: var(--bar-fg-muted); user-select: text; }
+.eosmenu-error { margin: 6px 10px 2px; color: #ff6961; font-size: 12px; }

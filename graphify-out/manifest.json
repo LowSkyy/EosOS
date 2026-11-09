@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1794185794.4420035,
-    "seen": 1794185807.259662,
-    "ast_hash": "f36f7c7c89618256eb75d2a303f56354",
+    "mtime": 1794208205.253526,
+    "seen": 1794208308.1015956,
+    "ast_hash": "5608f222bade6125e48286bdd41e45d8",
     "semantic_hash": ""
   },
   "src/main.tsx": {
@@ -414,15 +414,15 @@
     "semantic_hash": ""
   },
   "src/lib/backdrop.test.ts": {
-    "mtime": 1794185104.489624,
-    "seen": 1794185807.2596796,
-    "ast_hash": "6dfdd7137678d20d40a4fd2eb29760a5",
+    "mtime": 1794208235.3006983,
+    "seen": 1794208308.1016133,
+    "ast_hash": "b4f8be463ef75fc85512e184af9aa3f8",
     "semantic_hash": ""
   },
   "src/lib/backdrop.ts": {
-    "mtime": 1794185104.489624,
-    "seen": 1794185807.2596803,
-    "ast_hash": "a165dedd8019f54853ff0e4e2967c10a",
+    "mtime": 1794208235.2870777,
+    "seen": 1794208308.101614,
+    "ast_hash": "fb2e050d7b1a7b4329b0e7a07418086e",
     "semantic_hash": ""
   },
   "scripts/test-dock-reserve.ps1": {
@@ -1320,9 +1320,9 @@
     "semantic_hash": ""
   },
   "docs/RIFINITURE.md": {
-    "mtime": 1794205320.1929002,
-    "seen": 1794205326.2979345,
-    "ast_hash": "f6db38a7631db32152d4007e4b3ccc42",
+    "mtime": 1794208305.3573902,
+    "seen": 1794208308.101657,
+    "ast_hash": "f2a6b2c7fc5e6398cb59d130dde5101a",
     "semantic_hash": ""
   },
   "scripts/test-dock-multi-dpi.ps1": {
@@ -1341,6 +1341,12 @@
     "mtime": 1794205166.8385801,
     "seen": 1794205326.2978237,
     "ast_hash": "96626447231ad4c58ad7e9f30c2ff2da",
+    "semantic_hash": ""
+  },
+  "scripts/shot-light.ps1": {
+    "mtime": 1794208130.6378257,
+    "seen": 1794208308.1014824,
+    "ast_hash": "0b341e55127ae79562f4b301a359ed17",
     "semantic_hash": ""
   },
   "package-lock.json": {
