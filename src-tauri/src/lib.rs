@@ -1,6 +1,7 @@
 mod appbar;
 mod capture;
 mod capturewin;
+mod chromeguard;
 mod control;
 mod dockbadge;
 mod dockkeys;
@@ -1314,6 +1315,7 @@ pub fn run() {
             dockwin::start(app.handle());
             dockkeys::start();
             winsnap::start();
+            chromeguard::start();
             capture::start(app.handle());
             backdrop::start();
             // Aggiornamenti: solo se l'utente ha acceso la ricerca all'avvio; cerca soltanto, non installa mai.

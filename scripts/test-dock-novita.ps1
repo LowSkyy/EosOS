@@ -20,6 +20,8 @@ public static class DN { public delegate bool EP(IntPtr h, IntPtr l);
  [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int n);
  public static IntPtr Find(string title){ IntPtr f=IntPtr.Zero; EnumWindows((h,l)=>{var sb=new StringBuilder(256);GetWindowText(h,sb,256); if(sb.ToString()==title){f=h;return false;} return true;},IntPtr.Zero); return f; }
  public static string Frame(IntPtr h){ R w,c; GetWindowRect(h,out w); GetClientRect(h,out c); long st=GetWindowLongPtr(h,-16); int pol=-1; DwmGetWindowAttribute(h,2,out pol,4); return (w.Rt-w.L)+"x"+(w.B-w.T)+"|"+c.Rt+"x"+c.B+"|"+(st & 0xC00000).ToString()+"|"+pol; }
+ public static string[] Framed(uint pid){ var l=new System.Collections.Generic.List<string>(); EnumWindows((h,x)=>{ uint p; GetWindowThreadProcessId(h,out p); if(p==pid){ long st=GetWindowLongPtr(h,-16); if((st & 0xCB0000)!=0){ var sb=new StringBuilder(120); GetWindowText(h,sb,120); l.Add(sb.ToString()+" stile 0x"+st.ToString("X")); } } return true; },IntPtr.Zero); return l.ToArray(); }
+ [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
  public static bool Visible(string part){ bool f=false; EnumWindows((h,l)=>{var sb=new StringBuilder(256);GetWindowText(h,sb,256); if(IsWindowVisible(h)&&sb.ToString().Contains(part)){f=true;return false;} return true;},IntPtr.Zero); return f; } }
 '@
 $script:fail = 0
@@ -52,6 +54,11 @@ try {
   $parts = $fr -split '\|'
   Check 'la finestra del Dock non ha lo stile con barra del titolo (WS_CAPTION)' ($parts[2] -eq '0')
   Check 'e la sua area client e grande quanto la finestra (nessuna parte non client)' ($parts[0] -eq $parts[1])
+
+  $mainPidDN = [uint32](Get-CimInstance Win32_Process -Filter "Name='eosos.exe'" | Where-Object { $_.CommandLine -notmatch '--keyhook|--watchdog' } | Select-Object -First 1).ProcessId
+  Start-Sleep -Seconds 1
+  $framed = @([DN]::Framed($mainPidDN))
+  Check 'nessuna finestra di EosOS (barre, pannello, Launcher, Impostazioni...) ha la barra del titolo di Windows' ($framed.Count -eq 0) ($framed -join ' ; ')
 
   Write-Host 'B. dimensioni'
   $size = Entry 'dock.size'
