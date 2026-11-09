@@ -129,8 +129,13 @@ fn new_data(hwnd: HWND) -> APPBARDATA {
 
 /// Ultima fascia in basso applicata (finestra, rettangolo): evita di rimandare al
 /// sistema, ogni secondo, una modifica dell'area di lavoro che non è cambiata.
-type BottomStrip = (isize, (i32, i32, i32, i32));
-static LAST_BOTTOM: Mutex<Option<BottomStrip>> = Mutex::new(None);
+type BottomStrip = (i32, i32, i32, i32);
+/// Una fascia per ogni Dock (uno per monitor): finestra -> ultimo rettangolo applicato.
+static LAST_BOTTOM: Mutex<Vec<(isize, BottomStrip)>> = Mutex::new(Vec::new());
+
+fn last_bottom() -> std::sync::MutexGuard<'static, Vec<(isize, BottomStrip)>> {
+    LAST_BOTTOM.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 /// Serializza la riserva e il rilascio della fascia in basso: `reserve_bottom` è chiamata sia dal
 /// ciclo di controllo sia dal comando `dock_fit`, e senza questo una delle due poteva vedere la
@@ -163,17 +168,19 @@ pub fn reserve_bottom(hwnd: HWND, mon: RECT, height_px: i32) -> RECT {
             // rettangolo è uguale all'ultimo applicato, va comunicato di nuovo. Succede
             // dopo il riavvio di Explorer, che perde tutte le appbar (vedi
             // `handle_explorer_restart`): senza questo la riserva andrebbe persa.
-            *LAST_BOTTOM.lock().unwrap_or_else(|e| e.into_inner()) = None;
+            last_bottom().retain(|(k, _)| *k != key);
         }
         abd.rc = RECT { left: mon.left, top: mon.bottom - height_px, right: mon.right, bottom: mon.bottom };
         SHAppBarMessage(ABM_QUERYPOS, &mut abd);
         // Il sistema può spostare il bordo (taskbar); l'altezza resta quella voluta.
         abd.rc.top = abd.rc.bottom - height_px;
         let want = (abd.rc.left, abd.rc.top, abd.rc.right, abd.rc.bottom);
-        let mut last = LAST_BOTTOM.lock().unwrap_or_else(|e| e.into_inner());
-        if *last != Some((key, want)) {
+        let mut last = last_bottom();
+        let known = last.iter().find(|(k, _)| *k == key).map(|(_, r)| *r);
+        if known != Some(want) {
             SHAppBarMessage(ABM_SETPOS, &mut abd);
-            *last = Some((key, want));
+            last.retain(|(k, _)| *k != key);
+            last.push((key, want));
         }
     }
     abd.rc
@@ -182,7 +189,7 @@ pub fn reserve_bottom(hwnd: HWND, mon: RECT, height_px: i32) -> RECT {
 /// Rilascia la fascia in basso del Dock. Idempotente.
 pub fn release_bottom(hwnd: HWND) {
     let _serial = BOTTOM_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    *LAST_BOTTOM.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    last_bottom().retain(|(k, _)| *k != hwnd.0 as isize);
     remove(hwnd);
 }
 
@@ -232,7 +239,7 @@ pub fn remove(hwnd: HWND) {
 
 /// Annulla la registrazione di tutte le barre. Idempotente, per i percorsi di uscita.
 pub fn remove_if_registered() {
-    *LAST_BOTTOM.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    last_bottom().clear();
     let all: Vec<isize> = std::mem::take(&mut *registered());
     for h in all {
         let mut abd = new_data(HWND(h as *mut _));

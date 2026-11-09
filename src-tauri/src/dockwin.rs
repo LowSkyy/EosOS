@@ -112,13 +112,14 @@ pub fn toggle_blur() {
     crate::dockstore::set_blur(on);
 }
 
-/// Cosa catturare per la sfocatura: (finestra del Dock, rettangolo da catturare),
-/// entrambi in pixel fisici. `None` se la sfocatura è spenta o il Dock è nascosto.
-pub fn capture_info() -> Option<(Rect, Rect)> {
+/// Cosa catturare per la sfocatura del Dock numero `index` (0 = primario): (finestra del Dock, rettangolo da catturare),
+/// entrambi in pixel fisici. `None` se la sfocatura è spenta o il Dock è nascosto o non c'è.
+pub fn capture_info(index: usize) -> Option<(Rect, Rect)> {
     if !blur_enabled() {
         return None;
     }
-    let st = lock();
+    let label = labels().get(index)?.clone();
+    let st = lock_if_exists(&label)?;
     let (win, geo) = (st.cur_win?, st.geo?);
     if st.p < 0.02 {
         return None;
@@ -159,38 +160,147 @@ struct State {
     applied_region: Option<[i32; 9]>,
 }
 
-static STATE: Mutex<State> = Mutex::new(State {
-    fit: None,
-    geo: None,
-    hwnd: 0,
-    shown: false,
-    size: (0, 0),
-    active: false,
-    left_at: None,
-    idle_since: None,
-    cur_win: None,
-    affinity: false,
-    reserved: false,
-    p: 1.0,
-    last_tick: None,
-    applied_pos: None,
-    applied_region: None,
-});
-
-fn lock() -> std::sync::MutexGuard<'static, State> {
-    STATE.lock().unwrap_or_else(|e| e.into_inner())
+impl State {
+    const fn new() -> State {
+        State {
+            fit: None,
+            geo: None,
+            hwnd: 0,
+            shown: false,
+            size: (0, 0),
+            active: false,
+            left_at: None,
+            idle_since: None,
+            cur_win: None,
+            affinity: false,
+            reserved: false,
+            p: 1.0,
+            last_tick: None,
+            applied_pos: None,
+            applied_region: None,
+        }
+    }
 }
 
-fn create(app: &AppHandle) -> tauri::Result<()> {
-    let (pos, scale) = match app.primary_monitor() {
-        Ok(Some(m)) => {
+/// Uno stato per ogni Dock (uno per monitor): etichetta della finestra -> stato.
+static STATES: Mutex<Vec<(String, State)>> = Mutex::new(Vec::new());
+
+/// Accesso allo stato di un Dock (lo crea vuoto se non c'è). Tiene bloccato l'elenco finché vive.
+struct Guard {
+    g: std::sync::MutexGuard<'static, Vec<(String, State)>>,
+    i: usize,
+}
+
+impl std::ops::Deref for Guard {
+    type Target = State;
+    fn deref(&self) -> &State {
+        &self.g[self.i].1
+    }
+}
+
+impl std::ops::DerefMut for Guard {
+    fn deref_mut(&mut self) -> &mut State {
+        &mut self.g[self.i].1
+    }
+}
+
+fn lock(label: &str) -> Guard {
+    let mut g = STATES.lock().unwrap_or_else(|e| e.into_inner());
+    let i = match g.iter().position(|(l, _)| l == label) {
+        Some(i) => i,
+        None => {
+            g.push((label.to_string(), State::new()));
+            g.len() - 1
+        }
+    };
+    Guard { g, i }
+}
+
+/// Come `lock`, ma senza creare lo stato: `None` se quel Dock non c'è (più). Il ciclo veloce usa questa, così un Dock
+/// appena tolto non rinasce come stato fantasma.
+fn lock_if_exists(label: &str) -> Option<Guard> {
+    let g = STATES.lock().unwrap_or_else(|e| e.into_inner());
+    let i = g.iter().position(|(l, _)| l == label)?;
+    Some(Guard { g, i })
+}
+
+/// Le etichette dei Dock che hanno uno stato, in ordine stabile (prima quello del primario). Pura nell'ordine, testata.
+pub fn ordered_labels<'a>(labels: impl Iterator<Item = &'a String>) -> Vec<String> {
+    let mut v: Vec<String> = labels.cloned().collect();
+    v.sort_by(|a, b| (a != LABEL, a.as_str()).cmp(&(b != LABEL, b.as_str())));
+    v
+}
+
+fn labels() -> Vec<String> {
+    let g = STATES.lock().unwrap_or_else(|e| e.into_inner());
+    ordered_labels(g.iter().map(|(l, _)| l))
+}
+
+/// Il numero d'ordine del Dock `label` (0 = primario), per scegliere il suo canale di sfondo.
+pub fn dock_index(label: &str) -> Option<usize> {
+    labels().iter().position(|l| l == label)
+}
+
+/// L'etichetta è quella di una finestra del Dock?
+pub fn is_dock_label(label: &str) -> bool {
+    label == LABEL || label.starts_with("dock-")
+}
+
+/// L'etichetta della finestra del Dock per un monitor: «dock» per il primario, «dock-<nome ripulito>» per gli altri
+/// (le etichette Tauri non ammettono `\` e `.`). Pura, testata.
+pub fn label_for_monitor(key: &str, primary: bool) -> String {
+    if primary {
+        return LABEL.to_string();
+    }
+    let clean: String = key.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
+    format!("dock-{}", clean.trim_matches('_'))
+}
+
+/// Il Dock va mostrato su tutti i monitor? `env` è `EOSOS_DOCK_ALL`, `primary_only` la scelta dell'utente di averlo
+/// solo sul primario, `test_build` dice se è una build di prova. Di base sì (uno per monitor), tranne nelle build di
+/// prova, dove di base c'è solo quello del primario così le prove esistenti non cambiano: lì «1» nell'ambiente fa
+/// comportare la build come la produzione (la scelta dell'utente vale comunque), «0» lo vieta sempre. Pura, testata.
+pub fn all_screens_wanted(env: Option<&str>, primary_only: bool, test_build: bool) -> bool {
+    match env {
+        Some("0") => false,
+        Some("1") => !primary_only,
+        _ => !primary_only && !test_build,
+    }
+}
+
+fn all_screens() -> bool {
+    all_screens_wanted(std::env::var("EOSOS_DOCK_ALL").ok().as_deref(), crate::mcstore::load().dock_primary_only, cfg!(feature = "test-hooks"))
+}
+
+/// I monitor con l'etichetta del loro Dock e se sono il primario.
+fn dock_monitors(app: &AppHandle) -> Vec<(String, tauri::Monitor, bool)> {
+    let primary_name = app.primary_monitor().ok().flatten().and_then(|m| m.name().cloned());
+    let mut out: Vec<(String, tauri::Monitor, bool)> = Vec::new();
+    for m in app.available_monitors().unwrap_or_default() {
+        let key = m.name().cloned().unwrap_or_else(|| format!("{}_{}", m.position().x, m.position().y));
+        let primary = matches!((&primary_name, m.name()), (Some(p), Some(n)) if p == n);
+        out.push((label_for_monitor(&key, primary), m, primary));
+    }
+    // Se nessuno risulta primario (nome mancante), il primo lo diventa.
+    if !out.is_empty() && !out.iter().any(|o| o.2) {
+        out[0].0 = LABEL.to_string();
+        out[0].2 = true;
+    }
+    out
+}
+
+fn create(app: &AppHandle, label: &str, monitor: Option<&tauri::Monitor>) -> tauri::Result<()> {
+    let (pos, scale) = match monitor {
+        Some(m) => {
             let p = m.work_area().position;
             (PhysicalPosition::new(p.x as f64, p.y as f64), m.scale_factor())
         }
-        _ => (PhysicalPosition::new(0.0, 0.0), 1.0),
+        None => (PhysicalPosition::new(0.0, 0.0), 1.0),
     };
-    let win = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("index.html?view=dock".into()))
-        .title("EosOS Dock")
+    // Il titolo comincia sempre con «EosOS Dock»; quello dei monitor secondari lo dice (le prove cercano il primo).
+    let title = if label == LABEL { "EosOS Dock".to_string() } else { format!("EosOS Dock ({label})") };
+    let win = WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html?view=dock".into()))
+        .title(title)
         .decorations(false)
         .always_on_top(true)
         .skip_taskbar(true)
@@ -205,7 +315,7 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
         .build()?;
     // Il Dock non deve mai rubare il focus né comparire in Alt+Tab.
     if let Ok(hwnd) = win.hwnd() {
-        lock().hwnd = hwnd.0 as isize;
+        lock(label).hwnd = hwnd.0 as isize;
         unsafe {
             enforce_styles(hwnd);
         }
@@ -279,8 +389,8 @@ unsafe fn build_region(w: i32, h: i32, cap: Rect, _radius: i32, active: bool, vi
 }
 
 /// Un passo di animazione e di aggiornamento della zona cliccabile.
-fn tick() {
-    let mut st = lock();
+fn tick(label: &str) {
+    let Some(mut st) = lock_if_exists(label) else { return };
     let (Some(fit), Some(geo)) = (st.fit, st.geo) else { return };
     if !st.shown || st.hwnd == 0 {
         return;
@@ -388,12 +498,11 @@ fn tick() {
     }
 }
 
-/// Segue monitor, scala e area di lavoro; applica la dimensione della finestra e
-/// la mostra la prima volta.
-pub fn reconcile(app: &AppHandle) {
-    let Some(fit) = lock().fit else { return };
-    let Some(win) = app.get_webview_window(LABEL) else { return };
-    let Ok(Some(mon)) = app.primary_monitor() else { return };
+/// Segue monitor, scala e area di lavoro del Dock `label`; applica la dimensione della finestra e la mostra la prima
+/// volta. `mon` è il monitor su cui sta.
+fn reconcile_one(app: &AppHandle, label: &str, mon: &tauri::Monitor) {
+    let Some(fit) = lock(label).fit else { return };
+    let Some(win) = app.get_webview_window(label) else { return };
     let wa = mon.work_area();
     let work = Rect {
         x: wa.position.x,
@@ -408,7 +517,7 @@ pub fn reconcile(app: &AppHandle) {
     // si fermano sopra di lui. Il bordo da cui si appoggia è però quello *disponibile*
     // (sopra la taskbar, se c'è), non l'area di lavoro, che già lo esclude: altrimenti
     // si sposterebbe verso l'alto a ogni aggiornamento.
-    let hwnd = lock().hwnd;
+    let hwnd = lock(label).hwnd;
     let want_reserve = reserve_enabled() && reserve_allowed() && !AUTOHIDE.load(Ordering::Relaxed);
     let mut work = work;
     if hwnd != 0 && want_reserve {
@@ -419,10 +528,10 @@ pub fn reconcile(app: &AppHandle) {
             strip,
         );
         work.h = (rc.bottom - work.y).max(1);
-        lock().reserved = true;
-    } else if lock().reserved {
+        lock(label).reserved = true;
+    } else if lock(label).reserved {
         crate::appbar::release_bottom(hwnd_of(hwnd));
-        lock().reserved = false;
+        lock(label).reserved = false;
     }
     let rect = window_rect(work, scale, &fit);
 
@@ -432,7 +541,7 @@ pub fn reconcile(app: &AppHandle) {
     // entro un secondo, qualunque sia la causa.
     let actual = win.outer_size().ok().map(|s| (s.width as i32, s.height as i32));
     let (size_changed, first) = {
-        let mut st = lock();
+        let mut st = lock(label);
         st.geo = Some(Geometry { work, monitor, scale });
         let changed = st.size != (rect.w, rect.h) || actual.is_some_and(|a| a != (rect.w, rect.h));
         st.size = (rect.w, rect.h);
@@ -451,7 +560,7 @@ pub fn reconcile(app: &AppHandle) {
         glass::square_borderless(&win);
         let hidden = autohide();
         {
-            let mut st = lock();
+            let mut st = lock(label);
             st.p = if hidden { 0.0 } else { 1.0 };
             st.shown = true;
         }
@@ -460,16 +569,47 @@ pub fn reconcile(app: &AppHandle) {
         let _ = win.show();
         // La prima visualizzazione può spostare la finestra: il ciclo riafferma
         // posizione e regione.
-        let mut st = lock();
+        let mut st = lock(label);
         st.applied_pos = None;
         st.applied_region = None;
     }
 }
 
-/// Il frontend ha misurato la capsula e la zona.
-pub fn fit(app: &AppHandle, fit: Fit) {
-    lock().fit = Some(fit);
-    reconcile(app);
+/// Il frontend del Dock `label` ha misurato la capsula e la zona.
+pub fn fit(app: &AppHandle, label: &str, fit: Fit) {
+    lock(label).fit = Some(fit);
+    if let Some((_, mon, _)) = dock_monitors(app).into_iter().find(|(l, _, _)| l == label) {
+        reconcile_one(app, label, &mon);
+    }
+}
+
+/// Allinea i Dock ai monitor: crea quelli che mancano, toglie quelli di monitor spariti o (se l'utente lo vuole solo sul
+/// primario) di troppo, e riposiziona gli altri. Si chiama ogni secondo.
+fn reconcile_all(app: &AppHandle) {
+    let all = all_screens();
+    let wanted: Vec<(String, tauri::Monitor, bool)> = dock_monitors(app).into_iter().filter(|(_, _, primary)| all || *primary).collect();
+    // Finestre Dock esistenti che non servono più.
+    for label in app.webview_windows().keys().filter(|l| is_dock_label(l)).cloned().collect::<Vec<_>>() {
+        if !wanted.iter().any(|(l, _, _)| *l == label) {
+            let hwnd = lock(&label).hwnd;
+            if hwnd != 0 {
+                crate::appbar::release_bottom(hwnd_of(hwnd));
+            }
+            if let Some(w) = app.get_webview_window(&label) {
+                let _ = w.destroy();
+            }
+            STATES.lock().unwrap_or_else(|e| e.into_inner()).retain(|(l, _)| *l != label);
+        }
+    }
+    for (label, mon, _) in &wanted {
+        if app.get_webview_window(label).is_none()
+            && let Err(e) = create(app, label, Some(mon))
+        {
+            eprintln!("EosOS: creazione del Dock {label} fallita: {e}");
+            continue;
+        }
+        reconcile_one(app, label, mon);
+    }
 }
 
 /// Crea la finestra e avvia il ciclo di animazione.
@@ -478,11 +618,14 @@ pub fn start(app: &AppHandle) {
     AUTOHIDE.store(saved.autohide, Ordering::Relaxed);
     RESERVE.store(saved.reserve, Ordering::Relaxed);
     BLUR.store(saved.blur, Ordering::Relaxed);
-    if let Err(e) = create(app) {
+    // Il Dock del monitor primario nasce subito; gli altri li crea `reconcile_all` (se servono).
+    let monitors = dock_monitors(app);
+    let primary = monitors.iter().find(|(_, _, p)| *p).map(|(_, m, _)| m);
+    if let Err(e) = create(app, LABEL, primary) {
         eprintln!("EosOS: creazione del Dock fallita: {e}");
         return;
     }
-    // Due thread distinti. `reconcile` parla con la shell di Windows (appbar, monitor) e può
+    // Due thread distinti. `reconcile_all` parla con la shell di Windows (appbar, monitor) e può
     // restare bloccato per secondi: per esempio `ABM_SETPOS` avvisa tutte le finestre del
     // cambio dell'area di lavoro e aspetta quelle lente. Se girasse nello stesso thread del
     // ciclo veloce, in quel tempo si fermerebbero anche la zona cliccabile e lo scorrimento.
@@ -490,10 +633,44 @@ pub fn start(app: &AppHandle) {
     std::thread::spawn(move || loop {
         std::thread::sleep(RECONCILE_EVERY);
         // Un panic non deve fermare il Dock.
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| reconcile(&slow)));
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| reconcile_all(&slow)));
     });
     std::thread::spawn(|| loop {
         std::thread::sleep(TICK);
-        let _ = std::panic::catch_unwind(tick);
+        for label in labels() {
+            let _ = std::panic::catch_unwind(|| tick(&label));
+        }
     });
+}
+
+#[cfg(test)]
+mod multi_tests {
+    use super::*;
+
+    #[test]
+    fn dock_labels_follow_the_monitors() {
+        assert_eq!(label_for_monitor(r"\\.\DISPLAY1", true), "dock");
+        assert_eq!(label_for_monitor(r"\\.\DISPLAY2", false), "dock-DISPLAY2");
+        assert_eq!(label_for_monitor("2560_0", false), "dock-2560_0");
+        assert!(is_dock_label("dock") && is_dock_label("dock-DISPLAY2"));
+        assert!(!is_dock_label("bar-DISPLAY2") && !is_dock_label("docker") && !is_dock_label("main"));
+    }
+
+    #[test]
+    fn docks_are_ordered_primary_first() {
+        let l: Vec<String> = ["dock-DISPLAY3", "dock", "dock-DISPLAY2"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(ordered_labels(l.iter()), ["dock", "dock-DISPLAY2", "dock-DISPLAY3"]);
+        assert!(ordered_labels(Vec::<String>::new().iter()).is_empty());
+    }
+
+    #[test]
+    fn the_dock_is_on_every_screen_by_default_but_not_in_test_builds() {
+        assert!(all_screens_wanted(None, false, false));
+        assert!(!all_screens_wanted(None, true, false), "scelta dell'utente: solo il primario");
+        assert!(!all_screens_wanted(None, false, true), "le build di prova non cambiano comportamento");
+        assert!(all_screens_wanted(Some("1"), false, true), "«1» fa comportare la build di prova come la produzione");
+        assert!(!all_screens_wanted(Some("1"), true, true), "ma la scelta dell'utente (solo il primario) vale");
+        assert!(!all_screens_wanted(Some("0"), false, false), "«0» lo vieta sempre");
+        assert!(all_screens_wanted(Some("boh"), false, false));
+    }
 }

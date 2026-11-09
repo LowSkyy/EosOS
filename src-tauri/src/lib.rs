@@ -501,17 +501,22 @@ fn dock_menu(app: tauri::AppHandle, window: tauri::Window, id: String) -> tauri:
 
 /// Il frontend del Dock comunica le misure della zona e della capsula (px CSS).
 #[tauri::command(async)]
-fn dock_fit(app: tauri::AppHandle, fit: dockgeom::FitArgs) {
+fn dock_fit(window: tauri::Window, app: tauri::AppHandle, fit: dockgeom::FitArgs) {
+    if !dockwin::is_dock_label(window.label()) {
+        return;
+    }
     if let Some(fit) = dockgeom::sanitize(fit) {
-        dockwin::fit(&app, fit);
+        dockwin::fit(&app, window.label(), fit);
     }
 }
 
 /// Ultimo fotogramma dello sfondo da sfocare, se più recente di `since` (vuoto
 /// altrimenti). Risposta binaria: intestazione + pixel RGBA, vedi `backdrop::encode`.
 #[tauri::command(async)]
-fn dock_backdrop(since: u64) -> tauri::ipc::Response {
-    tauri::ipc::Response::new(backdrop::latest(backdrop::Channel::Dock, since))
+fn dock_backdrop(window: tauri::Window, since: u64) -> tauri::ipc::Response {
+    // Ogni Dock (uno per monitor) ha il suo canale di sfondo.
+    let ch = dockwin::dock_index(window.label()).and_then(backdrop::Channel::dock);
+    tauri::ipc::Response::new(ch.map_or_else(Vec::new, |c| backdrop::latest(c, since)))
 }
 
 /// Ricerca del Launcher tra le app. `have`: gli id di cui il frontend ha già l'icona. Lavoro

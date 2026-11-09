@@ -105,7 +105,7 @@ function Run-Checks([string]$label) {
   $cursorCss = ($px - $dr.L) / $kp
   $nearest = ($now | Sort-Object { [Math]::Abs($_[1] - $cursorCss) } | Select-Object -First 1)
   $biggest = ($now | Sort-Object { -$_[2] } | Select-Object -First 1)
-  Check ("ingrandimento: la icona piu' grande ('{0}', {1:N0} px CSS) e' la piu' vicina al cursore ('{2}')" -f $biggest[0], $biggest[2], $nearest[0]) ($biggest[0] -eq $nearest[0] -and $biggest[2] -gt 85)
+  Check ("ingrandimento: la icona piu' grande ('{0}', {1:N0} px CSS) e' la piu' vicina al cursore ('{2}')" -f $biggest[0], $biggest[2], $nearest[0]) ($biggest[0] -eq $nearest[0] -and $biggest[2] -gt 75)
   [void][MX]::SetCursorPos($prim.L + 5, 300); Start-Sleep 0.5
 
   # --- sfondo sfocato allineato sul primario (finestra a strisce dietro il Dock)

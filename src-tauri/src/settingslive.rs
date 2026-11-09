@@ -65,6 +65,7 @@ impl Backend for Live {
             "calendar.week_start" => Some(Value::Text(if mc().calendar_sunday { "sun" } else { "mon" }.to_string())),
             "dock.autohide" => b(crate::dockwin::autohide()),
             "dock.reserve" => b(crate::dockwin::reserve_enabled()),
+            "dock.all_screens" => b(!mc().dock_primary_only),
             "dock.size" => Some(Value::Text(match mc().dock_size.as_str() { "" => "medium".to_string(), s => s.to_string() })),
             "dock.blur" => b(crate::dockwin::blur_enabled()),
             "dock.stacks" => Some(Value::List(crate::stacks::folders())),
@@ -169,6 +170,9 @@ impl Backend for Live {
                     crate::dockwin::toggle_blur();
                 }
                 self.dock_changed();
+            }
+            "dock.all_screens" => {
+                crate::mcstore::set_dock_all_screens(want_bool(value)?);
             }
             "dock.size" => {
                 let id = want_text(value)?;

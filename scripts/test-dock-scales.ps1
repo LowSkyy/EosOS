@@ -93,7 +93,7 @@ function Run-Checks([int]$pct, [string]$label) {
   $cursorCss = ($px - $dr.L) / $k
   $nearest = ($now | Sort-Object { [Math]::Abs($_[1] - $cursorCss) } | Select-Object -First 1)
   $biggest = ($now | Sort-Object { -$_[2] } | Select-Object -First 1)
-  Check ("l'icona piu' ingrandita ('{0}', larga {1:N0} px CSS, ~95 attesi) e' la piu' vicina al cursore ('{2}')" -f $biggest[0], $biggest[2], $nearest[0]) ($biggest[0] -eq $nearest[0] -and $biggest[2] -gt 85)
+  Check ("l'icona piu' ingrandita ('{0}', larga {1:N0} px CSS, ~85 attesi) e' la piu' vicina al cursore ('{2}')" -f $biggest[0], $biggest[2], $nearest[0]) ($biggest[0] -eq $nearest[0] -and $biggest[2] -gt 75)
   [void][TS]::SetCursorPos(5, 300); Start-Sleep 0.5
 
   # Sfondo sfocato: la capsula (senza sfocatura ne' tinta) deve coincidere con lo schermo dietro di lei

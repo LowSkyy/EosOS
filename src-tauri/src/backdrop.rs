@@ -79,18 +79,27 @@ pub enum Channel {
     Bar1 = 4,
     Bar2 = 5,
     Bar3 = 6,
+    /// I Dock dei monitor oltre il primo (`Dock` è quello del primario).
+    Dock1 = 7,
+    Dock2 = 8,
+    Dock3 = 9,
 }
 
 impl Channel {
     /// Il canale della barra numero `i` (0 = quella del monitor primario). Pura, testata.
+    /// Il canale del Dock numero `i` (0 = quello del monitor primario). Pura, testata.
+    pub fn dock(i: usize) -> Option<Channel> {
+        [Channel::Dock, Channel::Dock1, Channel::Dock2, Channel::Dock3].get(i).copied()
+    }
+
     pub fn bar(i: usize) -> Option<Channel> {
         [Channel::Bar0, Channel::Bar1, Channel::Bar2, Channel::Bar3].get(i).copied()
     }
 }
 
-const CHANNELS: [Channel; 7] = [Channel::Dock, Channel::Launcher, Channel::Panel, Channel::Bar0, Channel::Bar1, Channel::Bar2, Channel::Bar3];
+const CHANNELS: [Channel; 10] = [Channel::Dock, Channel::Launcher, Channel::Panel, Channel::Bar0, Channel::Bar1, Channel::Bar2, Channel::Bar3, Channel::Dock1, Channel::Dock2, Channel::Dock3];
 
-static FRAMES: [Mutex<Option<Frame>>; 7] = [const { Mutex::new(None) }; 7];
+static FRAMES: [Mutex<Option<Frame>>; 10] = [const { Mutex::new(None) }; 10];
 static SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Riduce di `f` un'immagine BGRA e la converte in RGBA opaco, mediando ogni
@@ -198,7 +207,7 @@ pub fn capture_bytes(r: Rect) -> Option<Vec<u8>> {
 /// Avvia il thread di cattura (un giro per canale, solo se ha qualcosa da catturare).
 pub fn start() {
     std::thread::spawn(|| {
-        let mut last: [Vec<u8>; 7] = std::array::from_fn(|_| Vec::new());
+        let mut last: [Vec<u8>; 10] = std::array::from_fn(|_| Vec::new());
         let mut changed_at = std::time::Instant::now();
         let mut bar_at: Option<std::time::Instant> = None;
         loop {
@@ -226,7 +235,10 @@ pub fn start() {
 /// Un giro di cattura per il canale. Vero se ha pubblicato un fotogramma nuovo.
 fn step(ch: Channel, last: &mut Vec<u8>) -> bool {
     let info = match ch {
-        Channel::Dock => crate::dockwin::capture_info(),
+        Channel::Dock => crate::dockwin::capture_info(0),
+        Channel::Dock1 => crate::dockwin::capture_info(1),
+        Channel::Dock2 => crate::dockwin::capture_info(2),
+        Channel::Dock3 => crate::dockwin::capture_info(3),
         Channel::Launcher => crate::launcherwin::capture_info(),
         Channel::Panel => crate::panelwin::capture_info(),
         Channel::Bar0 => crate::appbar::capture_info(0),
@@ -268,6 +280,14 @@ mod tests {
         assert!(is_bar(Channel::Bar0) && is_bar(Channel::Bar3));
         assert!(!is_bar(Channel::Dock) && !is_bar(Channel::Launcher) && !is_bar(Channel::Panel));
         assert!(BAR_INTERVAL > INTERVAL);
+    }
+
+    #[test]
+    fn there_is_a_channel_for_each_of_the_first_four_docks() {
+        assert_eq!(Channel::dock(0), Some(Channel::Dock));
+        assert_eq!(Channel::dock(1), Some(Channel::Dock1));
+        assert_eq!(Channel::dock(3), Some(Channel::Dock3));
+        assert_eq!(Channel::dock(4), None);
     }
 
     #[test]
