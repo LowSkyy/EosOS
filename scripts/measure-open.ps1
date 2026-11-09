@@ -42,3 +42,6 @@ finally {
   Remove-Item $mc -ErrorAction SilentlyContinue
   if ($null -ne $bk) { [System.IO.File]::WriteAllBytes($mc, $bk) }
 }
+
+# La build di produzione nasconde la barra di Windows e fermarla a forza (tutti gli eosos.exe, watchdog compreso) non la ripristina: si rimette qui.
+& (Join-Path $PSScriptRoot "restore-taskbar.ps1")

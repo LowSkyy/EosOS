@@ -15,3 +15,6 @@ $rows | Sort-Object dCPU -Descending | Format-Table -AutoSize
 "Totale: processi=$($rows.Count) MB=$([math]::Round(($rows | Measure-Object MB -Sum).Sum)) CPU in ${Seconds}s=$([math]::Round(($rows | Measure-Object dCPU -Sum).Sum, 2)) s  maniglie=$(($rows | Measure-Object h1 -Sum).Sum)"
 Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
 Get-CimInstance Win32_Process -Filter "Name='eosos.exe'" | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+
+# La build di produzione nasconde la barra di Windows e fermarla a forza (tutti gli eosos.exe, watchdog compreso) non la ripristina: si rimette qui.
+& (Join-Path $PSScriptRoot "restore-taskbar.ps1")
