@@ -96,6 +96,16 @@ impl State {
     pub fn active(&self) -> bool {
         self.active
     }
+
+    /// Lo stato crede che Win sia premuto (per la rete di sicurezza dei rilasci persi).
+    pub fn win_held(&self) -> bool {
+        self.win_held
+    }
+
+    /// Win non è più premuto davvero (il rilascio è andato perso, per esempio dopo Win+L): si dimentica tutto di Win.
+    pub fn forget_win(self) -> State {
+        State { win_held: false, win_tap: false, win_used: false, tab: if self.tab == Held::Win { Held::None } else { self.tab }, ..self }
+    }
 }
 
 /// Esito di un evento.
@@ -368,6 +378,21 @@ mod tests {
         assert_eq!(step(s, off, key(WIN, false)).1, PASS);
         // Un rilascio di Win senza pressione vista (stato pulito) passa e non apre niente.
         assert_eq!(step(State::default(), cfg, key(WIN, false)).1, PASS);
+    }
+
+    #[test]
+    fn a_lost_win_release_is_forgotten_so_the_next_tap_still_works() {
+        let cfg = Config::default();
+        let (s, _) = step(State::default(), cfg, key(WIN, true));
+        let (s, _) = step(s, cfg, key(0x4C, true)); // Win+L: il rilascio di Win non arriva mai
+        assert!(s.win_held());
+        let s = s.forget_win();
+        assert_eq!(s, State::default());
+        let (s, _) = step(s, cfg, key(WIN, true));
+        assert_eq!(step(s, cfg, key(WIN, false)).1.cmd, Some(Cmd::Launcher));
+        // Dopo un Win+Tab perso: niente resti di Win+Tab.
+        let (s, _) = step(State::default(), cfg, win_tab(true));
+        assert_eq!(s.forget_win(), State::default());
     }
 
     #[test]

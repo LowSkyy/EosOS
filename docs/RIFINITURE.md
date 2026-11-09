@@ -96,3 +96,4 @@ Premere e rilasciare **il tasto Windows da solo** apre (o chiude) il Launcher al
   impostazione spenta) e sul protocollo (`cfg a w t`). **Non provato:** con una tastiera vera (non posso simulare tasti premuti).
   Da provare a mano: tocco di Win → Launcher; Win+E/Win+D/Win+Tab come prima; spegnendo l'impostazione il menu Start torna.
 - Resta ancora il menu Start con Ctrl+Esc (non toccato) e con la barra di Windows nascosta non cambia nulla.
+- Rete di sicurezza: se Win risulta premuto ma la tastiera dice di no (rilascio perso, es. dopo Win+L), lo stato lo dimentica al tasto successivo, così il tocco seguente funziona. Limite noto: Win + clic o rotellina del mouse (Lente) non è visto dall'hook della tastiera e, rilasciando Win, apre comunque il Launcher.

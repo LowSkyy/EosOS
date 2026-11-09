@@ -314,6 +314,11 @@ fn handle(code: i32, w: WPARAM, l: LPARAM) -> bool {
     let key = Key { vk, down: is_down, alt, win, ctrl, shift };
     let out = {
         let mut s = C_STATE.lock().unwrap_or_else(|e| e.into_inner());
+        // Rete di sicurezza: se lo stato crede Win premuto ma la tastiera dice di no (rilascio perso, per esempio
+        // dopo Win+L o un cambio di desktop), si dimentica, così il prossimo tocco funziona.
+        if is_down && !matches!(vk, 0x5B | 0x5C) && s.win_held() && !(down(0x5B) || down(0x5C)) {
+            *s = s.forget_win();
+        }
         let (next, out) = mckeys::step(*s, c_cfg(), key);
         *s = next;
         out
