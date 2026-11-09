@@ -823,9 +823,38 @@ pub fn items_and_windows() -> (Vec<DockItem>, Vec<(HWND, PathBuf)>) {
     (items, windows)
 }
 
+/// Per quanto tempo il sondaggio di una pagina del Dock riusa l'elenco appena calcolato da un'altra (con due monitor ci sono due Dock che
+/// chiedono ogni secondo: il lavoro, che enumera finestre e processi, si fa una volta sola).
+const SHARE_MS: u128 = 700;
+static GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static SHARED: Mutex<Option<(u64, std::time::Instant, Vec<DockItem>)>> = Mutex::new(None);
+
+/// Qualcosa è cambiato di sicuro (app fissata o tolta, finestra in primo piano diversa, clic su un'icona): l'elenco condiviso non vale più.
+pub fn invalidate() {
+    GEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// Decide se un elenco calcolato alla generazione `at_gen` `age_ms` fa è ancora buono alla generazione `now_gen`. Pura, testata.
+pub fn shared_is_fresh(at_gen: u64, now_gen: u64, age_ms: u128) -> bool {
+    at_gen == now_gen && age_ms < SHARE_MS
+}
+
+/// Come `items_basic`, ma riusa l'ultimo elenco se è recente e nulla è cambiato.
+fn items_shared() -> Vec<DockItem> {
+    let now_gen = GEN.load(std::sync::atomic::Ordering::Relaxed);
+    if let Some((g, t, v)) = &*SHARED.lock().unwrap_or_else(|e| e.into_inner())
+        && shared_is_fresh(*g, now_gen, t.elapsed().as_millis())
+    {
+        return v.clone();
+    }
+    let v = items_basic();
+    *SHARED.lock().unwrap_or_else(|e| e.into_inner()) = Some((now_gen, std::time::Instant::now(), v.clone()));
+    v
+}
+
 /// Elenco completo del Dock: fissate + aperte, con nomi e icone.
 pub fn items(have_icons: &[String]) -> Vec<DockItem> {
-    let mut items = items_basic();
+    let mut items = items_shared();
     for it in &mut items {
         // Un'icona che il frontend ha già non si rimanda a ogni sondaggio: sono ~128 px in
         // base64 per voce, centinaia di KB di JSON ogni 2 secondi per niente.
@@ -854,6 +883,15 @@ mod tests {
     }
     fn run(path: &str) -> Running {
         Running { path: PathBuf::from(path) }
+    }
+
+    #[test]
+    fn a_shared_list_is_reused_only_while_recent_and_unchanged() {
+        assert!(shared_is_fresh(3, 3, 0));
+        assert!(shared_is_fresh(3, 3, SHARE_MS - 1));
+        assert!(!shared_is_fresh(3, 3, SHARE_MS), "troppo vecchio");
+        assert!(!shared_is_fresh(3, 4, 10), "e cambiato qualcosa di sicuro: non si riusa");
+        invalidate();
     }
 
     #[test]

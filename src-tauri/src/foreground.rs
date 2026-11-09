@@ -219,6 +219,7 @@ fn update(hwnd: HWND) {
         eprintln!("foreground: {} (pid {})", app.name, app.pid);
     }
     if let Some(handle) = APP.get() {
+        crate::dock::invalidate(); // l'elenco del Dock va ricalcolato subito, non riusato
         let _ = handle.emit(EVENT_NAME, app);
     }
 }

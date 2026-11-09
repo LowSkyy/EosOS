@@ -648,6 +648,7 @@ fn dock_activate(window: tauri::Window, id: String) {
     if let Some((item, windows)) = dock::find_with_windows(&id) {
         dockact::activate(&item, &windows);
     }
+    dock::invalidate();
 }
 
 /// Clic destro su un'icona: menu nativo con Apri / Esci / Fissa o Rimuovi.

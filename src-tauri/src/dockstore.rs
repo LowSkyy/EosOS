@@ -295,6 +295,7 @@ fn write_file(pinned: &[Pinned], st: Settings) {
     if std::fs::write(&tmp, serialize(pinned, st)).is_ok() {
         if std::fs::rename(&tmp, &path).is_ok() {
             remember(pinned, st);
+            crate::dock::invalidate();
         } else {
             let _ = std::fs::remove_file(&tmp);
         }
