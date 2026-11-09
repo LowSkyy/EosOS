@@ -41,7 +41,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetMessageW, SetWindowsHookExW, TranslateMessage, KBDLLHOOKSTRUCT, MSG,
-    WH_KEYBOARD_LL, WM_KEYDOWN, WM_SYSKEYDOWN,
+    WH_KEYBOARD_LL, WH_MOUSE_LL, WM_KEYDOWN, WM_SYSKEYDOWN,
 };
 
 use crate::mckeys::{self, Cmd, Config, Key, State};
@@ -346,6 +346,21 @@ unsafe extern "system" fn proc(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
     unsafe { CallNextHookEx(None, code, w, l) }
 }
 
+/// Hook del mouse (solo osservatore, non mangia mai niente): un clic o la rotellina con Win premuto annullano il «tocco».
+/// Va in fretta: i movimenti escono subito e il resto costa solo se Win è premuto.
+unsafe extern "system" fn mouse_proc(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
+    // WM_LBUTTONDOWN, WM_RBUTTONDOWN, WM_MBUTTONDOWN, WM_MOUSEWHEEL, WM_XBUTTONDOWN, WM_MOUSEHWHEEL
+    if code >= 0 && matches!(w.0 as u32, 0x201 | 0x204 | 0x207 | 0x20A | 0x20B | 0x20E) {
+        let _ = std::panic::catch_unwind(|| {
+            let mut s = C_STATE.lock().unwrap_or_else(|e| e.into_inner());
+            if s.win_held() {
+                *s = s.cancel_tap();
+            }
+        });
+    }
+    unsafe { CallNextHookEx(None, code, w, l) }
+}
+
 /// Il processo `--keyhook`: installa l'hook, esegue i messaggi e dialoga con il genitore. Non ritorna.
 pub fn run_child() -> ! {
     let (tx, rx) = channel::<Msg>();
@@ -392,6 +407,8 @@ pub fn run_child() -> ! {
             Ok(_) => say("installed"),
             Err(_) => std::process::exit(2),
         }
+        // Se l'hook del mouse non si installa, resta il limite noto (Win+clic apre il Launcher): niente di grave.
+        let _ = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), module.map(Into::into), 0);
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).as_bool() {
             let _ = TranslateMessage(&msg);

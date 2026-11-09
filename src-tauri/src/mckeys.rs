@@ -102,6 +102,11 @@ impl State {
         self.win_held
     }
 
+    /// Un clic o la rotellina del mouse con Win premuto: non è più un tocco (Win+clic, Win+rotellina della Lente).
+    pub fn cancel_tap(self) -> State {
+        State { win_tap: false, ..self }
+    }
+
     /// Win non è più premuto davvero (il rilascio è andato perso, per esempio dopo Win+L): si dimentica tutto di Win.
     pub fn forget_win(self) -> State {
         State { win_held: false, win_tap: false, win_used: false, tab: if self.tab == Held::Win { Held::None } else { self.tab }, ..self }
@@ -378,6 +383,16 @@ mod tests {
         assert_eq!(step(s, off, key(WIN, false)).1, PASS);
         // Un rilascio di Win senza pressione vista (stato pulito) passa e non apre niente.
         assert_eq!(step(State::default(), cfg, key(WIN, false)).1, PASS);
+    }
+
+    #[test]
+    fn a_mouse_click_or_wheel_with_win_held_is_not_a_tap() {
+        let cfg = Config::default();
+        let (s, _) = step(State::default(), cfg, key(WIN, true));
+        let s = s.cancel_tap();
+        assert_eq!(step(s, cfg, key(WIN, false)).1, PASS, "niente Launcher e niente tasto neutro");
+        // Senza Win premuto non cambia nulla.
+        assert_eq!(State::default().cancel_tap(), State::default());
     }
 
     #[test]
