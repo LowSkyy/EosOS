@@ -75,7 +75,29 @@ export function dotState(item: Pick<DockItem, "running" | "background">): "runni
 }
 
 /** Impostazioni del Dock salvate da Rust. */
-export type DockSettings = { autohide: boolean; glass: number; blur: boolean; reserve: boolean };
+export type DockSettings = { autohide: boolean; glass: number; blur: boolean; reserve: boolean; size?: number };
+
+/** Misure di base del Dock (px logici) con la dimensione «media»: la dimensione scelta le moltiplica tutte. */
+export const DOCK_BASE = { icon: 50, pad: 12, gap: 8, radius: 24, head: 90, side: 72 } as const;
+
+/** Fattore di dimensione valido (0.6..1.6), con ripiego su 1 per valori assurdi. */
+export function clampSize(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? Math.min(1.6, Math.max(0.6, v)) : 1;
+}
+
+/** Le variabili CSS del Dock per un fattore di dimensione (px arrotondati: i bordi restano nitidi). Pura. */
+export function dockVars(k: number): Record<string, string> {
+  const f = clampSize(k);
+  const px = (n: number) => `${Math.round(n * f)}px`;
+  return {
+    "--dock-icon": px(DOCK_BASE.icon),
+    "--dock-pad": px(DOCK_BASE.pad),
+    "--dock-gap": px(DOCK_BASE.gap),
+    "--dock-radius": px(DOCK_BASE.radius),
+    "--dock-head": px(DOCK_BASE.head),
+    "--dock-side": px(DOCK_BASE.side),
+  };
+}
 
 /** Opacità del vetro valida (0..1), con ripiego sullo standard per valori assurdi. */
 export function clampGlass(v: unknown): number {

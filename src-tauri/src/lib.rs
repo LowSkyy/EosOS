@@ -846,8 +846,8 @@ fn dock_settings_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Re
 
 /// Impostazioni del Dock (vetro e auto-nascondi) per il frontend.
 #[tauri::command]
-fn dock_settings() -> dockstore::Settings {
-    dockstore::settings()
+fn dock_settings() -> dockstore::Ui {
+    dockstore::ui()
 }
 
 #[tauri::command]
@@ -954,7 +954,7 @@ pub fn run() {
                 std::thread::spawn(move || {
                     dockact::run_menu_action(action, &id);
                     // Il frontend del Dock aggiorna subito vetro e impostazioni.
-                    let _ = tauri::Emitter::emit(&app, "dock-settings-changed", dockstore::settings());
+                    let _ = tauri::Emitter::emit(&app, "dock-settings-changed", dockstore::ui());
                 });
             }
         })

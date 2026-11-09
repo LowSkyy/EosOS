@@ -157,6 +157,9 @@ body {
   aspect-ratio: 1;
   object-fit: contain;
   pointer-events: none;
+  /* Le icone con uno sfondo quadrato pieno (molte app di Windows) prendono gli angoli arrotondati come quelle di macOS;
+     le icone con forma propria (cerchi, cartelle) non ne sono toccate. */
+  border-radius: 22%;
 }
 .dock-ghost .dock-icon { height: var(--dock-icon); }
 .dock-icon-fallback {

@@ -76,10 +76,10 @@
   --space-gap: 8px;
 
   /* Dock (px logici). */
-  --dock-icon: 56px;
-  --dock-pad: 9px;
-  --dock-gap: 6px;
-  --dock-radius: 26px;
+  --dock-icon: 50px;
+  --dock-pad: 12px;
+  --dock-gap: 8px;
+  --dock-radius: 24px;
   /* Margini della finestra intorno alla capsula: sopra (icone ingrandite e rimbalzo) e ai lati. */
   --dock-head: 90px;
   --dock-side: 72px;

@@ -205,3 +205,22 @@ describe("cache delle icone", () => {
     expect(withCachedIcons(items, cache)[0].icon).toBe("nuova");
   });
 });
+
+describe("dock size", () => {
+  it("scales every measure with the chosen factor and keeps sizes whole pixels", async () => {
+    const { dockVars, DOCK_BASE } = await import("./dock");
+    expect(dockVars(1)["--dock-icon"]).toBe(`${DOCK_BASE.icon}px`);
+    expect(dockVars(1.2)["--dock-icon"]).toBe("60px");
+    expect(dockVars(0.82)["--dock-icon"]).toBe("41px");
+    for (const v of Object.values(dockVars(1.4))) expect(v).toMatch(/^\d+px$/);
+    expect(Object.keys(dockVars(1)).sort()).toEqual(["--dock-gap", "--dock-head", "--dock-icon", "--dock-pad", "--dock-radius", "--dock-side"]);
+  });
+  it("ignores absurd factors", async () => {
+    const { clampSize } = await import("./dock");
+    expect(clampSize(undefined)).toBe(1);
+    expect(clampSize(NaN)).toBe(1);
+    expect(clampSize("2")).toBe(1);
+    expect(clampSize(99)).toBe(1.6);
+    expect(clampSize(0.1)).toBe(0.6);
+  });
+});

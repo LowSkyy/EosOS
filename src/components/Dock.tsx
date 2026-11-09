@@ -6,6 +6,7 @@ import {
   DRAG_THRESHOLD,
   applyMove,
   clampGlass,
+  dockVars,
   dotState,
   dropTarget,
   knownIconIds,
@@ -183,6 +184,7 @@ export default function Dock() {
     const apply = (st: Partial<DockSettings> | null) => {
       if (!st) return;
       document.documentElement.style.setProperty("--glass", String(clampGlass(st.glass)));
+      for (const [k, v] of Object.entries(dockVars(st.size ?? 1))) document.documentElement.style.setProperty(k, v);
       setBlur(st.blur === true);
     };
     let unlisten: (() => void) | undefined;

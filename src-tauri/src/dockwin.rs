@@ -31,7 +31,7 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
 use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::Graphics::Gdi::{
-    CombineRgn, CreateRectRgn, CreateRoundRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ, HRGN,
+    CombineRgn, CreateRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ, HRGN,
     RGN_AND,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -55,6 +55,8 @@ const NO_ACTIVATE_STYLES: isize = (WS_EX_NOACTIVATE.0 | WS_EX_TOOLWINDOW.0) as i
 /// Stili di una finestra con cornice: il Dock non ne deve avere.
 const CHROME_STYLES: isize =
     (WS_CAPTION.0 | WS_SYSMENU.0 | WS_MINIMIZEBOX.0 | WS_MAXIMIZEBOX.0) as isize;
+/// Pixel di margine della zona cliccabile intorno alla capsula a riposo.
+const REGION_PAD: i32 = 3;
 const TICK: Duration = Duration::from_millis(16);
 /// Ogni quanto si ricontrollano monitor, scala e area di lavoro.
 const RECONCILE_EVERY: Duration = Duration::from_secs(1);
@@ -256,13 +258,16 @@ fn cursor() -> Option<(i32, i32)> {
 /// Regione cliccabile e visibile della finestra, in coordinate della finestra:
 /// la capsula a riposo (cursore fuori) oppure tutta la finestra (cursore dentro),
 /// sempre ritagliata alla parte che sta dentro lo schermo.
-unsafe fn build_region(w: i32, h: i32, cap: Rect, radius: i32, active: bool, vis_h: i32) -> HRGN {
+unsafe fn build_region(w: i32, h: i32, cap: Rect, _radius: i32, active: bool, vis_h: i32) -> HRGN {
     unsafe {
         let base = if active {
             CreateRectRgn(0, 0, w, h)
         } else {
-            let d = radius * 2;
-            CreateRoundRectRgn(cap.x, cap.y, cap.x + cap.w + 1, cap.y + cap.h + 1, d, d)
+            // Rettangolo appena più largo della capsula, NON arrotondato: una regione di finestra non ha bordi lisci
+            // (i gradini si vedevano sugli angoli). Gli angoli arrotondati li disegna il CSS, con i bordi lisci, su
+            // sfondo trasparente; fuori dalla capsula ci sono solo pochi pixel trasparenti che prendono i clic.
+            let p = REGION_PAD;
+            CreateRectRgn(cap.x - p, cap.y - p, cap.x + cap.w + 1 + p, cap.y + cap.h + 1 + p)
         };
         let clip = CreateRectRgn(0, 0, w, vis_h.max(0));
         let out = CreateRectRgn(0, 0, 0, 0);

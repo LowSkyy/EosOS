@@ -62,6 +62,27 @@ pub struct Settings {
     pub reserve: bool,
 }
 
+/// Le dimensioni del Dock: (id, etichetta, fattore). La media è quella di base.
+pub const SIZES: &[(&str, &str, f64)] = &[("small", "Piccolo", 0.82), ("medium", "Medio", 1.0), ("large", "Grande", 1.2), ("xl", "Molto grande", 1.4)];
+
+/// Il fattore di una dimensione dall'id (sconosciuto o vuoto = medio). Pura, testata.
+pub fn size_factor(id: &str) -> f64 {
+    SIZES.iter().find(|(i, _, _)| *i == id).map_or(1.0, |s| s.2)
+}
+
+/// Impostazioni del Dock per la pagina: quelle del file più la dimensione (che sta in `mission.json`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct Ui {
+    #[serde(flatten)]
+    pub base: Settings,
+    pub size: f64,
+}
+
+/// Le impostazioni complete per la pagina del Dock.
+pub fn ui() -> Ui {
+    Ui { base: settings(), size: size_factor(&crate::mcstore::load().dock_size) }
+}
+
 /// Valore di un livello di vetro dall'id. Pura, testata.
 pub fn glass_value(id: &str) -> Option<f64> {
     GLASS_LEVELS.iter().find(|(i, _, _)| *i == id).map(|(_, _, v)| *v)
@@ -415,6 +436,17 @@ mod tests {
 
     fn pin(name: &str, path: &str) -> Pinned {
         Pinned { name: name.into(), path: PathBuf::from(path) }
+    }
+
+    #[test]
+    fn dock_sizes_are_known_and_default_to_medium() {
+        assert_eq!(size_factor(""), 1.0);
+        assert_eq!(size_factor("medium"), 1.0);
+        assert_eq!(size_factor("nonesiste"), 1.0);
+        assert!(size_factor("small") < 1.0 && size_factor("large") > 1.0 && size_factor("xl") > size_factor("large"));
+        let ids: Vec<_> = SIZES.iter().map(|s| s.0).collect();
+        assert_eq!(ids.len(), 4);
+        assert!(SIZES.windows(2).all(|w| w[0].2 < w[1].2), "in ordine crescente");
     }
 
     #[test]

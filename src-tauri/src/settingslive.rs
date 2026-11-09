@@ -65,6 +65,7 @@ impl Backend for Live {
             "calendar.week_start" => Some(Value::Text(if mc().calendar_sunday { "sun" } else { "mon" }.to_string())),
             "dock.autohide" => b(crate::dockwin::autohide()),
             "dock.reserve" => b(crate::dockwin::reserve_enabled()),
+            "dock.size" => Some(Value::Text(match mc().dock_size.as_str() { "" => "medium".to_string(), s => s.to_string() })),
             "dock.blur" => b(crate::dockwin::blur_enabled()),
             "dock.stacks" => Some(Value::List(crate::stacks::folders())),
             "dock.pinned" => Some(Value::List(crate::dockstore::load().into_iter().map(|p| p.name).collect())),
@@ -159,6 +160,14 @@ impl Backend for Live {
                 }
                 self.dock_changed();
             }
+            "dock.size" => {
+                let id = want_text(value)?;
+                if !crate::dockstore::SIZES.iter().any(|s| s.0 == id) {
+                    return Err(SettingsError("Dimensione non ammessa.".into()));
+                }
+                crate::mcstore::set_dock_size(id);
+                self.dock_changed();
+            }
             "dock.stacks" => {
                 crate::mcstore::set_dock_stacks(Some(want_list(value)?));
                 self.dock_changed();
@@ -228,6 +237,6 @@ impl Backend for Live {
 impl Live {
     /// Il Dock aggiorna subito vetro e impostazioni, come dopo una scelta dal suo menu.
     fn dock_changed(&self) {
-        let _ = self.app.emit("dock-settings-changed", crate::dockstore::settings());
+        let _ = self.app.emit("dock-settings-changed", crate::dockstore::ui());
     }
 }
