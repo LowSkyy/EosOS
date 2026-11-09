@@ -66,6 +66,7 @@ impl Backend for Live {
             "dock.autohide" => b(crate::dockwin::autohide()),
             "dock.reserve" => b(crate::dockwin::reserve_enabled()),
             "dock.all_screens" => b(!mc().dock_primary_only),
+            "dock.badges" => b(!mc().dock_badges_off),
             "dock.keys" => Some(Value::Text(match mc().dock_keys.as_str() { "" => "ctrl_alt".to_string(), s => s.to_string() })),
             "dock.size" => Some(Value::Text(match mc().dock_size.as_str() { "" => "medium".to_string(), s => s.to_string() })),
             "dock.blur" => b(crate::dockwin::blur_enabled()),
@@ -176,6 +177,9 @@ impl Backend for Live {
             }
             "dock.all_screens" => {
                 crate::mcstore::set_dock_all_screens(want_bool(value)?);
+            }
+            "dock.badges" => {
+                crate::mcstore::set_dock_badges(want_bool(value)?);
             }
             "dock.keys" => {
                 let id = want_text(value)?;

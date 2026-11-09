@@ -59,6 +59,9 @@ pub struct Settings {
     /// Dimensione del Dock: "small", "medium" (predefinita, anche se vuoto), "large" o "xl".
     #[serde(rename = "dockSize")]
     pub dock_size: String,
+    /// I badge delle notifiche sulle icone del Dock sono spenti (di base si vedono, se la lettura delle notifiche è accesa).
+    #[serde(rename = "dockBadgesOff")]
+    pub dock_badges_off: bool,
     /// Modificatore delle scorciatoie per disporre le finestre ("ctrl_alt", "ctrl_shift", "alt_shift"); vuoto = spente.
     #[serde(rename = "snapKeys")]
     pub snap_keys: String,
@@ -311,6 +314,11 @@ pub fn set_snap_keys(id: &str) -> Settings {
     update(|s| s.snap_keys = if id == "off" { String::new() } else { id.to_string() })
 }
 
+/// Accende (`on` vero) o spegne i badge delle notifiche sulle icone del Dock e salva.
+pub fn set_dock_badges(on: bool) -> Settings {
+    update(|s| s.dock_badges_off = !on)
+}
+
 /// Sceglie se Win+Tab resta quello di Windows e salva.
 pub fn set_windows_win_tab(keep: bool) -> Settings {
     update(|s| s.windows_win_tab = keep)
@@ -343,6 +351,7 @@ mod tests {
         assert!(!d.notif_read, "la lettura delle notifiche e' spenta di default");
         assert!(d.reminders.is_empty() && !d.weather_on && d.weather_city.is_none(), "il widget Oggi parte vuoto e senza rete");
         assert!(d.dock_keys.is_empty(), "scorciatoie del Dock: quelle di base");
+        assert!(!d.dock_badges_off, "i badge del Dock sono accesi di base");
         assert!(d.snap_keys.is_empty(), "scorciatoie delle finestre: spente di base");
         assert!(!d.dock_primary_only, "di base il Dock c'e' su ogni monitor");
         assert!(!d.keep_taskbar, "di base EosOS nasconde la barra delle applicazioni di Windows");
@@ -368,7 +377,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), snap_keys: "alt_shift".into(), win_key_off: true, menu_hide_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into() }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), dock_badges_off: true, snap_keys: "alt_shift".into(), win_key_off: true, menu_hide_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into() }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

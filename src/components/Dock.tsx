@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type React from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { badgeAria, badgeMap, sameBadges, type Badge } from "../lib/badge";
 import {
   DRAG_THRESHOLD,
   applyMove,
@@ -31,6 +32,8 @@ const BACKDROP_MS = 40;
 
 /** Ogni quanto si rilegge l'elenco delle app aperte. */
 const POLL_MS = 1000;
+/** Ogni quanto si rilegge il conteggio delle notifiche per i badge. */
+const BADGE_MS = 4000;
 /** Un rimbalzo non dura più di così, anche se l'app non compare mai. */
 const BOUNCE_MAX_MS = 8000;
 /** Ogni quanto si scartano le icone già ricevute per ricaricarle. */
@@ -38,6 +41,7 @@ const ICON_REFRESH_MS = 10 * 60 * 1000;
 
 function Icon({
   item,
+  badge,
   bouncing,
   offset,
   dragging,
@@ -45,6 +49,8 @@ function Icon({
   onPointerDown,
 }: {
   item: DockItem;
+  /** Il testo del badge delle notifiche (assente = nessuna notifica). */
+  badge?: string;
   bouncing: boolean;
   /** Spostamento orizzontale durante un trascinamento (px). */
   offset: number;
@@ -63,6 +69,7 @@ function Icon({
       className="dock-item"
       title={item.name}
       role="button"
+      aria-label={badgeAria(item.name, badge)}
       data-bounce={bouncing}
       data-dragging={dragging}
       style={{ "--dx": `${offset}px` } as React.CSSProperties}
@@ -76,6 +83,11 @@ function Icon({
         <div className="dock-icon dock-icon-fallback" aria-label={item.name}>
           {item.name.charAt(0).toUpperCase()}
         </div>
+      )}
+      {badge && (
+        <span className="dock-badge" aria-hidden>
+          {badge}
+        </span>
       )}
       <span className="dock-dot" data-state={dotState(item)} />
     </div>
@@ -147,6 +159,8 @@ const cssPx = (name: string) =>
 
 export default function Dock() {
   const [items, setItems] = useState<DockItem[]>([]);
+  // Badge delle notifiche per icona (id → testo). Rust risponde vuoto se la lettura delle notifiche è spenta.
+  const [badges, setBadges] = useState<Record<string, string>>({});
   const [stacks, setStacks] = useState<StackItem[]>([]);
   const [bouncing, setBouncing] = useState<Set<string>>(new Set());
   const zone = useRef<HTMLDivElement>(null);
@@ -294,6 +308,28 @@ export default function Dock() {
     const t = setInterval(() => icons.current.clear(), ICON_REFRESH_MS);
     return () => clearInterval(t);
   }, []);
+
+  // Badge delle notifiche: la pagina manda le sue icone e riceve solo i conteggi; si rilegge ogni pochi secondi.
+  const itemsKey = items.map((i) => `${i.id}|${i.name}|${i.path}`).join("\n");
+  useEffect(() => {
+    if (items.length === 0) return;
+    let gone = false;
+    const ask = () =>
+      invoke<Badge[]>("dock_badges", { items: items.map((i) => ({ id: i.id, name: i.name, path: i.path })) })
+        .then((list) => {
+          if (gone) return;
+          const next = badgeMap(list);
+          setBadges((cur) => (sameBadges(cur, next) ? cur : next));
+        })
+        .catch(() => undefined);
+    void ask();
+    const t = setInterval(ask, BADGE_MS);
+    return () => {
+      gone = true;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemsKey]);
 
   // Legge l'elenco subito e poi a intervalli; aggiorna lo stato solo se cambia.
   useEffect(() => {
@@ -509,6 +545,7 @@ export default function Dock() {
     <Icon
       key={i.id}
       item={i}
+      badge={badges[i.id]}
       bouncing={bouncing.has(i.id)}
       offset={drag?.id === i.id ? drag.dx : (offsets[i.id] ?? 0)}
       dragging={drag?.id === i.id}

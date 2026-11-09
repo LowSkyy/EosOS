@@ -943,3 +943,20 @@ body {
 .control-link { display: block; width: 100%; padding: 5px 8px; border: 0; border-radius: 6px; background: none; color: var(--bar-fg); font: inherit; text-align: left; cursor: default; }
 .control-link:hover, .control-link:focus-visible { background: rgba(10, 132, 255, 0.85); color: #fff; outline: none; }
 .control-error { margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: rgba(255, 59, 48, 0.2); color: #ff6961; font-size: 12px; }
+/* Badge delle notifiche: pallina rossa con il numero, in alto a destra dell'icona. */
+.dock-badge {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  background: #ff3b30;
+  color: #fff;
+  font: 700 11px/17px system-ui, sans-serif;
+  text-align: center;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}

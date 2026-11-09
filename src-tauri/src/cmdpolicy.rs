@@ -11,7 +11,7 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         // Il pannello sotto l'orologio può solo accendere/spegnere la lettura delle notifiche e «Non disturbare».
         "settings_set" => label == "settings" || (label == "panel" && matches!(key, Some("notif.read" | "notif.dnd"))),
         // Dock: aprire app e cambiare le app fissate.
-        "dock_activate" | "dock_reorder" | "dock_stacks" | "dock_launchpad" => label == "dock" || label.starts_with("dock-"),
+        "dock_activate" | "dock_reorder" | "dock_stacks" | "dock_launchpad" | "dock_badges" => label == "dock" || label.starts_with("dock-"),
         // Contenuto delle pile: lo chiede solo il pannello.
         c if c.starts_with("stack_") => label == "panel",
         // Pannello degli indicatori: volume vero, apertura delle impostazioni di Windows, scelta di una voce di menu di
@@ -88,6 +88,14 @@ mod tests {
             }
         }
         assert!(allowed("panel", "settings_set", Some("notif.read")) && !allowed("panel", "settings_set", Some("oggi.city")));
+    }
+
+    #[test]
+    fn dock_badges_belong_to_the_dock_windows() {
+        assert!(allowed("dock", "dock_badges", None) && allowed("dock-1", "dock_badges", None));
+        for other in ["panel", "settings", "launcher", "bar-0", "main", "mc-0"] {
+            assert!(!allowed(other, "dock_badges", None), "{other}");
+        }
     }
 
     #[test]

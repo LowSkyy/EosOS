@@ -59,3 +59,9 @@ il punto da guardare è `mckeys::step` in `src-tauri/src/mckeys.rs` (logica pura
 - [ ] Wi-Fi e Bluetooth: appaiono solo se il PC li ha; spegnere e riaccendere funziona (attenzione: spegnere il Wi-Fi taglia la rete).
 - [ ] Non disturbare e Mantieni sveglio cambiano stato; con Mantieni sveglio acceso lo schermo non si spegne per inattività.
 - [ ] Il cursore del volume muove il volume vero.
+
+## 9. Badge delle notifiche sul Dock (nuovo)
+- [ ] Impostazioni → Notifiche → «Mostra le notifiche» acceso: ricevi una notifica da un app fissata nel Dock (es. Discord): compare la pallina rossa col numero.
+- [ ] Leggere o chiudere le notifiche la fa sparire (entro qualche secondo).
+- [ ] Con Non disturbare acceso i badge spariscono; spegnendolo tornano.
+- [ ] Un app che NON ha il badge pur avendo notifiche: dimmi quale (nome e icona), l abbinamento si puo allargare.
