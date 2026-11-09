@@ -868,10 +868,23 @@ fn dock_settings_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Re
         dockwin::reserve_enabled(),
         None::<&str>,
     )?;
+    let sep_size = tauri::menu::PredefinedMenuItem::separator(&app)?;
+    let cur_size = match mcstore::load().dock_size.as_str() {
+        "" => "medium".to_string(),
+        s => s.to_string(),
+    };
+    let sizes = dockstore::SIZES
+        .iter()
+        .map(|(id, label, _)| CheckMenuItem::with_id(&app, menu_id(MenuAction::SetSize, id), format!("Dock {}", label.to_lowercase()), true, *id == cur_size, None::<&str>))
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let all_screens = CheckMenuItem::with_id(&app, menu_id(MenuAction::ToggleAllScreens, "-"), "Dock su tutti gli schermi", true, !mcstore::load().dock_primary_only, None::<&str>)?;
     let sep2 = tauri::menu::PredefinedMenuItem::separator(&app)?;
     let settings = tauri::menu::MenuItem::with_id(&app, settingswin::MENU_ID, settingswin::MENU_LABEL, true, None::<&str>)?;
     let mut items: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = vec![&hide, &reserve, &blur, &sep];
     items.extend(levels.iter().map(|l| l as &dyn tauri::menu::IsMenuItem<tauri::Wry>));
+    items.push(&sep_size);
+    items.extend(sizes.iter().map(|l| l as &dyn tauri::menu::IsMenuItem<tauri::Wry>));
+    items.push(&all_screens);
     items.push(&sep2);
     items.push(&settings);
     let menu = Menu::with_items(&app, &items)?;

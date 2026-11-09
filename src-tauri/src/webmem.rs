@@ -6,6 +6,10 @@
 
 /// Mette la pagina a basso (`low`) o normale uso di memoria. Sicura da chiamare da qualunque thread.
 pub fn set_low(win: &tauri::WebviewWindow, low: bool) {
+    // `EOSOS_WEBMEM=0` spegne la riduzione (per misurare quanto costa alla prima apertura).
+    if low && std::env::var("EOSOS_WEBMEM").is_ok_and(|v| v == "0") {
+        return;
+    }
     let _ = win.with_webview(move |wv| unsafe {
         use webview2_com::Microsoft::Web::WebView2::Win32::{
             ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,

@@ -30,6 +30,9 @@ pub enum MenuAction {
     SetGlass,
     ToggleBlur,
     ToggleReserve,
+    /// L'id è la dimensione (`small`, `medium`, `large`, `xl`).
+    SetSize,
+    ToggleAllScreens,
 }
 
 const PREFIX: &str = "dock";
@@ -45,6 +48,8 @@ pub fn menu_id(action: MenuAction, id: &str) -> String {
         MenuAction::SetGlass => "glass",
         MenuAction::ToggleBlur => "blur",
         MenuAction::ToggleReserve => "reserve",
+        MenuAction::SetSize => "size",
+        MenuAction::ToggleAllScreens => "allscreens",
     };
     format!("{PREFIX}:{a}:{id}")
 }
@@ -64,6 +69,8 @@ pub fn parse_menu_id(raw: &str) -> Option<(MenuAction, String)> {
         "glass" => MenuAction::SetGlass,
         "blur" => MenuAction::ToggleBlur,
         "reserve" => MenuAction::ToggleReserve,
+        "size" => MenuAction::SetSize,
+        "allscreens" => MenuAction::ToggleAllScreens,
         _ => return None,
     };
     let id = parts.next()?;
@@ -201,6 +208,16 @@ pub fn run_menu_action(action: MenuAction, id: &str) {
         MenuAction::ToggleAutoHide => return crate::dockwin::toggle_autohide(),
         MenuAction::ToggleBlur => return crate::dockwin::toggle_blur(),
         MenuAction::ToggleReserve => return crate::dockwin::toggle_reserve(),
+        MenuAction::ToggleAllScreens => {
+            crate::mcstore::set_dock_all_screens(crate::mcstore::load().dock_primary_only);
+            return;
+        }
+        MenuAction::SetSize => {
+            if dockstore::SIZES.iter().any(|s| s.0 == id) {
+                crate::mcstore::set_dock_size(id);
+            }
+            return;
+        }
         MenuAction::SetGlass => {
             if let Some(v) = dockstore::glass_value(id) {
                 dockstore::set_glass(v);
@@ -218,7 +235,9 @@ pub fn run_menu_action(action: MenuAction, id: &str) {
         MenuAction::ToggleAutoHide
         | MenuAction::SetGlass
         | MenuAction::ToggleBlur
-        | MenuAction::ToggleReserve => {} // gestite sopra: non riguardano una voce
+        | MenuAction::ToggleReserve
+        | MenuAction::SetSize
+        | MenuAction::ToggleAllScreens => {} // gestite sopra: non riguardano una voce
     }
 }
 
@@ -236,7 +255,7 @@ mod tests {
 
     #[test]
     fn menu_id_roundtrip_with_colons_in_the_id() {
-        for a in [MenuAction::Open, MenuAction::Quit, MenuAction::Pin, MenuAction::Unpin, MenuAction::ToggleAutoHide, MenuAction::SetGlass, MenuAction::ToggleBlur, MenuAction::ToggleReserve] {
+        for a in [MenuAction::Open, MenuAction::Quit, MenuAction::Pin, MenuAction::Unpin, MenuAction::ToggleAutoHide, MenuAction::SetGlass, MenuAction::ToggleBlur, MenuAction::ToggleReserve, MenuAction::SetSize, MenuAction::ToggleAllScreens] {
             let raw = menu_id(a, r"c:\program files\app\app.exe");
             assert_eq!(parse_menu_id(&raw), Some((a, r"c:\program files\app\app.exe".to_string())));
         }

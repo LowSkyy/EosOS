@@ -30,7 +30,7 @@ const BLUR_MARGIN = 28;
 const BACKDROP_MS = 40;
 
 /** Ogni quanto si rilegge l'elenco delle app aperte. */
-const POLL_MS = 2000;
+const POLL_MS = 1000;
 /** Un rimbalzo non dura più di così, anche se l'app non compare mai. */
 const BOUNCE_MAX_MS = 8000;
 /** Ogni quanto si scartano le icone già ricevute per ricaricarle. */
@@ -285,9 +285,21 @@ export default function Dock() {
     alive.current = true;
     void load();
     const t = setInterval(load, POLL_MS);
+    // Quando cambia l'app in primo piano (se ne apre una, se ne chiude una, si passa a un'altra) si rilegge subito, senza
+    // aspettare il giro periodico: il Dock segue le app aperte senza ritardo.
+    let pending: number | undefined;
+    let unlisten: (() => void) | undefined;
+    let gone = false;
+    listen("foreground-changed", () => {
+      window.clearTimeout(pending);
+      pending = window.setTimeout(() => void load(), 120);
+    }).then((fn) => (gone ? fn() : (unlisten = fn)));
     return () => {
       alive.current = false;
       clearInterval(t);
+      gone = true;
+      window.clearTimeout(pending);
+      unlisten?.();
     };
   }, [load]);
 
