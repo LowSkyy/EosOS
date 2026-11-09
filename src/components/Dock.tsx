@@ -192,6 +192,11 @@ export default function Dock() {
     listen<DockSettings>("dock-settings-changed", (e) => {
       apply(e.payload);
       loadStacks();
+      // Un'app fissata o tolta dal menu (o dalle Impostazioni) deve comparire o sparire SUBITO: senza questo l'elenco
+      // si rinfrescava solo al giro successivo (fino a 2 secondi dopo) e il Dock sembrava bloccato.
+      epoch.current += 1;
+      void load();
+      setTimeout(() => void load(), 600);
     }).then((fn) => {
       if (cancelled) fn();
       else unlisten = fn;
@@ -201,7 +206,7 @@ export default function Dock() {
       cancelled = true;
       unlisten?.();
     };
-  }, [loadStacks]);
+  }, [loadStacks, load]);
 
   // Sfondo sfocato: disegna nel canvas della capsula la parte di schermo che sta
   // dietro di lei. Il CSS lo sfoca e lo ritaglia con la forma della capsula.

@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794180261.5463824,
-    "seen": 1794181690.7168283,
-    "ast_hash": "d9bfa750ad68a305981011f8a1821b29",
+    "mtime": 1794183862.836141,
+    "seen": 1794184159.6894221,
+    "ast_hash": "fa612e089649829b9d2843bf002f8068",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -366,27 +366,27 @@
     "semantic_hash": ""
   },
   "src-tauri/src/dockwin.rs": {
-    "mtime": 1794146198.828979,
-    "seen": 1794146790.7933493,
-    "ast_hash": "bfd76d6eb38d970df14171a7c4e1677a",
+    "mtime": 1794183887.137809,
+    "seen": 1794184159.6894093,
+    "ast_hash": "477db356eb2ec4a38e6c03f5ee4ae84c",
     "semantic_hash": ""
   },
   "src/components/Dock.tsx": {
-    "mtime": 1794173851.5833218,
-    "seen": 1794174424.6898532,
-    "ast_hash": "42880be7e8ec95887aeb6137a0e3e82a",
+    "mtime": 1794183862.836141,
+    "seen": 1794184159.6894581,
+    "ast_hash": "0d1bcd08c11c48ff1af05c79fcb917f8",
     "semantic_hash": ""
   },
   "src/lib/dock.test.ts": {
-    "mtime": 1794080013.3508298,
-    "seen": 1794080426.1263406,
-    "ast_hash": "675fb31c4dc4df7951c1210384e9b728",
+    "mtime": 1794183923.9371362,
+    "seen": 1794184159.6894758,
+    "ast_hash": "0999acb8bd6501c883b6a36fbff6c05e",
     "semantic_hash": ""
   },
   "src/lib/dock.ts": {
-    "mtime": 1794080004.8296647,
-    "seen": 1794080426.1263413,
-    "ast_hash": "aea305862f521ea7403cc786ae6ed590",
+    "mtime": 1794183862.836141,
+    "seen": 1794184159.6894765,
+    "ast_hash": "f5df87a6f8eaa214b82429d20a19184e",
     "semantic_hash": ""
   },
   "src-tauri/src/dockact.rs": {
@@ -396,9 +396,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/dockstore.rs": {
-    "mtime": 1794079973.1053288,
-    "seen": 1794080426.126323,
-    "ast_hash": "11cc2beb0b41c92e247d724682377884",
+    "mtime": 1794183862.835142,
+    "seen": 1794184159.6894083,
+    "ast_hash": "aa17e75788b25297c893c019b78a2878",
     "semantic_hash": ""
   },
   "src-tauri/src/dockgeom.rs": {
@@ -702,9 +702,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/mcstore.rs": {
-    "mtime": 1794180261.5453825,
-    "seen": 1794181690.7168376,
-    "ast_hash": "40112f144c6d2bfacc10f14b8cd23f83",
+    "mtime": 1794183862.835142,
+    "seen": 1794184159.6894276,
+    "ast_hash": "9628b8dced030499da69769690f337b9",
     "semantic_hash": ""
   },
   "src-tauri/src/mctrigger.rs": {
@@ -876,27 +876,27 @@
     "semantic_hash": ""
   },
   "scripts/test-settings.ps1": {
-    "mtime": 1794181134.951807,
-    "seen": 1794181690.7167692,
-    "ast_hash": "4c1f1fa16e8f83d22874f54a4c708186",
+    "mtime": 1794184111.0576973,
+    "seen": 1794184159.6893885,
+    "ast_hash": "c999a96fcac740e71c6db5d3868c3d8d",
     "semantic_hash": ""
   },
   "src-tauri/src/settingslive.rs": {
-    "mtime": 1794180261.5463824,
-    "seen": 1794181690.7168543,
-    "ast_hash": "3880938466b7074442b8c3a07df23879",
+    "mtime": 1794183862.836141,
+    "seen": 1794184159.689439,
+    "ast_hash": "56cc3efa9bb3dcf4c687400e0ee4f14f",
     "semantic_hash": ""
   },
   "src-tauri/src/settingsreg.rs": {
-    "mtime": 1794180296.6402779,
-    "seen": 1794181690.7168558,
-    "ast_hash": "485ca4a58edf7c35636c393a382dc8a6",
+    "mtime": 1794183862.835142,
+    "seen": 1794184159.68944,
+    "ast_hash": "5b52c7a070e5a6bee6079ea63206de71",
     "semantic_hash": ""
   },
   "scripts/test-settingswin.ps1": {
-    "mtime": 1794174266.3414552,
-    "seen": 1794174424.6897938,
-    "ast_hash": "8d431e4b1de67b7accf0c65004d8d54c",
+    "mtime": 1794184111.07092,
+    "seen": 1794184159.6893892,
+    "ast_hash": "3f1188bb43660ced56d15f73895cb1a6",
     "semantic_hash": ""
   },
   "src-tauri/src/settingswin.rs": {
@@ -1245,6 +1245,12 @@
     "mtime": 1794182054.013887,
     "seen": 1794182058.306446,
     "ast_hash": "020644038a258fc82089bf92f6c97c92",
+    "semantic_hash": ""
+  },
+  "scripts/shot-dock.ps1": {
+    "mtime": 1794183771.682315,
+    "seen": 1794184159.6893458,
+    "ast_hash": "30c0d89b794b0ab414352ec1daf6b8f6",
     "semantic_hash": ""
   },
   "package-lock.json": {
