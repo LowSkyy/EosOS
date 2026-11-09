@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794186535.2548783,
-    "seen": 1794187742.0909579,
-    "ast_hash": "a8e0ed98249ab5a8fb235b01bbb7773d",
+    "mtime": 1794188038.3366,
+    "seen": 1794188063.47174,
+    "ast_hash": "f3f4c496b9041d8d44ea562941090823",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "src/components/Dock.tsx": {
-    "mtime": 1794184290.9702885,
-    "seen": 1794184309.591676,
-    "ast_hash": "5f7fa434ba5002a52e0493eb9b9e4582",
+    "mtime": 1794187986.6335826,
+    "seen": 1794188063.4717765,
+    "ast_hash": "17f6c74da1b42340987c3937407ec55d",
     "semantic_hash": ""
   },
   "src/lib/dock.test.ts": {
@@ -390,9 +390,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/dockact.rs": {
-    "mtime": 1794098393.4102182,
-    "seen": 1794099517.4724078,
-    "ast_hash": "862664afd957df40fe2af0ffee1258da",
+    "mtime": 1794188038.3366,
+    "seen": 1794188063.4717233,
+    "ast_hash": "218521587b887fbc9079ba864f72c851",
     "semantic_hash": ""
   },
   "src-tauri/src/dockstore.rs": {
@@ -1146,9 +1146,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/webmem.rs": {
-    "mtime": 1794175061.4540012,
-    "seen": 1794175935.7225285,
-    "ast_hash": "e59493553a4548aecd1d93989d8e7279",
+    "mtime": 1794187754.8143854,
+    "seen": 1794188063.4717698,
+    "ast_hash": "8f89c7730678f16199e46e5b2e971606",
     "semantic_hash": ""
   },
   "scripts/make-update-feed.ps1": {
@@ -1305,6 +1305,18 @@
     "mtime": 1794186747.6542253,
     "seen": 1794187742.090886,
     "ast_hash": "e668bcb08308cc2d74961e33dc296882",
+    "semantic_hash": ""
+  },
+  "scripts/measure-hover.ps1": {
+    "mtime": 1794187906.7676537,
+    "seen": 1794188063.471646,
+    "ast_hash": "6f819af461c19c6d691a6c1b228c1a5c",
+    "semantic_hash": ""
+  },
+  "scripts/measure-open.ps1": {
+    "mtime": 1794187775.3111565,
+    "seen": 1794188063.4716487,
+    "ast_hash": "9ddb7e8aef770b5e2b59d30469d20234",
     "semantic_hash": ""
   },
   "package-lock.json": {
