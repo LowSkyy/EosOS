@@ -925,7 +925,7 @@ body {
 .launchpad-viewport { position: relative; flex: 1; width: 100%; min-height: 0; margin-top: 26px; overflow: hidden; }
 .launchpad-grid { display: flex; height: 100%; transition: transform 0.34s cubic-bezier(0.22, 0.8, 0.28, 1); }
 .launchpad-page { flex: 0 0 100%; height: 100%; display: grid; justify-content: center; align-content: center; }
-.launchpad-app { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 128px; height: 132px; padding: 10px 6px 6px; box-sizing: border-box; border: 0; border-radius: 16px; background: none; color: #f5f5f7; font: inherit; cursor: default; transition: background 0.12s, transform 0.12s; }
+.launchpad-app { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 128px; height: 144px; padding: 10px 6px 6px; box-sizing: border-box; border: 0; border-radius: 16px; background: none; color: #f5f5f7; font: inherit; cursor: default; transition: background 0.12s, transform 0.12s; }
 .launchpad-app[data-selected="true"] { background: rgba(255, 255, 255, 0.16); transform: scale(1.04); }
 .launchpad-app:active { transform: scale(0.97); }
 .launchpad-icon { width: 84px; height: 84px; object-fit: contain; border-radius: 22%; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35)); pointer-events: none; }
@@ -1046,3 +1046,5 @@ body {
 .winsys-bar-fill[data-high="true"] { background: #ff453a; }
 .winset-more { margin-top: 6px; }
 .winset-note { margin: 0 0 6px; color: var(--bar-fg-muted); font-size: 12px; }
+/* La barra di ricerca normale del Launcher non si vede nel Launchpad (l'attributo hidden perdeva contro il display del CSS). */
+.launcher-field[hidden] { display: none; }

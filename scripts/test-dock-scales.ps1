@@ -140,7 +140,11 @@ if ($skipped) { Write-Host "Non supportate da questo monitor (saltate): $($skipp
 $todo = @($todo | Where-Object { $supported -contains $_ })
 $dead = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'dpi-deadman.ps1'), '-Orig', $orig, '-After', 600 -PassThru -WindowStyle Hidden
 Write-Host "Rete di sicurezza attiva (pid $($dead.Id)): fra 10 minuti ripristina il $orig% se serve."
+$mcDS = Join-Path $env:LOCALAPPDATA 'EosOS\mission.json'
+$mcBackupDS = if (Test-Path $mcDS) { [System.IO.File]::ReadAllBytes($mcDS) } else { $null }
 try {
+  # Parte da impostazioni di base (la dimensione del Dock scelta dall'utente falserebbe le misure): il suo file si ripristina alla fine.
+  Remove-Item $mcDS -ErrorAction SilentlyContinue
   Cleanup-Eos; Start-Sleep 1
   $p = Start-Eos
   Run-Checks $orig 'dal vivo (scala di partenza)'
@@ -158,6 +162,8 @@ try {
   }
 }
 finally {
+  Remove-Item $mcDS -ErrorAction SilentlyContinue
+  if ($null -ne $mcBackupDS) { [System.IO.File]::WriteAllBytes($mcDS, $mcBackupDS) }
   Stop-Stripes
   Cleanup-Eos
   Write-Host "`nRipristino la scala originale ($orig%) ..." -ForegroundColor Yellow

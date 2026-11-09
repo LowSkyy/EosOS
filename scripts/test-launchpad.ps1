@@ -57,10 +57,10 @@ try {
   if ($pages -ge 2) {
     Js 'launcher' "document.querySelector('.launchpad').dispatchEvent(new KeyboardEvent('keydown',{key:'PageDown',bubbles:true}))" | Out-Null
     Start-Sleep -Milliseconds 600
-    Check 'PagGiu passa alla seconda pagina' ((Js 'launcher' "document.querySelector('.launchpad-dot[data-active='true']')===document.querySelectorAll('.launchpad-dot')[1]") -eq $true)
+    Check 'PagGiu passa alla seconda pagina' ((Js 'launcher' "Array.from(document.querySelectorAll('.launchpad-dot')).findIndex(function(d){return d.getAttribute('data-active')==='true'})") -eq 1)
     Js 'launcher' "document.querySelector('.launchpad').dispatchEvent(new KeyboardEvent('keydown',{key:'PageUp',bubbles:true}))" | Out-Null
     Start-Sleep -Milliseconds 600
-    Check 'PagSu torna alla prima' ((Js 'launcher' "document.querySelector('.launchpad-dot[data-active='true']')===document.querySelectorAll('.launchpad-dot')[0]") -eq $true)
+    Check 'PagSu torna alla prima' ((Js 'launcher' "Array.from(document.querySelectorAll('.launchpad-dot')).findIndex(function(d){return d.getAttribute('data-active')==='true'})") -eq 0)
   }
   Check 'il campo di ricerca ha un nome' ((Js 'launcher' "document.querySelector('.launchpad-search').getAttribute('aria-label')") -eq 'Cerca tra le app')
   Check 'la griglia e un elenco per i lettori di schermo' ((Js 'launcher' "document.querySelector('.launchpad-grid').getAttribute('role')") -eq 'listbox')
@@ -82,11 +82,10 @@ try {
   Check 'parte un nuovo Blocco note' (Wait-Until { @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $notepadBefore -notcontains $_.Id }).Count -ge 1 } 15)
   Check 'e il Launchpad si chiude' (Wait-Until { -not (Pad-Open) } 5)
 
-  Write-Host 'D. dal menu EosOS'
-  Js 'bar' "document.querySelector('.eos-btn').click()" | Out-Null
-  Start-Sleep 1
-  Js 'panel' "Array.from(document.querySelectorAll('.eosmenu-item')).filter(function(b){return b.textContent.indexOf('Launchpad')>=0})[0].click()" | Out-Null
-  Check 'la voce Launchpad del menu lo apre' (Wait-Until { (Pad-Open) -and ((Apps) -ge 10) } 10)
+  Write-Host 'D. di nuovo dal Dock (il menu EosOS ha ormai una sola voce)'
+  Js 'dock' "document.querySelector('.dock-launchpad').click()" | Out-Null
+  Check 'il Launchpad si riapre dall icona del Dock' (Wait-Until { (Pad-Open) -and ((Apps) -ge 10) } 10)
+  Check 'il menu EosOS non ha piu la voce Launchpad' ((Js 'bar' "document.querySelector('.eos-btn').click()") -eq $null -and (Wait-Until { (Js 'panel' "document.querySelectorAll('.eosmenu-item').length") -eq 1 } 6))
 
   Write-Host 'E. chiusura e ritorno alla ricerca normale'
   Js 'launcher' "window.__TAURI_INTERNALS__.invoke('launcher_hide')" | Out-Null

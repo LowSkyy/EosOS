@@ -157,7 +157,11 @@ $deads = @(
   (Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'dpi-deadman.ps1'), '-Orig', $origS, '-After', 900, '-Gdi', $secM.Gdi -PassThru -WindowStyle Hidden)
 )
 Write-Host "Reti di sicurezza attive: fra 15 minuti rimettono primario $origP% e secondario $origS% se serve."
+$mcDS = Join-Path $env:LOCALAPPDATA 'EosOS\mission.json'
+$mcBackupDS = if (Test-Path $mcDS) { [System.IO.File]::ReadAllBytes($mcDS) } else { $null }
 try {
+  # Parte da impostazioni di base (la dimensione del Dock scelta dall'utente falserebbe le misure): il suo file si ripristina alla fine.
+  Remove-Item $mcDS -ErrorAction SilentlyContinue
   Cleanup-Eos; Start-Sleep 1
   $p = Start-Eos
 
@@ -177,6 +181,8 @@ try {
   Run-Checks 'avvio a freddo con scale diverse'
 }
 finally {
+  Remove-Item $mcDS -ErrorAction SilentlyContinue
+  if ($null -ne $mcBackupDS) { [System.IO.File]::WriteAllBytes($mcDS, $mcBackupDS) }
   Stop-Stripes
   Cleanup-Eos
   Write-Host "`nRipristino le scale originali (primario $origP%, secondario $origS%) ..." -ForegroundColor Yellow

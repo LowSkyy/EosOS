@@ -69,7 +69,7 @@ try {
   if ($cnt -gt 0) {
     Check 'l icona compare nel Dock' (Wait-Until { (Js 'dock' "document.querySelectorAll('.dock:not(.dock-ghost) .dock-tray').length") -eq 1 } 12)
     Check 'ha un nome per i lettori di schermo' ((Js 'dock' "document.querySelector('.dock-tray').getAttribute('aria-label')") -like 'App in background*')
-    $list = @(Js 'panel' "window.__TAURI_INTERNALS__.invoke('tray_apps')")
+    $list = @(Js 'panel' "window.__TAURI_INTERNALS__.invoke('tray_apps')" | ForEach-Object { $_ })
     Check 'l elenco del pannello ha almeno un app con nome e id' (($list.Count -ge 1) -and (-not [string]::IsNullOrEmpty($list[0].name)) -and (-not [string]::IsNullOrEmpty($list[0].id))) ("app: " + (($list | ForEach-Object { $_.name }) -join ', '))
     Js 'dock' "document.querySelector('.dock-tray').click()" | Out-Null
     Check 'un clic apre il pannello' (Wait-Until { [DN]::Visible('EosOS Pannello') -and ((Js 'panel' "document.querySelectorAll('.tray-app').length") -ge 1) } 8)
@@ -87,7 +87,7 @@ try {
   $env:EOSOS_TEST_STRICT = '1'
   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'; Start-Process $exe | Out-Null; Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS; Start-Sleep 12
   Check 'dalla barra dock_tray_count da 0' (([int](Js 'bar' "window.__TAURI_INTERNALS__.invoke('dock_tray_count').then(function(r){return r},function(e){return 0})")) -eq 0)
-  Check 'dal Dock tray_apps non da niente' (@(Js 'dock' "window.__TAURI_INTERNALS__.invoke('tray_apps').then(function(r){return r},function(e){return []})").Count -eq 0)
+  Check 'dal Dock tray_apps non da niente' ((Js 'dock' "window.__TAURI_INTERNALS__.invoke('tray_apps').then(function(r){return r.length},function(e){return 0})") -eq 0)
   Check 'dal Dock tray_open non apre' ((Js 'dock' "window.__TAURI_INTERNALS__.invoke('tray_open',{id:'x'}).then(function(r){return r},function(e){return false})") -ne $true)
 }
 finally {

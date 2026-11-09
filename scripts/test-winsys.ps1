@@ -29,9 +29,9 @@ try {
   $i = Inv 'winsys_info'
   Check 'informazioni: nome del dispositivo, utente e Windows' ((-not [string]::IsNullOrEmpty($i.device)) -and ($i.user -eq $env:USERNAME) -and ($i.os -like 'Windows*')) ("$($i.device) / $($i.os)")
   Check 'processore e memoria' ((-not [string]::IsNullOrEmpty($i.cpu)) -and ($i.memory -match '(GB|MB|TB)')) ("$($i.cpu) / $($i.memory)")
-  $d = @(Inv 'winsys_drives')
+  $d = @(Inv 'winsys_drives' | ForEach-Object { $_ })
   Check 'almeno un disco con spazio totale e libero' (($d.Count -ge 1) -and ($d[0].total -match 'GB|TB|MB') -and ($d[0].used_percent -ge 0) -and ($d[0].used_percent -le 100)) ("dischi: " + $d.Count)
-  $dp = @(Inv 'winsys_displays')
+  $dp = @(Inv 'winsys_displays' | ForEach-Object { $_ })
   Check 'gli schermi sono quelli del sistema' ($dp.Count -eq [System.Windows.Forms.Screen]::AllScreens.Count -or $dp.Count -ge 1) ("schermi: " + $dp.Count)
   Check 'uno e il principale' (@($dp | Where-Object { $_.primary -eq $true }).Count -ge 1)
 
@@ -57,13 +57,13 @@ try {
   Check 'un id inventato rifiutato' ((Inv 'winsys_power_set' ",{which:'boh',minutes:5}") -eq $false)
 
   Write-Host 'D. app all avvio (solo la mia voce di prova)'
-  $su = @(Inv 'winsys_startup')
+  $su = @(Inv 'winsys_startup' | ForEach-Object { $_ })
   $mine = $su | Where-Object { $_.name -eq $testName }
   Check 'la voce di prova e nell elenco, accesa' (($null -ne $mine) -and ($mine.enabled -eq $true))
   Check 'la spegni' ((Inv 'winsys_startup_set' (",{name:'$testName',on:false}")) -eq $true)
-  Check 'ora risulta spenta' (Wait-Until { ((@(Inv 'winsys_startup') | Where-Object { $_.name -eq $testName }).enabled) -eq $false } 4)
+  Check 'ora risulta spenta' (Wait-Until { ((@(Inv 'winsys_startup' | ForEach-Object { $_ }) | Where-Object { $_.name -eq $testName }).enabled) -eq $false } 4)
   Check 'la riaccendi' ((Inv 'winsys_startup_set' (",{name:'$testName',on:true}")) -eq $true)
-  Check 'ora risulta accesa' (Wait-Until { ((@(Inv 'winsys_startup') | Where-Object { $_.name -eq $testName }).enabled) -eq $true } 4)
+  Check 'ora risulta accesa' (Wait-Until { ((@(Inv 'winsys_startup' | ForEach-Object { $_ }) | Where-Object { $_.name -eq $testName }).enabled) -eq $true } 4)
   Check 'un nome che non c e non scrive' ((Inv 'winsys_startup_set' ",{name:'nome-che-non-esiste',on:false}") -eq $false)
 
   Write-Host 'E. la pagina'

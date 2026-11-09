@@ -86,7 +86,7 @@ try {
 
   Write-Host 'D. si aggiorna quando la stessa cosa cambia da altrove'
   Click-Nav 'Dock'; Start-Sleep -Milliseconds 400
-  Check 'la sezione Dock ha nascondi, riserva spazio e app fissate' ((Labels) -join '|' -eq 'Dimensione del Dock|Dock su tutti gli schermi|App in background|Animazione all'apertura di un'app|Ingrandisci le icone al passaggio del mouse|Badge delle notifiche sulle icone|Scorciatoie per le app del Dock|Nascondi automaticamente|Riserva spazio alle finestre|App fissate|Pile') ((Labels) -join '|')
+  Check 'la sezione Dock ha nascondi, riserva spazio e app fissate' ((Labels) -join '|' -eq 'Dimensione del Dock|Dock su tutti gli schermi|App in background|Animazione all''apertura di un''app|Ingrandisci le icone al passaggio del mouse|Badge delle notifiche sulle icone|Scorciatoie per le app del Dock|Nascondi automaticamente|Riserva spazio alle finestre|App fissate|Pile') ((Labels) -join '|')
   [void](Js 'launcher' "window.__TAURI_INTERNALS__.invoke('settings_set',{key:'dock.reserve',value:false})")
   Check 'un cambio fatto fuori dalla finestra compare nell interruttore' (Wait-Until { (Switch-On 'Riserva spazio alle finestre') -eq 'false' } 4)
   [void](Js 'launcher' "window.__TAURI_INTERNALS__.invoke('settings_set',{key:'dock.reserve',value:true})")
