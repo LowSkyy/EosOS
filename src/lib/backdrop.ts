@@ -113,3 +113,16 @@ export function barColors(dark: boolean, lum: number): { tint: string; fg: strin
     effective,
   };
 }
+
+/**
+ * Il prossimo intervallo di sondaggio dello sfondo: con un fotogramma nuovo si torna subito al passo `base`; se non arriva niente si
+ * rallenta un po' alla volta (x1,5) fino a `max`. Rust cattura più di rado quando lo sfondo è fermo: chiedere ogni 40 ms a vuoto costava
+ * più di tutto il resto a riposo (decine di chiamate al secondo per pagina). Pura, testata.
+ */
+export function nextPoll(current: number, gotFrame: boolean, base: number, max: number): number {
+  if (gotFrame) return base;
+  return Math.min(Math.max(max, base), Math.max(base, Math.round(current * 1.5)));
+}
+
+/** Il passo più lento del sondaggio dello sfondo del Dock e dei pannelli (ms): un po' meno del passo a riposo profondo di Rust. */
+export const POLL_MAX_MS = 250;

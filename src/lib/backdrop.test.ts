@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FRAME_HEADER, parseFrame, sourceRect } from "./backdrop";
+import { FRAME_HEADER, nextPoll, parseFrame, POLL_MAX_MS, sourceRect } from "./backdrop";
 
 /** Costruisce un fotogramma come lo serializza Rust. */
 function make(seq: number, ox: number, oy: number, w: number, h: number, factor: number, px?: number[]) {
@@ -110,5 +110,28 @@ describe("bar text colour", () => {
     expect(barColors(true, 0.3).tint).toBe(barTint(true, 0.3));
     expect(barColors(false, 0.3).tint).toBe(barTint(false, 0.3));
     expect(barColors(true, NaN).effective).toBeCloseTo(barColors(true, 0.5).effective, 6);
+  });
+});
+
+describe("nextPoll", () => {
+  it("goes back to the base rate as soon as a frame arrives", () => {
+    expect(nextPoll(250, true, 40, 250)).toBe(40);
+    expect(nextPoll(40, true, 40, 250)).toBe(40);
+  });
+  it("slows down gradually while nothing arrives, up to the maximum", () => {
+    let t = 40;
+    const seen: number[] = [];
+    for (let i = 0; i < 12; i++) {
+      t = nextPoll(t, false, 40, POLL_MAX_MS);
+      seen.push(t);
+    }
+    expect(seen[0]).toBe(60);
+    expect(seen.every((v, i) => i === 0 || v >= seen[i - 1])).toBe(true);
+    expect(seen[seen.length - 1]).toBe(POLL_MAX_MS);
+    expect(Math.max(...seen)).toBe(POLL_MAX_MS);
+  });
+  it("never goes below the base or above a base that is already slower than the maximum", () => {
+    expect(nextPoll(10, false, 40, 250)).toBe(40);
+    expect(nextPoll(500, false, 500, 250)).toBe(500);
   });
 });

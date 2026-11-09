@@ -105,3 +105,9 @@ il secondo Dock, il vetro della barra e le fasi nuove costano). Fatto: (1) l'ele
 barre 1,5 s; al primo cambiamento si torna subito al passo veloce). Risultato: **3,6-3,9 s** con due Dock, **2,1 s** con un solo Dock; processo
 principale 1,3-1,6 s (era 1,75-2,4). Le misure oscillano molto da una prova all'altra (il PC fa anche altro). Chi vuole il minimo spegne
 «Dock su tutti gli schermi».
+
+**Causa vera trovata e corretta (9 nov 2026, sera).** Misurate le chiamate fra pagine e Rust per 35 s: ogni pagina Dock chiamava `dock_backdrop`
+**~765 volte** (22 al secondo, anche con lo sfondo fermo), contro 30-60 di tutte le altre. Ogni chiamata costa lavoro nel runtime di Tauri, non nei
+thread di EosOS (misurati per thread: i miei costano <=0,02 s ciascuno). Ora il sondaggio dello sfondo (Dock e pannelli) **rallenta da solo** quando
+non arrivano fotogrammi nuovi (x1,5 fino a 250 ms) e torna a 40 ms al primo cambiamento (`nextPoll` in `lib/backdrop.ts`, testata). Risultato:
+~120 chiamate per pagina e **CPU totale 1,5 s ogni 30 s con due Dock** (1,3 s con uno), come alla passata finale (1,38 s); processo principale 0,8-1,0 s.

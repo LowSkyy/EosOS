@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { parseFrame, sourceRect, type Frame } from "../lib/backdrop";
+import { nextPoll, parseFrame, POLL_MAX_MS, sourceRect, type Frame } from "../lib/backdrop";
 
 const POLL_MS = 40;
 
@@ -56,12 +56,19 @@ export function useBackdrop(
       ctx.drawImage(src, s.sx, s.sy, s.sw, s.sh, 0, 0, w, h);
     };
 
-    const t = setInterval(() => {
-      if (busy || (needFocus && !document.hasFocus())) return;
+    let delay = pollMs;
+    let timer: number | undefined;
+    const tick = () => {
+      if (stopped) return;
+      if (busy || (needFocus && !document.hasFocus())) {
+        timer = window.setTimeout(tick, delay);
+        return;
+      }
       busy = true;
       invoke<ArrayBuffer>(command, { since: seq })
         .then((buf) => {
           const f = stopped ? null : parseFrame(buf);
+          delay = nextPoll(delay, !!f, pollMs, POLL_MAX_MS);
           if (!f || !source.current) return;
           seq = f.seq;
           const s = source.current;
@@ -74,15 +81,19 @@ export function useBackdrop(
           onFrame.current?.(f);
         })
         .catch(() => {})
-        .finally(() => (busy = false));
-    }, pollMs);
+        .finally(() => {
+          busy = false;
+          if (!stopped) timer = window.setTimeout(tick, delay);
+        });
+    };
+    timer = window.setTimeout(tick, delay);
 
     // Il pannello cambia altezza con i risultati: lo sfondo va ridisegnato.
     const ro = new ResizeObserver(paint);
     if (panel.current) ro.observe(panel.current);
     return () => {
       stopped = true;
-      clearInterval(t);
+      window.clearTimeout(timer);
       ro.disconnect();
     };
   }, [command, panel, canvas, margin, resetKey, needFocus, pollMs]);

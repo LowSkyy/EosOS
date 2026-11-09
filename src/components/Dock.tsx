@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type React from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { nextPoll, POLL_MAX_MS } from "../lib/backdrop";
 import { badgeAria, badgeMap, sameBadges, type Badge } from "../lib/badge";
 import {
   DRAG_THRESHOLD,
@@ -267,14 +268,15 @@ export default function Dock() {
     }
     if (!source.current) source.current = document.createElement("canvas");
     let seq = 0;
-    let busy = false;
     let stopped = false;
-    const t = setInterval(() => {
-      if (busy) return;
-      busy = true;
+    let delay = BACKDROP_MS;
+    let timer: number | undefined;
+    // Un giro alla volta: con lo sfondo fermo Rust risponde «niente di nuovo» e si rallenta (vedi `nextPoll`).
+    const tick = () => {
       invoke<ArrayBuffer>("dock_backdrop", { since: seq })
         .then((buf) => {
           const f = stopped ? null : parseFrame(buf);
+          delay = nextPoll(delay, !!f, BACKDROP_MS, POLL_MAX_MS);
           if (!f || !source.current) return;
           seq = f.seq;
           const s = source.current;
@@ -285,12 +287,17 @@ export default function Dock() {
           root.setAttribute("data-blur", "on");
           paint();
         })
-        .catch(() => {})
-        .finally(() => (busy = false));
-    }, BACKDROP_MS);
+        .catch(() => {
+          delay = nextPoll(delay, false, BACKDROP_MS, POLL_MAX_MS);
+        })
+        .finally(() => {
+          if (!stopped) timer = window.setTimeout(tick, delay);
+        });
+    };
+    timer = window.setTimeout(tick, delay);
     return () => {
       stopped = true;
-      clearInterval(t);
+      window.clearTimeout(timer);
     };
   }, [blur, paint]);
 
