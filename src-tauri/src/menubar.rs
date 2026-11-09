@@ -44,7 +44,7 @@ static APP: OnceLock<AppHandle> = OnceLock::new();
 static TX: OnceLock<Mutex<Sender<Req>>> = OnceLock::new();
 static MENU_OFF: AtomicBool = AtomicBool::new(false);
 /// Cosa mostrare nella riga: il nome dell'app e il menu «Finestra» (vedi `filter_view`).
-static SHOW_NAME: AtomicBool = AtomicBool::new(true);
+static SHOW_NAME: AtomicBool = AtomicBool::new(false);
 static SHOW_WINDOW: AtomicBool = AtomicBool::new(false);
 static EXCLUDED: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static CURRENT: AtomicUsize = AtomicUsize::new(0);
@@ -89,7 +89,7 @@ pub fn current() -> Option<Row> {
 pub fn reload_settings() {
     let s = crate::mcstore::load();
     MENU_OFF.store(s.menu_off, Ordering::Relaxed);
-    SHOW_NAME.store(!s.menu_hide_name, Ordering::Relaxed);
+    SHOW_NAME.store(s.menu_show_name, Ordering::Relaxed);
     SHOW_WINDOW.store(s.menu_show_window, Ordering::Relaxed);
     *EXCLUDED.lock().unwrap_or_else(|e| e.into_inner()) = s.menu_excluded;
 }
@@ -411,10 +411,10 @@ mod tests {
     }
 
     #[test]
-    fn the_desktop_shows_only_its_name() {
+    fn the_desktop_shows_nothing_by_default_because_the_name_is_hidden() {
+        // Di base il nome dell'app non si mostra (`menu_show_name` falso): sul desktop la riga resta vuota.
         let r = build_row("Desktop", None, state(), true);
-        assert_eq!(r.len(), 1);
-        assert_eq!(r[0].items.len(), 1, "solo la voce delle impostazioni");
+        assert!(r.is_empty(), "{r:?}");
     }
 
     #[test]
@@ -427,9 +427,9 @@ mod tests {
             source: None,
         }];
         let r = build_row("Blocco note", Some(read), state(), false);
-        // Di base il menu «Finestra» è nascosto (vedi `filter_view`): restano il nome dell'app e i menu letti.
-        assert_eq!(r.iter().map(|m| m.title.as_str()).collect::<Vec<_>>(), vec!["Blocco note", "File"]);
+        // Di base il nome dell'app e il menu «Finestra» sono nascosti (vedi `filter_view`): restano i menu letti.
+        assert_eq!(r.iter().map(|m| m.title.as_str()).collect::<Vec<_>>(), vec!["File"]);
         let fallback = build_row("Chrome", None, state(), false);
-        assert_eq!(fallback.len(), 1, "senza lettura: solo il nome dell'app");
+        assert!(fallback.is_empty(), "senza lettura e senza nome: niente");
     }
 }

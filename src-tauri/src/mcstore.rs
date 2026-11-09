@@ -59,6 +59,15 @@ pub struct Settings {
     /// Dimensione del Dock: "small", "medium" (predefinita, anche se vuoto), "large" o "xl".
     #[serde(rename = "dockSize")]
     pub dock_size: String,
+    /// Il Dock non mostra l'icona delle app in background (area di notifica); di base si vede quando ce n'è almeno una.
+    #[serde(rename = "dockTrayOff")]
+    pub dock_tray_off: bool,
+    /// Animazione di un'app che si apre: "bounce" (vuoto), "pulse" o "none".
+    #[serde(rename = "dockAnim")]
+    pub dock_anim: String,
+    /// L'ingrandimento delle icone del Dock al passaggio del mouse è spento (di base è acceso).
+    #[serde(rename = "dockMagnifyOff")]
+    pub dock_magnify_off: bool,
     /// Modificatore delle scorciatoie per la cattura dello schermo ("ctrl_shift", "ctrl_alt", "alt_shift"); vuoto = spente.
     #[serde(rename = "captureKeys")]
     pub capture_keys: String,
@@ -71,9 +80,10 @@ pub struct Settings {
     /// Il tasto Windows da solo NON apre il Launcher (di base lo apre, al posto del menu Start).
     #[serde(rename = "winKeyOff")]
     pub win_key_off: bool,
-    /// Barra dei menu: nasconde il menu col nome dell'app (di base si vede).
-    #[serde(rename = "menuHideName")]
-    pub menu_hide_name: bool,
+    /// Barra dei menu: mostra il nome dell'app in primo piano accanto al menu EosOS (di base NON si vede). Sostituisce il vecchio
+    /// «menuHideName»: chi lo aveva salvato lo ignora, e il nome resta nascosto.
+    #[serde(rename = "menuShowName")]
+    pub menu_show_name: bool,
     /// Barra dei menu: mostra anche il menu «Finestra» (di base è nascosto).
     #[serde(rename = "menuShowWindow")]
     pub menu_show_window: bool,
@@ -249,7 +259,7 @@ pub fn set_hide_taskbar(hide: bool) -> Settings {
 pub fn set_menu_view(show_name: Option<bool>, show_window: Option<bool>) -> Settings {
     update(|s| {
         if let Some(v) = show_name {
-            s.menu_hide_name = !v;
+            s.menu_show_name = v;
         }
         if let Some(v) = show_window {
             s.menu_show_window = v;
@@ -327,6 +337,21 @@ pub fn set_capture_keys(id: &str) -> Settings {
     update(|s| s.capture_keys = if id == "off" { String::new() } else { id.to_string() })
 }
 
+/// Sceglie l'animazione delle app che si aprono ("bounce" = quella di base) e salva.
+pub fn set_dock_anim(id: &str) -> Settings {
+    update(|s| s.dock_anim = if id == "bounce" { String::new() } else { id.to_string() })
+}
+
+/// Accende o spegne l'ingrandimento delle icone del Dock al passaggio del mouse e salva.
+pub fn set_dock_magnify(on: bool) -> Settings {
+    update(|s| s.dock_magnify_off = !on)
+}
+
+/// Accende o spegne l'icona delle app in background nel Dock e salva.
+pub fn set_dock_tray(on: bool) -> Settings {
+    update(|s| s.dock_tray_off = !on)
+}
+
 /// Sceglie se Win+Tab resta quello di Windows e salva.
 pub fn set_windows_win_tab(keep: bool) -> Settings {
     update(|s| s.windows_win_tab = keep)
@@ -360,11 +385,13 @@ mod tests {
         assert!(d.reminders.is_empty() && !d.weather_on && d.weather_city.is_none(), "il widget Oggi parte vuoto e senza rete");
         assert!(d.dock_keys.is_empty(), "scorciatoie del Dock: quelle di base");
         assert!(!d.dock_badges_off, "i badge del Dock sono accesi di base");
+        assert!(d.dock_anim.is_empty() && !d.dock_magnify_off, "Dock: rimbalzo e ingrandimento di base");
+        assert!(!d.dock_tray_off, "app in background nel Dock: acceso di base");
         assert!(d.capture_keys.is_empty(), "scorciatoie della cattura: spente di base");
         assert!(d.snap_keys.is_empty(), "scorciatoie delle finestre: spente di base");
         assert!(!d.dock_primary_only, "di base il Dock c'e' su ogni monitor");
         assert!(!d.keep_taskbar, "di base EosOS nasconde la barra delle applicazioni di Windows");
-        assert!(!d.menu_hide_name && !d.menu_show_window, "di base: nome dell'app visibile, menu Finestra nascosto");
+        assert!(!d.menu_show_name && !d.menu_show_window, "di base: nome dell'app e menu Finestra nascosti");
         assert!(d.dock_size.is_empty(), "dimensione del Dock non scelta: quella media");
         assert!(!d.update_auto, "nessuna richiesta di rete da sola di default");
         assert!(d.dock_stacks.is_none(), "di default nessuna scelta: c'e' solo Download");
@@ -386,7 +413,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), capture_keys: "ctrl_shift".into(), dock_badges_off: true, snap_keys: "alt_shift".into(), win_key_off: true, menu_hide_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into() }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), dock_tray_off: true, dock_anim: "none".into(), dock_magnify_off: true, capture_keys: "ctrl_shift".into(), dock_badges_off: true, snap_keys: "alt_shift".into(), win_key_off: true, menu_show_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into() }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

@@ -48,6 +48,20 @@ try {
   $names = @(Js 'launcher' "Array.from(document.querySelectorAll('.launchpad-name')).map(function(e){return e.textContent})" | ForEach-Object { $_ })
   $sorted = @($names | Sort-Object { $_.ToLowerInvariant().Normalize([Text.NormalizationForm]::FormD) })
   Check 'sono in ordine alfabetico' (($names -join '|').ToLowerInvariant() -eq ($sorted -join '|').ToLowerInvariant()) ($names | Select-Object -First 5) -join ','
+  $bad = @($names | Where-Object { $_ -match '^(Prompt dei comandi|Windows PowerShell|Python 3|Node\.js|Esegui|Cestino|Editor del Registro|Visualizzatore eventi|Global Flags|Application Verifier)' })
+  Check 'niente prompt dei comandi, PowerShell, Python, strumenti di sistema o debugger' ($bad.Count -eq 0) ($bad -join ', ')
+  $docs = @($names | Where-Object { $_ -match '(License|Licenza|Manual|Documentation|Website|Uninstall|Disinstalla| Help$)' })
+  Check 'niente manuali, licenze, siti o disinstallatori' ($docs.Count -eq 0) ($docs -join ', ')
+  Check 'ci sono i puntini delle pagine (se le pagine sono piu di una)' ((Js 'launcher' "(function(){var p=document.querySelectorAll('.launchpad-page').length;var d=document.querySelectorAll('.launchpad-dot').length;return p===d})()") -eq $true)
+  $pages = [int](Js 'launcher' "document.querySelectorAll('.launchpad-page').length")
+  if ($pages -ge 2) {
+    Js 'launcher' "document.querySelector('.launchpad').dispatchEvent(new KeyboardEvent('keydown',{key:'PageDown',bubbles:true}))" | Out-Null
+    Start-Sleep -Milliseconds 600
+    Check 'PagGiu passa alla seconda pagina' ((Js 'launcher' "document.querySelector('.launchpad-dot[data-active='true']')===document.querySelectorAll('.launchpad-dot')[1]") -eq $true)
+    Js 'launcher' "document.querySelector('.launchpad').dispatchEvent(new KeyboardEvent('keydown',{key:'PageUp',bubbles:true}))" | Out-Null
+    Start-Sleep -Milliseconds 600
+    Check 'PagSu torna alla prima' ((Js 'launcher' "document.querySelector('.launchpad-dot[data-active='true']')===document.querySelectorAll('.launchpad-dot')[0]") -eq $true)
+  }
   Check 'il campo di ricerca ha un nome' ((Js 'launcher' "document.querySelector('.launchpad-search').getAttribute('aria-label')") -eq 'Cerca tra le app')
   Check 'la griglia e un elenco per i lettori di schermo' ((Js 'launcher' "document.querySelector('.launchpad-grid').getAttribute('role')") -eq 'listbox')
 
@@ -64,7 +78,7 @@ try {
 
   Write-Host 'C. avviare un app (Blocco note, uno nuovo mio)'
   Type-Search 'blocco note'
-  Js 'launcher' "Array.from(document.querySelectorAll('.launchpad-app')).filter(function(b){return b.getAttribute('title').toLowerCase()==='blocco note'})[0].click()" | Out-Null
+  Js 'launcher' "Array.from(document.querySelectorAll('.launchpad-app')).filter(function(b){return b.getAttribute('aria-label').toLowerCase()==='blocco note'})[0].click()" | Out-Null
   Check 'parte un nuovo Blocco note' (Wait-Until { @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $notepadBefore -notcontains $_.Id }).Count -ge 1 } 15)
   Check 'e il Launchpad si chiude' (Wait-Until { -not (Pad-Open) } 5)
 

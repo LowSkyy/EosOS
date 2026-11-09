@@ -67,6 +67,9 @@ impl Backend for Live {
             "dock.reserve" => b(crate::dockwin::reserve_enabled()),
             "dock.all_screens" => b(!mc().dock_primary_only),
             "dock.badges" => b(!mc().dock_badges_off),
+            "dock.tray" => b(!mc().dock_tray_off),
+            "dock.anim" => Some(Value::Text(crate::dockstore::anim_id(&mc().dock_anim).to_string())),
+            "dock.magnify" => b(!mc().dock_magnify_off),
             "dock.keys" => Some(Value::Text(match mc().dock_keys.as_str() { "" => "ctrl_alt".to_string(), s => s.to_string() })),
             "dock.size" => Some(Value::Text(match mc().dock_size.as_str() { "" => "medium".to_string(), s => s.to_string() })),
             "dock.blur" => b(crate::dockwin::blur_enabled()),
@@ -80,7 +83,7 @@ impl Backend for Live {
             "menu.enabled" => b(!mc().menu_off),
             "menu.excluded" => Some(Value::List(mc().menu_excluded)),
             "general.hide_taskbar" => b(!mc().keep_taskbar),
-            "menu.show_name" => b(!mc().menu_hide_name),
+            "menu.show_name" => b(mc().menu_show_name),
             "menu.show_window" => b(mc().menu_show_window),
             "launcher.hotkey" => Some(Value::Text(launcher_hotkey_text())),
             "launcher.clipboard" => b(crate::launcherstore::settings().clipboard == Some(true)),
@@ -181,6 +184,21 @@ impl Backend for Live {
             }
             "dock.badges" => {
                 crate::mcstore::set_dock_badges(want_bool(value)?);
+            }
+            "dock.tray" => {
+                crate::mcstore::set_dock_tray(want_bool(value)?);
+            }
+            "dock.anim" => {
+                let id = want_text(value)?;
+                if !crate::dockstore::ANIMS.iter().any(|a| a.0 == id) {
+                    return Err(SettingsError("Scelta non ammessa.".into()));
+                }
+                crate::mcstore::set_dock_anim(id);
+                self.dock_changed();
+            }
+            "dock.magnify" => {
+                crate::mcstore::set_dock_magnify(want_bool(value)?);
+                self.dock_changed();
             }
             "dock.keys" => {
                 let id = want_text(value)?;

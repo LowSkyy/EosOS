@@ -85,6 +85,12 @@ fn windows_of(item: &DockItem, windows: &[(HWND, PathBuf)]) -> Vec<HWND> {
         .map(|(h, _)| *h)
         .collect()
 }
+/// Avvia l'eseguibile `path` come farebbe un clic sull'icona di un'app chiusa (le app a istanza unica mostrano la loro finestra).
+pub fn open_path(path: &Path) {
+    let item = DockItem { id: path.to_string_lossy().to_lowercase(), name: String::new(), path: path.to_string_lossy().into_owned(), pinned: false, running: false, background: true, icon: None };
+    launch(&item);
+}
+
 /// Avvia l'eseguibile della voce.
 fn launch(item: &DockItem) {
     // App dello Store: la shell sa avviare `shell:AppsFolder\<identificatore>`.

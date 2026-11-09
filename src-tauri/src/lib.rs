@@ -30,6 +30,9 @@ mod launcherfiles;
 mod launcherrank;
 mod launcherstore;
 mod launcherwin;
+mod launchpadfilter;
+mod trayapps;
+mod winsys;
 mod mc;
 mod mclayout;
 mod menubar;
@@ -417,6 +420,93 @@ fn dockkeys_registered() -> usize {
 fn dock_badges(window: tauri::Window, items: Vec<dockbadge::Item>) -> Vec<dockbadge::Badge> {
     guard!(window, "dock_badges", Vec::new());
     dockbadge::badges(&items)
+}
+
+/// Quante app girano in background (area di notifica) senza finestre né posto nel Dock: l'icona del Dock compare solo se sono almeno una.
+#[tauri::command(async)]
+fn dock_tray_count(window: tauri::Window) -> usize {
+    guard!(window, "dock_tray_count", 0);
+    if mcstore::load().dock_tray_off {
+        return 0;
+    }
+    trayapps::count()
+}
+
+/// Le app in background per il pannello (id, nome, icona).
+#[tauri::command(async)]
+fn tray_apps(window: tauri::Window) -> Vec<trayapps::TrayApp> {
+    guard!(window, "tray_apps", Vec::new());
+    trayapps::apps()
+}
+
+/// Porta davanti (o avvia) l'app in background `id`, uno di quelli appena elencati.
+#[tauri::command(async)]
+fn tray_open(window: tauri::Window, id: String) -> bool {
+    guard!(window, "tray_open", false);
+    trayapps::open(&id)
+}
+
+/// Impostazioni di Windows dentro EosOS: informazioni sul sistema.
+#[tauri::command(async)]
+fn winsys_info(window: tauri::Window) -> Option<winsys::Info> {
+    guard!(window, "winsys_info", None);
+    Some(winsys::info())
+}
+
+/// I dischi fissi con spazio totale e libero.
+#[tauri::command(async)]
+fn winsys_drives(window: tauri::Window) -> Vec<winsys::Drive> {
+    guard!(window, "winsys_drives", Vec::new());
+    winsys::drives()
+}
+
+/// Gli schermi collegati (misura, scala, posizione).
+#[tauri::command(async)]
+fn winsys_displays(window: tauri::Window, app: tauri::AppHandle) -> Vec<winsys::Display> {
+    guard!(window, "winsys_displays", Vec::new());
+    winsys::displays(&app)
+}
+
+/// Il tema di Windows (app, sistema, trasparenza).
+#[tauri::command(async)]
+fn winsys_theme(window: tauri::Window) -> Option<winsys::Theme> {
+    guard!(window, "winsys_theme", None);
+    Some(winsys::theme())
+}
+
+/// Cambia un valore del tema: `which` è «apps», «system» o «transparency»; `on` vero = chiaro (o trasparenza accesa).
+#[tauri::command(async)]
+fn winsys_theme_set(window: tauri::Window, which: String, on: bool) -> bool {
+    guard!(window, "winsys_theme_set", false);
+    winsys::set_theme(&which, on)
+}
+
+/// Tempi di spegnimento dello schermo e di sospensione.
+#[tauri::command(async)]
+fn winsys_power(window: tauri::Window) -> Option<winsys::Power> {
+    guard!(window, "winsys_power", None);
+    Some(winsys::power())
+}
+
+/// Cambia un tempo di alimentazione: `which` come «screen-ac», `minutes` fra quelli offerti (0 = mai).
+#[tauri::command(async)]
+fn winsys_power_set(window: tauri::Window, which: String, minutes: u32) -> bool {
+    guard!(window, "winsys_power_set", false);
+    winsys::set_power(&which, minutes)
+}
+
+/// Le app che partono con Windows (voci dell'utente).
+#[tauri::command(async)]
+fn winsys_startup(window: tauri::Window) -> Vec<winsys::StartupApp> {
+    guard!(window, "winsys_startup", Vec::new());
+    winsys::startup_apps()
+}
+
+/// Accende o spegne una app all'avvio (solo una di quelle elencate).
+#[tauri::command(async)]
+fn winsys_startup_set(window: tauri::Window, name: String, on: bool) -> bool {
+    guard!(window, "winsys_startup_set", false);
+    winsys::set_startup(&name, on)
 }
 
 /// Le pile del Dock (cartelle con la loro icona). Solo il Dock.
@@ -1207,7 +1297,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, launcher_grid, dock_launchpad, dock_badges, eosmenu_run, eosmenu_about, dockkeys_fire, dockkeys_registered, winsnap_fire, winsnap_registered, capture_run, capture_region, capture_cancel, capture_fire, capture_registered, control_state, control_set, winsettings_list, winsettings_open, winsettings_last_open, bar_backdrop, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, launcher_grid, dock_launchpad, dock_badges, dock_tray_count, tray_apps, tray_open, winsys_info, winsys_drives, winsys_displays, winsys_theme, winsys_theme_set, winsys_power, winsys_power_set, winsys_startup, winsys_startup_set, eosmenu_run, eosmenu_about, dockkeys_fire, dockkeys_registered, winsnap_fire, winsnap_registered, capture_run, capture_region, capture_cancel, capture_fire, capture_registered, control_state, control_set, winsettings_list, winsettings_open, winsettings_last_open, bar_backdrop, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

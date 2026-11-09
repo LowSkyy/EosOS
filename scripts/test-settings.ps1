@@ -30,7 +30,7 @@ try {
 
   Write-Host 'A. lo stato di tutte le impostazioni'
   $all = All-S
-  Check 'ci sono tutte le 39 impostazioni' ($all.Count -eq 39) ("trovate " + $all.Count)
+  Check 'ci sono tutte le 42 impostazioni' ($all.Count -eq 42) ("trovate " + $all.Count)
   Check 'ognuna ha un valore (tranne i pulsanti)' (@($all | Where-Object { $null -eq $_.value -and $_.key -ne 'general.report' -and $_.key -ne 'windows.home' }).Count -eq 0) ("senza valore: " + (@($all | Where-Object { $null -eq $_.value } | ForEach-Object { $_.key }) -join ','))
   Check 'predefiniti: Dock non nasconde, menu globale acceso, Alt+Tab e Win+Tab di EosOS, angolo spento' ((Val 'dock.autohide') -eq $false -and (Val 'menu.enabled') -eq $true -and (Val 'mc.alttab') -eq $true -and (Val 'mc.wintab') -eq $true -and (Val 'mc.corner') -eq $false)
   Check 'predefiniti: Launcher Alt+Space, Mission Control Ctrl+Alt+Up' ((Val 'launcher.hotkey') -eq 'Alt+Space' -and (Val 'mc.hotkey') -eq 'Ctrl+Alt+Up')
@@ -38,7 +38,7 @@ try {
   Check 'le sezioni escono nell ordine Generale, Aspetto, Dock, Barra dei menu, Launcher, Mission Control, Notifiche e calendario, Impostazioni di Windows' ($order -eq 'general,appearance,dock,menu_bar,launcher,mission_control,notifications,windows') $order
 
   Write-Host 'B. interruttori: si cambiano, si rileggono, tornano come prima'
-  foreach ($k in 'dock.reserve', 'dock.blur', 'bar.battery', 'bar.percent', 'bar.network', 'bar.volume', 'menu.enabled', 'launcher.clipboard', 'mc.corner', 'mc.alttab', 'mc.wintab', 'launcher.winkey', 'dock.badges') {
+  foreach ($k in 'dock.reserve', 'dock.blur', 'bar.battery', 'bar.percent', 'bar.network', 'bar.volume', 'menu.enabled', 'launcher.clipboard', 'mc.corner', 'mc.alttab', 'mc.wintab', 'launcher.winkey', 'dock.badges', 'dock.magnify', 'dock.tray') {
     $orig = Val $k
     $new = (-not $orig).ToString().ToLower()
     $r = Set-S $k $new

@@ -79,7 +79,12 @@ $ed = New-Object System.Windows.Forms.ToolStripMenuItem 'Modifica'; [void]$ed.Dr
 [void]$m.Items.Add($file); [void]$m.Items.Add($ed)
 $f.MainMenuStrip = $m; $f.Controls.Add($m); [void]$f.ShowDialog()
 '@ -Encoding UTF8
+$mcSeed = Join-Path $env:LOCALAPPDATA 'EosOS\mission.json'
+$mcBackup = if (Test-Path $mcSeed) { [System.IO.File]::ReadAllBytes($mcSeed) } else { $null }
 try {
+  # Di base il nome dell'app non si mostra in barra: questa prova conta i menu dal nome, quindi lo si accende nel file (salvato prima e ripristinato dopo).
+  New-Item -ItemType Directory -Force (Split-Path $mcSeed) | Out-Null
+  [System.IO.File]::WriteAllText($mcSeed, '{"menuShowName": true}', (New-Object System.Text.UTF8Encoding($false)))
   Cleanup-Eos; Start-Sleep 1
   Write-Host 'Preparazione: due app di prova NUOVE che scrivono un log quando una voce viene eseguita'
   Start-Process powershell -ArgumentList '-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-File', $formA | Out-Null
@@ -148,6 +153,8 @@ try {
   Check 'e poi Prima voce' (Log-Has 'B:Prima' 6)
 }
 finally {
+  Remove-Item $mcSeed -ErrorAction SilentlyContinue
+  if ($null -ne $mcBackup) { [System.IO.File]::WriteAllBytes($mcSeed, $mcBackup) }
   Cleanup-Eos
   Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*eosos-menuinvoke-*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   Remove-Item $formA, $formB, $log -ErrorAction SilentlyContinue

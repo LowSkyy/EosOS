@@ -84,12 +84,12 @@ function Run-Checks([int]$pct, [string]$label) {
   # Ingrandimento: l'icona piu' ingrandita dev'essere quella piu' vicina al cursore. Se le coordinate
   # del cursore non fossero mappate bene sui px CSS (scala), la piu' grande sarebbe un'altra.
   [void][TS]::SetCursorPos(5, 300); Start-Sleep 1.0
-  $items = Cdp "JSON.stringify([...document.querySelectorAll('.dock:not(.dock-ghost) .dock-item')].map(e=>{const b=e.getBoundingClientRect();return [e.title,b.left+b.width/2,b.top+b.height/2,b.width]}))" | ConvertFrom-Json
+  $items = Cdp "JSON.stringify([...document.querySelectorAll('.dock:not(.dock-ghost) .dock-item')].map(e=>{const b=e.getBoundingClientRect();return [e.getAttribute('data-label')||e.title,b.left+b.width/2,b.top+b.height/2,b.width]}))" | ConvertFrom-Json
   $target = $items | Where-Object { $_[0] -eq 'Visual Studio Code' } | Select-Object -First 1
   if (-not $target) { $target = $items | Select-Object -Index ([int]($items.Count / 2)) }
   $px = [int]($dr.L + $target[1] * $k); $py = [int]($dr.T + $target[2] * $k)
   [void][TS]::SetCursorPos($px, $py); Start-Sleep 1.0
-  $now = Cdp "JSON.stringify([...document.querySelectorAll('.dock:not(.dock-ghost) .dock-item')].map(e=>{const b=e.getBoundingClientRect();return [e.title,b.left+b.width/2,b.width]}))" | ConvertFrom-Json
+  $now = Cdp "JSON.stringify([...document.querySelectorAll('.dock:not(.dock-ghost) .dock-item')].map(e=>{const b=e.getBoundingClientRect();return [e.getAttribute('data-label')||e.title,b.left+b.width/2,b.width]}))" | ConvertFrom-Json
   $cursorCss = ($px - $dr.L) / $k
   $nearest = ($now | Sort-Object { [Math]::Abs($_[1] - $cursorCss) } | Select-Object -First 1)
   $biggest = ($now | Sort-Object { -$_[2] } | Select-Object -First 1)

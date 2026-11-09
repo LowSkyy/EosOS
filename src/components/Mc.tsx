@@ -292,7 +292,7 @@ export default function Mc() {
                   void invoke("mc_close_window", { id: w.id });
                 }}
               >
-                \u00d7
+                ×
               </button>
             </div>
           </div>

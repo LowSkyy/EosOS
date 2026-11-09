@@ -235,7 +235,8 @@ pub fn alphabetical(entries: &[(String, String)]) -> Vec<usize> {
 /// Tutte le app, in ordine alfabetico, a pagine: `offset` e `limit` (al massimo `GRID_PAGE_MAX`). `have`: gli id di cui la
 /// pagina ha già l'icona. Il Launchpad le chiede a pezzi, così le prime compaiono subito e le icone si caricano man mano.
 pub fn all_page(offset: usize, limit: usize, have: &[String]) -> GridPage {
-    let index = apps();
+    // Solo le vere applicazioni (non strumenti di sistema, prompt dei comandi, manuali, aggiornatori…): vedi `launchpadfilter`.
+    let index = crate::launchpadfilter::apps_only(&apps());
     let entries: Vec<(String, String)> = index.iter().map(|e| (e.id.clone(), e.name.clone())).collect();
     let order = alphabetical(&entries);
     let have: HashSet<String> = have.iter().map(|h| fold(h)).collect();

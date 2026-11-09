@@ -11,7 +11,7 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         // Il pannello sotto l'orologio può solo accendere/spegnere la lettura delle notifiche e «Non disturbare».
         "settings_set" => label == "settings" || (label == "panel" && matches!(key, Some("notif.read" | "notif.dnd"))),
         // Dock: aprire app e cambiare le app fissate.
-        "dock_activate" | "dock_reorder" | "dock_stacks" | "dock_launchpad" | "dock_badges" => label == "dock" || label.starts_with("dock-"),
+        "dock_activate" | "dock_reorder" | "dock_stacks" | "dock_launchpad" | "dock_badges" | "dock_tray_count" => label == "dock" || label.starts_with("dock-"),
         // Contenuto delle pile: lo chiede solo il pannello.
         c if c.starts_with("stack_") => label == "panel",
         // Pannello degli indicatori: volume vero, apertura delle impostazioni di Windows, scelta di una voce di menu di
@@ -21,11 +21,15 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         "mc_activate" | "mc_close_window" | "mc_switch_desktop" | "mc_new_desktop" | "mc_move_window" | "mc_remove_desktop" | "mc_rename_desktop" => label.starts_with("mc-"),
         // Menu EosOS (il «menu mela» a sinistra della barra): lo gestisce il pannello.
         c if c.starts_with("eosmenu_") => label == "panel",
+        // App in background (area di notifica): l'elenco e l'apertura sono del pannello.
+        "tray_apps" | "tray_open" => label == "panel",
         // Cattura dello schermo: l'avvio dal pannello; il rettangolo scelto lo manda solo la finestra di selezione.
         "capture_run" => label == "panel",
         "capture_region" | "capture_cancel" => label == "capture",
         // Centro di controllo (Wi-Fi, Bluetooth, mantieni sveglio): lo gestisce il pannello.
         c if c.starts_with("control_") => label == "panel",
+        // Impostazioni di Windows fatte da EosOS (info, tema, alimentazione, app all'avvio, dischi, schermi): solo la finestra Impostazioni.
+        c if c.starts_with("winsys_") => label == "settings",
         // Impostazioni di Windows: l'elenco e l'apertura sono della finestra Impostazioni.
         c if c.starts_with("winsettings_") => label == "settings",
         // Aggiornamenti: li gestisce solo la finestra Impostazioni.
@@ -110,6 +114,30 @@ mod tests {
         for c in ["capture_region", "capture_cancel"] {
             assert!(allowed("capture", c, None), "{c}");
             for other in ["panel", "settings", "launcher", "dock", "bar-0", "main", "mc-0"] {
+                assert!(!allowed(other, c, None), "{other} {c}");
+            }
+        }
+    }
+
+    #[test]
+    fn background_apps_are_counted_by_the_dock_and_opened_from_the_panel() {
+        assert!(allowed("dock", "dock_tray_count", None) && allowed("dock-1", "dock_tray_count", None));
+        for c in ["tray_apps", "tray_open"] {
+            assert!(allowed("panel", c, None), "{c}");
+            for other in ["dock", "dock-1", "settings", "launcher", "bar-0", "main", "mc-0", "capture"] {
+                assert!(!allowed(other, c, None), "{other} {c}");
+            }
+        }
+        for other in ["panel", "settings", "launcher", "bar-0", "main", "mc-0", "capture"] {
+            assert!(!allowed(other, "dock_tray_count", None), "{other}");
+        }
+    }
+
+    #[test]
+    fn windows_system_settings_belong_to_the_settings_window() {
+        for c in ["winsys_info", "winsys_drives", "winsys_displays", "winsys_theme", "winsys_theme_set", "winsys_power", "winsys_power_set", "winsys_startup", "winsys_startup_set"] {
+            assert!(allowed("settings", c, None), "{c}");
+            for other in ["panel", "launcher", "dock", "dock-1", "bar-0", "main", "mc-0", "capture"] {
                 assert!(!allowed(other, c, None), "{other} {c}");
             }
         }

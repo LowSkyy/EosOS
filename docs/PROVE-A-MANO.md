@@ -78,3 +78,14 @@ il punto da guardare è `mckeys::step` in `src-tauri/src/mckeys.rs` (logica pura
 - [ ] Impostazioni → Mission Control → «Scorciatoie per la cattura dello schermo» → Ctrl+Maiusc: Ctrl+Maiusc+3 / 4 / 5 (schermo, selezione, finestra in primo piano).
 - [ ] Su un secondo monitor, e con scala diversa dal 100%: la selezione ha la misura giusta.
 - [ ] Nessun conflitto con altre app (Ctrl+Maiusc+3/4/5 in un editor): se ti dà fastidio scegli un altro modificatore.
+
+## 11. Correzioni del 10 novembre (da provare a mano)
+- [ ] Alt+Tab: il pulsante per chiudere una finestra ha una X vera.
+- [ ] Clic su un'app del Dock: nessun rettangolo «EosOS Dock»; passando il mouse sull'icona compare il nome in un'etichetta sopra di lei.
+- [ ] Barra in alto: accanto al menu EosOS non c'è più il nome dell'app attiva (si riaccende da Impostazioni → Barra dei menu).
+- [ ] Impostazioni: i menu a tendina (dimensione del Dock, scorciatoie…) si leggono bene sia con il tema scuro sia con quello chiaro.
+- [ ] Dock: sei dimensioni; animazione all'apertura (rimbalzo / pulsazione / nessuna); ingrandimento al passaggio del mouse acceso/spento.
+- [ ] Launchpad: solo applicazioni (niente cmd, PowerShell, Python, manuali, strumenti); pagine con puntini, rotellina, frecce, PagSu/PagGiù; Esc cancella la ricerca e poi chiude.
+- [ ] Menu in alto a sinistra: una sola voce, «Impostazioni…».
+- [ ] Dock: compare l'icona «App in background» con NVIDIA Broadcast, G HUB, AnyDesk…; un clic su una di esse la porta davanti.
+- [ ] Impostazioni → Windows: le schede (informazioni, aspetto, alimentazione, app all'avvio, archiviazione, schermi) funzionano; cambia il tema chiaro/scuro (attenzione: cambia davvero Windows) e rimettilo.

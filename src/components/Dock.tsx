@@ -68,7 +68,7 @@ function Icon({
   return (
     <div
       className="dock-item"
-      title={item.name}
+      data-label={item.name}
       role="button"
       aria-label={badgeAria(item.name, badge)}
       data-bounce={bouncing}
@@ -102,7 +102,7 @@ function StackIcon({ stack }: { stack: StackItem }) {
     void invoke("panel_toggle", { key: `stack:${stack.index}`, left: r.left, top: r.top, width: r.width, height: r.height });
   };
   return (
-    <div className="dock-item dock-stack" title={stack.title} role="button" aria-label={`Pila ${stack.title}`} aria-haspopup="dialog" onClick={open}>
+    <div className="dock-item dock-stack" data-label={stack.title} role="button" aria-label={`Pila ${stack.title}`} aria-haspopup="dialog" onClick={open}>
       {stack.icon ? (
         <img className="dock-icon" src={stack.icon} alt="" draggable={false} />
       ) : (
@@ -115,10 +115,31 @@ function StackIcon({ stack }: { stack: StackItem }) {
   );
 }
 
+/** L'icona delle app in background (area di notifica): un clic apre il pannello con l'elenco, sopra l'icona. */
+function TrayIcon({ count }: { count: number }) {
+  const open = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    void invoke("panel_toggle", { key: "tray", left: r.left, top: r.top, width: r.width, height: r.height });
+  };
+  return (
+    <div className="dock-item dock-tray" data-label="App in background" role="button" aria-label={`App in background (${count})`} aria-haspopup="dialog" onClick={open}>
+      <div className="dock-icon dock-tray-icon" aria-hidden>
+        <svg viewBox="0 0 24 24" width="62%" height="62%">
+          <path d="M5 14.5 12 7.5l7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="7" cy="19" r="1.6" fill="currentColor" />
+          <circle cx="12" cy="19" r="1.6" fill="currentColor" />
+          <circle cx="17" cy="19" r="1.6" fill="currentColor" />
+        </svg>
+      </div>
+      <span className="dock-dot" />
+    </div>
+  );
+}
+
 /** L'icona del Launchpad (tutte le app) in testa al Dock, come in macOS. */
 function LaunchpadIcon() {
   return (
-    <div className="dock-item dock-launchpad" title="Launchpad" role="button" aria-label="Launchpad" onClick={() => void invoke("dock_launchpad")}>
+    <div className="dock-item dock-launchpad" data-label="Launchpad" role="button" aria-label="Launchpad" onClick={() => void invoke("dock_launchpad")}>
       <div className="dock-icon dock-launchpad-icon" aria-hidden>
         <svg viewBox="0 0 24 24" width="62%" height="62%">
           {[0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={3 + c * 7} y={3 + r * 7} width="4.6" height="4.6" rx="1.2" fill="currentColor" />))}
@@ -130,7 +151,7 @@ function LaunchpadIcon() {
 }
 
 /** Stesso aspetto della capsula a riposo, invisibile: se ne misura la dimensione. */
-function Ghost({ items, stacks, ref }: { items: DockItem[]; stacks: StackItem[]; ref: React.Ref<HTMLDivElement> }) {
+function Ghost({ items, stacks, tray, ref }: { items: DockItem[]; stacks: StackItem[]; tray: boolean; ref: React.Ref<HTMLDivElement> }) {
   const { pinned, others } = splitDock(items);
   const cell = (i: DockItem) => (
     <div className="dock-item" key={i.id}>
@@ -151,6 +172,12 @@ function Ghost({ items, stacks, ref }: { items: DockItem[]; stacks: StackItem[];
           <span className="dock-dot" />
         </div>
       ))}
+      {tray && (
+        <div className="dock-item">
+          <div className="dock-icon" />
+          <span className="dock-dot" />
+        </div>
+      )}
     </div>
   );
 }
@@ -160,8 +187,12 @@ const cssPx = (name: string) =>
 
 export default function Dock() {
   const [items, setItems] = useState<DockItem[]>([]);
+  // L'ingrandimento al passaggio del mouse è acceso (Impostazioni → Dock).
+  const magnifyOn = useRef(true);
   // Badge delle notifiche per icona (id → testo). Rust risponde vuoto se la lettura delle notifiche è spenta.
   const [badges, setBadges] = useState<Record<string, string>>({});
+  // Quante app girano in background (area di notifica): l'icona compare solo se almeno una.
+  const [trayCount, setTrayCount] = useState(0);
   const [stacks, setStacks] = useState<StackItem[]>([]);
   const [bouncing, setBouncing] = useState<Set<string>>(new Set());
   const zone = useRef<HTMLDivElement>(null);
@@ -216,6 +247,9 @@ export default function Dock() {
       document.documentElement.style.setProperty("--glass", String(clampGlass(st.glass)));
       for (const [k, v] of Object.entries(dockVars(st.size ?? 1))) document.documentElement.style.setProperty(k, v);
       setBlur(st.blur === true);
+      document.documentElement.setAttribute("data-dock-anim", st.anim ?? "bounce");
+      magnifyOn.current = st.magnify !== false;
+      if (!magnifyOn.current) rest();
     };
     let unlisten: (() => void) | undefined;
     let cancelled = false;
@@ -314,6 +348,21 @@ export default function Dock() {
   useEffect(() => {
     const t = setInterval(() => icons.current.clear(), ICON_REFRESH_MS);
     return () => clearInterval(t);
+  }, []);
+
+  // App in background: si chiede quante sono ogni pochi secondi (Rust riusa l'ultima lettura).
+  useEffect(() => {
+    let gone = false;
+    const ask = () =>
+      invoke<number>("dock_tray_count")
+        .then((n) => !gone && setTrayCount((cur) => (cur === n ? cur : n)))
+        .catch(() => undefined);
+    void ask();
+    const t = setInterval(ask, 5000);
+    return () => {
+      gone = true;
+      clearInterval(t);
+    };
   }, []);
 
   // Badge delle notifiche: la pagina manda le sue icone e riceve solo i conteggi; si rilegge ogni pochi secondi.
@@ -507,6 +556,7 @@ export default function Dock() {
   // CSS per icona): niente rendering React a ogni movimento del mouse.
   const magnify = useCallback((e: React.MouseEvent) => {
     if (pending.current) return; // si sta trascinando
+    if (!magnifyOn.current) return; // ingrandimento spento dalle Impostazioni
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const cells = pill.current?.querySelectorAll<HTMLElement>(".dock-item");
     if (!cells || cells.length === 0) return;
@@ -585,8 +635,9 @@ export default function Dock() {
         {stacks.map((s) => (
           <StackIcon key={`stack${s.index}`} stack={s} />
         ))}
+        {trayCount > 0 && <TrayIcon count={trayCount} />}
       </div>
-      <Ghost items={items} stacks={stacks} ref={ghost} />
+      <Ghost items={items} stacks={stacks} tray={trayCount > 0} ref={ghost} />
     </div>
   );
 }

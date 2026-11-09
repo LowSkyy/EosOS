@@ -63,7 +63,15 @@ pub struct Settings {
 }
 
 /// Le dimensioni del Dock: (id, etichetta, fattore). La media è quella di base.
-pub const SIZES: &[(&str, &str, f64)] = &[("small", "Piccolo", 0.82), ("medium", "Medio", 1.0), ("large", "Grande", 1.2), ("xl", "Molto grande", 1.4)];
+pub const SIZES: &[(&str, &str, f64)] = &[("tiny", "Minuscolo", 0.65), ("small", "Piccolo", 0.82), ("medium", "Medio", 1.0), ("large", "Grande", 1.2), ("xl", "Molto grande", 1.4), ("xxl", "Gigante", 1.6)];
+
+/// Le animazioni di un'app che si sta aprendo: (id, etichetta). Il rimbalzo è quello di base.
+pub const ANIMS: &[(&str, &str)] = &[("bounce", "Rimbalzo"), ("pulse", "Pulsazione"), ("none", "Nessuna")];
+
+/// L'animazione da un id salvato (vuoto o sconosciuto = rimbalzo). Pura, testata.
+pub fn anim_id(saved: &str) -> &'static str {
+    ANIMS.iter().find(|a| a.0 == saved).map_or("bounce", |a| a.0)
+}
 
 /// Il fattore di una dimensione dall'id (sconosciuto o vuoto = medio). Pura, testata.
 pub fn size_factor(id: &str) -> f64 {
@@ -76,11 +84,16 @@ pub struct Ui {
     #[serde(flatten)]
     pub base: Settings,
     pub size: f64,
+    /// Animazione di un'app che si apre («bounce», «pulse», «none»).
+    pub anim: &'static str,
+    /// L'ingrandimento delle icone al passaggio del mouse è acceso.
+    pub magnify: bool,
 }
 
 /// Le impostazioni complete per la pagina del Dock.
 pub fn ui() -> Ui {
-    Ui { base: settings(), size: size_factor(&crate::mcstore::load().dock_size) }
+    let mc = crate::mcstore::load();
+    Ui { base: settings(), size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off }
 }
 
 /// Valore di un livello di vetro dall'id. Pura, testata.
@@ -446,8 +459,17 @@ mod tests {
         assert_eq!(size_factor("nonesiste"), 1.0);
         assert!(size_factor("small") < 1.0 && size_factor("large") > 1.0 && size_factor("xl") > size_factor("large"));
         let ids: Vec<_> = SIZES.iter().map(|s| s.0).collect();
-        assert_eq!(ids.len(), 4);
+        assert_eq!(ids.len(), 6);
         assert!(SIZES.windows(2).all(|w| w[0].2 < w[1].2), "in ordine crescente");
+    }
+
+    #[test]
+    fn the_app_animation_defaults_to_the_bounce() {
+        assert_eq!(anim_id(""), "bounce");
+        assert_eq!(anim_id("boh"), "bounce");
+        assert_eq!(anim_id("none"), "none");
+        assert_eq!(anim_id("pulse"), "pulse");
+        assert_eq!(ANIMS.len(), 3);
     }
 
     #[test]

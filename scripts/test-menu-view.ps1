@@ -19,13 +19,15 @@ try {
   Cleanup-Eos; Start-Sleep 1; Remove-Item $mc -ErrorAction SilentlyContinue
   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'; Start-Process $exe | Out-Null; Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS; Start-Sleep 12
   Write-Host 'A. di base'
-  Check 'il nome dell app e visibile di base' ((Setting 'menu.show_name') -eq $true)
+  Check 'il nome dell app e nascosto di base' ((Setting 'menu.show_name') -eq $false)
   Check 'il menu Finestra e nascosto di base' ((Setting 'menu.show_window') -eq $false)
-  Check 'la barra ha il nome e nessun Finestra' (Wait-Until { $n = Names; ($n -like 'NOME*') -and ($n -notmatch 'Finestra') } 8) (Names)
-  Write-Host 'B. nome nascosto'
-  $r = Set-S 'menu.show_name' 'false'
+  Check 'la barra non ha il nome dell app ne Finestra' (Wait-Until { $n = Names; ($n -notmatch 'NOME') -and ($n -notmatch 'Finestra') } 8) (Names)
+  Write-Host 'B. nome mostrato'
+  $r = Set-S 'menu.show_name' 'true'
   Check 'la scelta si salva e vale subito' (($r.ok -eq $true) -and ($r.live -eq $true))
-  Check 'sparisce il nome dell app dalla barra' (Wait-Until { (Names) -notmatch 'NOME' } 6) (Names)
+  Check 'compare il nome dell app nella barra' (Wait-Until { (Names) -like 'NOME*' } 6) (Names)
+  [void](Set-S 'menu.show_name' 'false')
+  Check 'spento di nuovo sparisce' (Wait-Until { (Names) -notmatch 'NOME' } 6) (Names)
   Write-Host 'C. menu Finestra mostrato'
   [void](Set-S 'menu.show_name' 'true'); [void](Set-S 'menu.show_window' 'true')
   Check 'con Finestra acceso la barra lo mostra (o il nome torna)' (Wait-Until { (Names) -like 'NOME*' } 6) (Names)

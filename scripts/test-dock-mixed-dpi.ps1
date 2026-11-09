@@ -96,12 +96,12 @@ function Run-Checks([string]$label) {
   [void][MX]::SetCursorPos($cx, $inside); Start-Sleep 0.9
   Check "col cursore sul Dock la zona estesa blocca i clic" ([MX]::IsDockAt($cx, $above, $dock))
   [void][MX]::SetCursorPos($prim.L + 5, 300); Start-Sleep 1.0
-  $items = Cdp "JSON.stringify([...document.querySelectorAll('.dock:not(.dock-ghost) .dock-item')].map(e=>{const b=e.getBoundingClientRect();return [e.title,b.left+b.width/2,b.top+b.height/2]}))" | ConvertFrom-Json
+  $items = Cdp "JSON.stringify([...document.querySelectorAll('.dock:not(.dock-ghost) .dock-item')].map(e=>{const b=e.getBoundingClientRect();return [e.getAttribute('data-label')||e.title,b.left+b.width/2,b.top+b.height/2]}))" | ConvertFrom-Json
   $target = $items | Where-Object { $_[0] -eq 'Visual Studio Code' } | Select-Object -First 1
   if (-not $target) { $target = $items | Select-Object -Index ([int]($items.Count / 2)) }
   $px = [int]($dr.L + $target[1] * $kp); $py = [int]($dr.T + $target[2] * $kp)
   [void][MX]::SetCursorPos($px, $py); Start-Sleep 1.0
-  $now = Cdp "JSON.stringify([...document.querySelectorAll('.dock:not(.dock-ghost) .dock-item')].map(e=>{const b=e.getBoundingClientRect();return [e.title,b.left+b.width/2,b.width]}))" | ConvertFrom-Json
+  $now = Cdp "JSON.stringify([...document.querySelectorAll('.dock:not(.dock-ghost) .dock-item')].map(e=>{const b=e.getBoundingClientRect();return [e.getAttribute('data-label')||e.title,b.left+b.width/2,b.width]}))" | ConvertFrom-Json
   $cursorCss = ($px - $dr.L) / $kp
   $nearest = ($now | Sort-Object { [Math]::Abs($_[1] - $cursorCss) } | Select-Object -First 1)
   $biggest = ($now | Sort-Object { -$_[2] } | Select-Object -First 1)

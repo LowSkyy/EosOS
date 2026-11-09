@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { filterPages, groupPages, type WinPage } from "../lib/winsettings";
+import WinSystem from "./WinSystem";
 
 /**
  * Le Impostazioni di Windows dentro quelle di EosOS: l'elenco delle pagine, raggruppato come in Windows 11 e con una
@@ -27,7 +28,11 @@ export default function WinSettings() {
   };
 
   return (
-    <section className="winset" aria-label="Pagine delle Impostazioni di Windows">
+    <>
+      <WinSystem />
+      <section className="winset" aria-label="Altre pagine delle Impostazioni di Windows">
+      <h2 className="winset-title winset-more">Altre impostazioni di Windows</h2>
+      <p className="winset-note">Queste pagine non si possono rifare dentro EosOS: si aprono nella finestra di Windows.</p>
       <input className="settings-input winset-search" type="search" placeholder="Cerca nelle Impostazioni di Windows" aria-label="Cerca nelle Impostazioni di Windows" value={query} onChange={(e) => setQuery(e.target.value)} />
       {error && (
         <p className="settings-error" role="alert">
@@ -48,6 +53,7 @@ export default function WinSettings() {
           </div>
         </div>
       ))}
-    </section>
+      </section>
+    </>
   );
 }

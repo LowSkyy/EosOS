@@ -32,7 +32,7 @@ function Wait-Until([scriptblock]$cond, [double]$seconds = 8) { $t0 = Get-Date; 
 function Panel-Open { [SK]::Find('EosOS Pannello') -ne 0 }
 function Close-Panel { [void](Js 'launcher' "window.__TAURI_INTERNALS__.invoke('panel_hide')"); Wait-Until { -not (Panel-Open) } 3 | Out-Null; Start-Sleep -Milliseconds 300 }
 function Set-Stacks([string]$jsList) { Js 'launcher' "window.__TAURI_INTERNALS__.invoke('settings_set',{key:'dock.stacks',value:$jsList})" }
-function Stack-Titles { (Js 'dock' "Array.from(document.querySelectorAll('.dock:not(.dock-ghost) .dock-stack')).map(function(e){return e.getAttribute('title')}).join('|')") }
+function Stack-Titles { (Js 'dock' "Array.from(document.querySelectorAll('.dock:not(.dock-ghost) .dock-stack')).map(function(e){return e.getAttribute('data-label')}).join('|')") }
 function Open-Stack([int]$i = 0) {
   Close-Panel
   [void](Js 'dock' "document.querySelectorAll('.dock:not(.dock-ghost) .dock-stack')[$i].click()")

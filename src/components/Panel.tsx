@@ -17,6 +17,7 @@ import { Glyph } from "./IndicatorGlyph";
 import StackPanel from "./StackPanel";
 import EosMenuPanel from "./EosMenuPanel";
 import ControlPanel from "./ControlPanel";
+import TrayPanel from "./TrayPanel";
 import CalendarPanel from "./CalendarPanel";
 import MenuPanel from "./MenuPanel";
 import { useBackdrop } from "./useBackdrop";
@@ -45,6 +46,8 @@ export default function Panel() {
   const [eosMenu, setEosMenu] = useState(false);
   // Centro di controllo (interruttori rapidi, dal pulsante a destra nella barra).
   const [control, setControl] = useState(false);
+  // App in background (icona nel Dock).
+  const [tray, setTray] = useState(false);
   const [opens, setOpens] = useState(0);
   const [local, setLocal] = useState<VolumeValue | null>(null);
   const lastInput = useRef(0);
@@ -59,6 +62,16 @@ export default function Panel() {
   useEffect(() => {
     const onOpen = listen<string>("panel-open", (e) => {
       setControl(e.payload === "control");
+      setTray(e.payload === "tray");
+      if (e.payload === "tray") {
+        setKey(null);
+        setMenuIndex(null);
+        setCalendar(false);
+        setStackIndex(null);
+        setEosMenu(false);
+        setOpens((n) => n + 1);
+        return;
+      }
       if (e.payload === "control") {
         setKey(null);
         setMenuIndex(null);
@@ -118,6 +131,7 @@ export default function Panel() {
       setStackIndex(null);
       setEosMenu(false);
       setControl(false);
+      setTray(false);
       setLocal(null);
     });
     return () => {
@@ -135,7 +149,7 @@ export default function Panel() {
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [key, menuIndex, calendar, stackIndex, eosMenu, control]);
+  }, [key, menuIndex, calendar, stackIndex, eosMenu, control, tray]);
 
   // Esc chiude; all'apertura il focus va al primo controllo.
   useEffect(() => {
@@ -189,6 +203,7 @@ export default function Panel() {
       {stackIndex !== null && <StackPanel ref={body} index={stackIndex} opens={opens} />}
       {eosMenu && <EosMenuPanel ref={body} opens={opens} />}
       {control && <ControlPanel ref={body} opens={opens} />}
+      {tray && <TrayPanel ref={body} opens={opens} />}
       {key && item && (
         <div className="panel-body" ref={body}>
           <h2 className="panel-title">{panelTitle(key)}</h2>

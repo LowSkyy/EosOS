@@ -76,7 +76,7 @@ try {
   $json = '{ "version": 1, "pinned": [ { "name": "Blocco note", "path": "' + ($np -replace '\\', '\\') + '" } ], "autohide": false, "glass": 0.7, "blur": true, "reserve": true }'
   [System.IO.File]::WriteAllText($dj, $json, (New-Object System.Text.UTF8Encoding($false)))
   Start-Sleep 2
-  Check 'il Dock ha come prima app il Blocco note' (Wait-Until { (Js 'dock' "(document.querySelector('.dock:not(.dock-ghost) .dock-item:not(.dock-stack):not(.dock-launchpad)')||{getAttribute:function(){return ''}}).getAttribute('title')") -eq 'Blocco note' } 8)
+  Check 'il Dock ha come prima app il Blocco note' (Wait-Until { (Js 'dock' "(document.querySelector('.dock:not(.dock-ghost) .dock-item:not(.dock-stack):not(.dock-launchpad)')||{getAttribute:function(){return ''}}).getAttribute('data-label')") -eq 'Blocco note' } 8)
   $r = Js 'launcher' "window.__TAURI_INTERNALS__.invoke('dockkeys_fire',{n:1})"
   Check 'la pressione simulata del numero 1 e accettata' ($r -eq $true)
   Check 'parte un nuovo Blocco note' (Wait-Until { @(Get-Process notepad -ErrorAction SilentlyContinue | Where-Object { $notepadBefore -notcontains $_.Id }).Count -ge 1 } 12)

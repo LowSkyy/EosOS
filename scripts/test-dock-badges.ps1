@@ -16,7 +16,7 @@ function Js([string]$view, [string]$expr) { $env:CDP_VIEW = $view; $env:CDP_INDE
 function Wait-Until([scriptblock]$cond, [double]$seconds = 8) { $t0 = Get-Date; while (((Get-Date) - $t0).TotalSeconds -lt $seconds) { if (& $cond) { return $true }; Start-Sleep -Milliseconds 300 }; $false }
 function Set-S([string]$key, [string]$jsValue) { Js 'launcher' "window.__TAURI_INTERNALS__.invoke('settings_set',{key:'$key',value:$jsValue})" }
 # Il badge sull'icona di PowerShell nel Dock principale (testo, o '' se non c'e').
-$psSel = ".dock:not(.dock-ghost) .dock-item[title=\'Windows PowerShell\']"
+$psSel = ".dock:not(.dock-ghost) .dock-item[data-label=\'Windows PowerShell\']"
 function Badge-Text { [string](Js 'dock' "(function(){var i=document.querySelector('$psSel');var b=i&&i.querySelector('.dock-badge');return b?b.textContent:''})()") }
 function Badge-Aria { [string](Js 'dock' "(function(){var i=document.querySelector('$psSel');return i?i.getAttribute('aria-label'):''})()") }
 function Has-Icon { (Js 'dock' "document.querySelector('$psSel')!==null") -eq $true }

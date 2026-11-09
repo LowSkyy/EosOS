@@ -72,7 +72,8 @@ pub struct Spec {
 }
 
 const WEEK_START: &[(&str, &str)] = &[("mon", "Lunedì"), ("sun", "Domenica")];
-const DOCK_SIZE: &[(&str, &str)] = &[("small", "Piccolo"), ("medium", "Medio"), ("large", "Grande"), ("xl", "Molto grande")];
+const DOCK_SIZE: &[(&str, &str)] = &[("tiny", "Minuscolo"), ("small", "Piccolo"), ("medium", "Medio"), ("large", "Grande"), ("xl", "Molto grande"), ("xxl", "Gigante")];
+const DOCK_ANIM: &[(&str, &str)] = &[("bounce", "Rimbalzo"), ("pulse", "Pulsazione"), ("none", "Nessuna")];
 const DOCK_KEYS: &[(&str, &str)] = &[("ctrl_alt", "Ctrl+Alt+1…9"), ("ctrl_shift", "Ctrl+Maiusc+1…9"), ("alt_shift", "Alt+Maiusc+1…9"), ("off", "Disattivate")];
 const LANGUAGES: &[(&str, &str)] = &[("it", "Italiano")];
 const GLASS: &[(&str, &str)] = &[("clear", "Vetro trasparente"), ("standard", "Vetro standard"), ("solid", "Vetro opaco")];
@@ -91,6 +92,9 @@ pub const SPECS: &[Spec] = &[
     Spec { key: "dock.glass", section: Section::Appearance, label: "Livello di vetro", help: "Quanto sono trasparenti Dock, barra e pannelli.", kind: Kind::Choice(GLASS), keywords: &["vetro", "trasparente", "opaco", "aspetto"], live: true },
     Spec { key: "dock.size", section: Section::Dock, label: "Dimensione del Dock", help: "Quanto sono grandi il Dock e le sue icone.", kind: Kind::Choice(DOCK_SIZE), keywords: &["dimensione", "grandezza", "icone", "ridimensiona", "scala"], live: true },
     Spec { key: "dock.all_screens", section: Section::Dock, label: "Dock su tutti gli schermi", help: "Un Dock su ogni monitor, ciascuno con la sua misura dello schermo. Spento: solo sul monitor principale.", kind: Kind::Bool, keywords: &["monitor", "schermi", "più schermi", "secondo schermo", "multi"], live: true },
+    Spec { key: "dock.tray", section: Section::Dock, label: "App in background", help: "Un'icona nel Dock con le app che girano ridotte nell'area di notifica (come NVIDIA Broadcast, G HUB, AnyDesk): un clic le porta davanti. Compare solo se ce n'è almeno una.", kind: Kind::Bool, keywords: &["tray", "area di notifica", "icone nascoste", "background", "in secondo piano", "ridotte"], live: true },
+    Spec { key: "dock.anim", section: Section::Dock, label: "Animazione all'apertura di un'app", help: "Cosa fa l'icona nel Dock mentre l'app si sta aprendo: rimbalza, pulsa o resta ferma.", kind: Kind::Choice(DOCK_ANIM), keywords: &["animazione", "rimbalzo", "bounce", "apertura", "avvio", "icona"], live: true },
+    Spec { key: "dock.magnify", section: Section::Dock, label: "Ingrandisci le icone al passaggio del mouse", help: "Le icone vicine al puntatore si ingrandiscono, come in macOS. Spento, restano della stessa misura.", kind: Kind::Bool, keywords: &["ingrandimento", "zoom", "magnification", "passaggio", "mouse", "icone"], live: true },
     Spec { key: "dock.badges", section: Section::Dock, label: "Badge delle notifiche sulle icone", help: "Una pallina rossa con il numero di notifiche non lette sull'icona dell'app, come in macOS. Funziona solo con «Mostra le notifiche» acceso (e non con Non disturbare).", kind: Kind::Bool, keywords: &["badge", "notifiche", "pallino", "contatore", "icone"], live: true },
     Spec { key: "dock.keys", section: Section::Dock, label: "Scorciatoie per le app del Dock", help: "Premendo il tasto scelto più un numero da 1 a 9 si apre la 1ª…9ª app del Dock, come un clic sulla sua icona. Con la barra di Windows nascosta i tasti Windows+numero di Windows non funzionano più: questi li sostituiscono.", kind: Kind::Choice(DOCK_KEYS), keywords: &["scorciatoie", "tastiera", "numeri", "windows+1", "app del dock", "tasti"], live: true },
     Spec { key: "dock.autohide", section: Section::Dock, label: "Nascondi automaticamente", help: "Il Dock scompare quando non serve e riappare spostando il mouse sul bordo.", kind: Kind::Bool, keywords: &["auto", "nascondi", "scompare"], live: true },

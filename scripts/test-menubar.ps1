@@ -60,7 +60,7 @@ try {
   # Di base il menu Finestra e' nascosto: questa prova lo riguarda, quindi lo si accende nel file (salvato prima e ripristinato dopo).
   $mcSeed = Join-Path $env:LOCALAPPDATA 'EosOS\mission.json'
   New-Item -ItemType Directory -Force (Split-Path $mcSeed) | Out-Null
-  [System.IO.File]::WriteAllText($mcSeed, '{"menuShowWindow": true}', (New-Object System.Text.UTF8Encoding($false)))
+  [System.IO.File]::WriteAllText($mcSeed, '{"menuShowWindow": true, "menuShowName": true}', (New-Object System.Text.UTF8Encoding($false)))
   Cleanup-Eos; Start-Sleep 1
   Write-Host 'Preparazione: finestre di prova NUOVE'
   Start-Process powershell -ArgumentList '-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-File', $formA | Out-Null
