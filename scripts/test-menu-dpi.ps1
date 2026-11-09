@@ -61,7 +61,7 @@ function Test-Scale([string]$etichetta) {
     $dpr = [double](JsB $i 'bar' 'window.devicePixelRatio')
     $sx = [int](JsB $i 'bar' 'window.screenX'); $sy = [int](JsB $i 'bar' 'window.screenY')
     $n = [int](JsB $i 'bar' "document.querySelectorAll('.app-menu').length")
-    Check "barra $i (scala $dpr): mostra nome + 4 menu + Finestra" ($n -eq 6) "menu $n"
+    Check "barra $i (scala $dpr): mostra nome + 4 menu (Finestra e nascosta di base)" ($n -eq 5) "menu $n"
     $r = JsB $i 'bar' "(function(){var r=document.querySelectorAll('.app-menu')[2].getBoundingClientRect();return [r.left,r.top,r.width,r.height]})()"
     $titleL = $sx + [int]([math]::Round($r[0] * $dpr)); $titleT = $sy + [int]([math]::Round($r[1] * $dpr))
     $titleR = $titleL + [int]([math]::Round($r[2] * $dpr)); $titleB = $titleT + [int]([math]::Round($r[3] * $dpr))
@@ -95,7 +95,7 @@ try {
   Check 'finestra di prova creata' ($script:a -ne 0)
   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'; Start-Process $exe | Out-Null; Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS; Start-Sleep 12
   Focus ([IntPtr]$script:a)
-  Check 'la riga della finestra di prova e letta' (Wait-Until { $r = JsB 0 'launcher' "window.__TAURI_INTERNALS__.invoke('menubar_current')"; ($r.read -eq $true) -and (@($r.menus).Count -eq 6) } 8)
+  Check 'la riga della finestra di prova e letta' (Wait-Until { $r = JsB 0 'launcher' "window.__TAURI_INTERNALS__.invoke('menubar_current')"; ($r.read -eq $true) -and (@($r.menus).Count -eq 5) } 8)
   Test-Scale "scala di partenza $orig%"
   foreach ($s in 125, 150, 175) {
     if ($supported -notcontains $s -or $s -eq $orig) { continue }
