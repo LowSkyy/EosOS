@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794188038.3366,
-    "seen": 1794188063.47174,
-    "ast_hash": "f3f4c496b9041d8d44ea562941090823",
+    "mtime": 1794205007.4287379,
+    "seen": 1794205326.2978392,
+    "ast_hash": "3eb18174814e271ff2885f90b05170f6",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -702,9 +702,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/mcstore.rs": {
-    "mtime": 1794186535.2548783,
-    "seen": 1794187742.0909631,
-    "ast_hash": "f7f04470c7aa392abfce62ff8a26881b",
+    "mtime": 1794205007.4277384,
+    "seen": 1794205326.2978444,
+    "ast_hash": "9994e6bd1e30cf001eecc66de5923538",
     "semantic_hash": ""
   },
   "src-tauri/src/mctrigger.rs": {
@@ -876,27 +876,27 @@
     "semantic_hash": ""
   },
   "scripts/test-settings.ps1": {
-    "mtime": 1794186774.9849107,
-    "seen": 1794187742.090924,
-    "ast_hash": "b8a0d2dce0a819d22d47ba44e0bb5517",
+    "mtime": 1794205218.4354386,
+    "seen": 1794205326.2978024,
+    "ast_hash": "96d2d13ee4a4c7b936239f6b1773de51",
     "semantic_hash": ""
   },
   "src-tauri/src/settingslive.rs": {
-    "mtime": 1794186535.2558818,
-    "seen": 1794187742.0909727,
-    "ast_hash": "99d27f1c30bf53d9a85c68054a34f27a",
+    "mtime": 1794205166.8395803,
+    "seen": 1794205326.2978547,
+    "ast_hash": "f0bf263210610fc32dc3c29f10d7a1a0",
     "semantic_hash": ""
   },
   "src-tauri/src/settingsreg.rs": {
-    "mtime": 1794186535.2558818,
-    "seen": 1794187742.0909734,
-    "ast_hash": "aa0719b7d7fc040a6671a2e965d3e04a",
+    "mtime": 1794205166.8395803,
+    "seen": 1794205326.2978554,
+    "ast_hash": "19dfe63ce6e486e5361e84d943807b66",
     "semantic_hash": ""
   },
   "scripts/test-settingswin.ps1": {
-    "mtime": 1794186774.9979224,
-    "seen": 1794187742.0909247,
-    "ast_hash": "f6b0fd4ff92aed1ed76aec1a1107a413",
+    "mtime": 1794205297.5648978,
+    "seen": 1794205326.2978034,
+    "ast_hash": "12de7fad4dec049310dd42d6ad89c87a",
     "semantic_hash": ""
   },
   "src-tauri/src/settingswin.rs": {
@@ -1320,15 +1320,27 @@
     "semantic_hash": ""
   },
   "docs/RIFINITURE.md": {
-    "mtime": 1794204579.5627563,
-    "seen": 1794204582.3161566,
-    "ast_hash": "12f28ce20653b9bdb76fdda0b706b1f9",
+    "mtime": 1794205320.1929002,
+    "seen": 1794205326.2979345,
+    "ast_hash": "f6db38a7631db32152d4007e4b3ccc42",
     "semantic_hash": ""
   },
   "scripts/test-dock-multi-dpi.ps1": {
     "mtime": 1794204527.1352353,
     "seen": 1794204582.3159885,
     "ast_hash": "8db380bd56a4f76e8fe4b1e1ea937211",
+    "semantic_hash": ""
+  },
+  "scripts/test-dock-keys.ps1": {
+    "mtime": 1794205166.8395803,
+    "seen": 1794205326.2977622,
+    "ast_hash": "75041dadad9d5d1ff6eceed88992e540",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/dockkeys.rs": {
+    "mtime": 1794205166.8385801,
+    "seen": 1794205326.2978237,
+    "ast_hash": "96626447231ad4c58ad7e9f30c2ff2da",
     "semantic_hash": ""
   },
   "package-lock.json": {

@@ -81,11 +81,34 @@ describe("bar glass tint", () => {
     // Tema chiaro (testo scuro): più scuro lo sfondo, più chiara la tinta.
     expect(a(barTint(false, 0))).toBeGreaterThan(a(barTint(false, 1)));
     // Resta vetro: mai opaco.
-    for (const dark of [true, false]) for (const l of [0, 0.5, 1]) expect(a(barTint(dark, l))).toBeLessThan(0.7);
+    for (const dark of [true, false]) for (const l of [0, 0.5, 1]) expect(a(barTint(dark, l))).toBeLessThanOrEqual(0.7);
     expect(barTint(true, 0.5)).toMatch(/^rgba\(30, 30, 32, /);
     expect(barTint(false, 0.5)).toMatch(/^rgba\(246, 246, 248, /);
     // Valori assurdi non rompono nulla.
     expect(barTint(true, NaN)).toBe(barTint(true, 0.5));
     expect(a(barTint(true, 99))).toBe(a(barTint(true, 1)));
+  });
+});
+
+describe("bar text colour", () => {
+  it("keeps the text readable on any background, whatever the theme", async () => {
+    const { barColors, linear, LIGHT_TEXT, DARK_TEXT } = await import("./backdrop");
+    for (const dark of [true, false]) {
+      for (const lum of [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]) {
+        const c = barColors(dark, lum);
+        const bg = linear(c.effective);
+        const textLight = c.fg === "#f5f5f7";
+        const textL = textLight ? LIGHT_TEXT : DARK_TEXT;
+        const ratio = (Math.max(bg, textL) + 0.05) / (Math.min(bg, textL) + 0.05);
+        // WCAG: almeno 4,5:1 per il testo normale, per ogni sfondo e ogni tema.
+        expect(ratio, `tema ${dark ? "scuro" : "chiaro"}, sfondo ${lum}`).toBeGreaterThan(4.5);
+      }
+    }
+  });
+  it("uses the tint of barTint", async () => {
+    const { barColors, barTint } = await import("./backdrop");
+    expect(barColors(true, 0.3).tint).toBe(barTint(true, 0.3));
+    expect(barColors(false, 0.3).tint).toBe(barTint(false, 0.3));
+    expect(barColors(true, NaN).effective).toBeCloseTo(barColors(true, 0.5).effective, 6);
   });
 });

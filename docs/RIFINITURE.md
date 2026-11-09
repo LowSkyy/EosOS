@@ -65,3 +65,11 @@ modificatore si sceglie in Impostazioni → Dock (**Ctrl+Alt**, **Ctrl+Maiusc**,
 - Se una combinazione è già presa da un'altra app, quella sola non si registra (senza errori).
 - **Prova** (`test-dock-keys.ps1`, nessun tasto premuto): nelle build di prova di base sono spente; accese risultano **registrate** (un altro processo riceve l'errore 1409 «già presa» su tutte e nove), cambiano e si spengono dalle Impostazioni, una scelta inventata è rifiutata; la pressione del numero 1 simulata dal comando di prova avvia il Blocco note messo come prima app (solo per la prova, ripristinato) e chiude solo quello nuovo.
 - **Non provato:** la pressione vera dei tasti (la tastiera non si simula), e conflitti con app che usano le stesse combinazioni.
+
+## Tema chiaro e leggibilità della barra (9 nov 2026)
+Guardando il tema chiaro forzato (`scripts/shot-light.ps1`: foto delle pagine con `data-theme` chiaro e scuro) il testo della barra
+risultava scuro su sfondo scuro. Ora **il colore del testo si sceglie dal contrasto vero**, calcolato sullo sfondo dietro la barra
+mescolato con la tinta (luminanze lineari, come WCAG), non dal tema: chiaro o scuro, il testo resta leggibile su qualunque sfondo. Test
+puro: **almeno 4,5:1 per ogni tema e per undici livelli di luminosità dello sfondo**. La tinta scura è un po' più forte sugli sfondi
+chiari (fino a 0,70). Si ricalcola anche se il tema del sistema cambia a barra aperta. Impostazioni, Dock e pannelli in tema chiaro
+guardati a occhio: a posto (il pannello sotto l'orologio è nascosto nelle foto, non confrontato).

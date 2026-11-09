@@ -77,6 +77,39 @@ export function meanLuminance(data: Uint8ClampedArray, step = 16): number {
  */
 export function barTint(dark: boolean, lum: number): string {
   const l = Math.min(1, Math.max(0, Number.isFinite(lum) ? lum : 0.5));
-  const alpha = (dark ? 0.26 + 0.36 * l : 0.64 - 0.34 * l).toFixed(2);
+  const alpha = (dark ? 0.26 + 0.44 * l : 0.64 - 0.34 * l).toFixed(2);
   return dark ? `rgba(30, 30, 32, ${alpha})` : `rgba(246, 246, 248, ${alpha})`;
+}
+
+/** Luminanza relativa (lineare) del testo chiaro #f5f5f7 e di quello scuro #1c1c1e. */
+export const LIGHT_TEXT = 0.91;
+export const DARK_TEXT = 0.012;
+
+/** Da luminosità «di schermo» (0..1) a luminanza lineare, come nel calcolo del contrasto WCAG. Pura. */
+export const linear = (c: number): number => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+
+/** Luminosità (0..1) di un colore «r, g, b». Pura. */
+const lumOf = (r: number, g: number, b: number): number => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+/**
+ * Tinta e colore del testo della barra per lo sfondo dietro di lei. Il testo si sceglie dalla luminosità EFFETTIVA (sfondo
+ * mescolato con la tinta), non dal tema: così resta leggibile su qualunque sfondo, anche con il tema chiaro su uno sfondo scuro
+ * (o al contrario). Pura, testata.
+ */
+export function barColors(dark: boolean, lum: number): { tint: string; fg: string; fgMuted: string; effective: number } {
+  const l = Math.min(1, Math.max(0, Number.isFinite(lum) ? lum : 0.5));
+  const alpha = dark ? 0.26 + 0.44 * l : 0.64 - 0.34 * l;
+  const tintLum = dark ? lumOf(30, 30, 32) : lumOf(246, 246, 248);
+  const effective = l * (1 - alpha) + tintLum * alpha;
+  // Il testo (chiaro o scuro) si sceglie dal contrasto vero: la luminosità va prima portata da valori di schermo a lineari.
+  const bg = linear(effective);
+  const withDark = (bg + 0.05) / (DARK_TEXT + 0.05);
+  const withLight = (LIGHT_TEXT + 0.05) / (bg + 0.05);
+  const lightBackground = withDark >= withLight;
+  return {
+    tint: barTint(dark, l),
+    fg: lightBackground ? "#1c1c1e" : "#f5f5f7",
+    fgMuted: lightBackground ? "#3a3a3c" : "#c7c7cc",
+    effective,
+  };
 }
