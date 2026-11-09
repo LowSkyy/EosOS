@@ -882,3 +882,14 @@ body {
 .oggi-add:disabled { opacity: 0.45; }
 .oggi-error { margin: 4px 0 0; color: #ff453a; font-size: 12px; }
 .oggi-check:focus-visible, .oggi-x:focus-visible, .oggi-clear:focus-visible, .oggi-add:focus-visible, .oggi-input:focus-visible, .oggi-hour:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 1px; }
+
+/* Impostazioni di Windows dentro quelle di EosOS */
+.winset { display: flex; flex-direction: column; gap: 14px; }
+.winset-search { width: 100%; box-sizing: border-box; }
+.winset-title { margin: 0 0 6px; font-size: 12px; font-weight: var(--weight-strong); color: var(--bar-fg-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.winset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.winset-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 11px; border: 1px solid rgba(128, 128, 128, 0.28); border-radius: 10px; background: rgba(128, 128, 128, 0.1); color: var(--bar-fg); font: inherit; text-align: left; cursor: default; }
+.winset-tile:hover { background: rgba(128, 128, 128, 0.22); }
+.winset-tile:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 2px; }
+.winset-label { font-weight: var(--weight-strong); }
+.winset-hint { color: var(--bar-fg-muted); font-size: 12px; }

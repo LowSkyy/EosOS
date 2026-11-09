@@ -66,7 +66,7 @@ try {
   Check 'ha il primo piano' (Wait-Until { [SW]::GetForegroundWindow() -eq [IntPtr]$h } 3)
 
   Write-Host 'B. contenuto'
-  Check 'la barra laterale ha le sette sezioni' ((Navs) -join '|' -eq 'Generale|Aspetto|Dock|Barra dei menu|Launcher|Mission Control|Notifiche e calendario') ((Navs) -join '|')
+  Check 'la barra laterale ha le otto sezioni' ((Navs) -join '|' -eq 'Generale|Aspetto|Dock|Barra dei menu|Launcher|Mission Control|Notifiche e calendario|Impostazioni di Windows') ((Navs) -join '|')
   Check 'si parte dalla prima sezione, Generale' ((Heading) -eq 'Generale')
   Click-Nav 'Aspetto'; Start-Sleep -Milliseconds 400
   Check 'Aspetto mostra sfocatura e livello di vetro' ((Labels) -join '|' -eq 'Sfocatura dello sfondo|Livello di vetro') ((Labels) -join '|')

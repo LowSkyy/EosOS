@@ -19,6 +19,8 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         "indicator_open" | "volume_set" | "volume_mute" | "menubar_choose" => label == "panel",
         // Mission Control: attivare e chiudere finestre vere, cambiare e modificare i desktop virtuali.
         "mc_activate" | "mc_close_window" | "mc_switch_desktop" | "mc_new_desktop" | "mc_move_window" | "mc_remove_desktop" | "mc_rename_desktop" => label.starts_with("mc-"),
+        // Impostazioni di Windows: l'elenco e l'apertura sono della finestra Impostazioni.
+        c if c.starts_with("winsettings_") => label == "settings",
         // Aggiornamenti: li gestisce solo la finestra Impostazioni.
         c if c.starts_with("update_") => label == "settings",
         // Widget Oggi (promemoria e meteo): solo il pannello sotto l'orologio.
@@ -82,6 +84,16 @@ mod tests {
             }
         }
         assert!(allowed("panel", "settings_set", Some("notif.read")) && !allowed("panel", "settings_set", Some("oggi.city")));
+    }
+
+    #[test]
+    fn windows_settings_belong_to_the_settings_window() {
+        for c in ["winsettings_list", "winsettings_open"] {
+            assert!(allowed("settings", c, None), "{c}");
+            for other in ["panel", "launcher", "dock", "bar-0", "main", "mc-0"] {
+                assert!(!allowed(other, c, None), "{other} {c}");
+            }
+        }
     }
 
     #[test]

@@ -20,6 +20,7 @@ import {
   type SettingValue,
 } from "../lib/settings";
 import UpdateBox from "./UpdateBox";
+import WinSettings from "./WinSettings";
 
 /**
  * Impostazioni di EosOS (finestra "settings", vista ?view=settings): barra laterale con le sezioni e a destra le
@@ -163,7 +164,8 @@ export default function Settings() {
       <main className="settings-main">
         <h1 className="settings-h">{title}</h1>
         {shown.length === 0 && <p className="settings-empty">{found !== null ? "Nessuna impostazione corrisponde." : ""}</p>}
-        {shown.map((e) => (
+        {found === null && section === "windows" && <WinSettings />}
+        {!(found === null && section === "windows") && shown.map((e) => (
           <Row key={e.key} entry={e} error={errors[e.key]} note={notes[e.key]} onSet={(v) => void set(e.key, v)} onAction={() => void act(e.key)} showSection={found !== null} />
         ))}
         {found === null && section === "general" && <UpdateBox />}
@@ -214,7 +216,7 @@ function Row({ entry, error, note, onSet, onAction, showSection }: { entry: Sett
         {kind.type === "pinned" && <PinnedList id={id} items={asList(value)} onChange={onSet} />}
         {kind.type === "action" && (
           <button id={id} type="button" className="settings-button" onClick={onAction}>
-            Mostra il rapporto
+            {entry.key === "windows.home" ? "Apri" : "Mostra il rapporto"}
           </button>
         )}
         {kind.type === "choice" && <span className="settings-sr">{choiceLabel(kind, value)}</span>}

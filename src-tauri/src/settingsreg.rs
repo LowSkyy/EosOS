@@ -19,6 +19,7 @@ pub enum Section {
     Launcher,
     MissionControl,
     Notifications,
+    Windows,
 }
 
 impl Section {
@@ -31,6 +32,7 @@ impl Section {
             Section::Launcher => "Launcher",
             Section::MissionControl => "Mission Control",
             Section::Notifications => "Notifiche e calendario",
+            Section::Windows => "Impostazioni di Windows",
         }
     }
 }
@@ -109,6 +111,7 @@ pub const SPECS: &[Spec] = &[
     Spec { key: "calendar.week_start", section: Section::Notifications, label: "La settimana comincia da", help: "Nel calendario sotto l'orologio.", kind: Kind::Choice(WEEK_START), keywords: &["calendario", "lunedì", "domenica", "settimana", "orologio"], live: true },
     Spec { key: "oggi.weather", section: Section::Notifications, label: "Meteo nel pannello Oggi", help: "Mostra il meteo di oggi nel pannello sotto l'orologio. Chiede a Open-Meteo (servizio gratuito) la posizione della città e le previsioni, al massimo ogni 30 minuti: all'esterno va solo il nome della città. Spento di base.", kind: Kind::Bool, keywords: &["meteo", "tempo", "temperatura", "previsioni", "oggi", "rete"], live: true },
     Spec { key: "oggi.city", section: Section::Notifications, label: "Città del meteo", help: "Il nome della città per cui mostrare il meteo (per esempio Roma o L'Aquila).", kind: Kind::Text(60), keywords: &["citta", "meteo", "luogo"], live: true },
+    Spec { key: "windows.home", section: Section::Windows, label: "Impostazioni di Windows", help: "Apre le Impostazioni di Windows. Qui sotto trovi le pagine principali, già raggruppate: un clic apre quella giusta.", kind: Kind::Action, keywords: &["windows", "pannello di controllo", "schermo", "audio", "rete", "bluetooth", "aggiornamenti", "sistema"], live: true },
 ];
 
 /// L'impostazione con quella chiave, se esiste.
@@ -411,7 +414,7 @@ mod tests {
             }
         }
         // Ogni sezione ha almeno un'impostazione, e l'ordine dell'elenco segue quello delle sezioni.
-        let order = [Section::General, Section::Appearance, Section::Dock, Section::MenuBar, Section::Launcher, Section::MissionControl, Section::Notifications];
+        let order = [Section::General, Section::Appearance, Section::Dock, Section::MenuBar, Section::Launcher, Section::MissionControl, Section::Notifications, Section::Windows];
         let mut last = 0;
         for s in SPECS {
             let pos = order.iter().position(|o| *o == s.section).unwrap();

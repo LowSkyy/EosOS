@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794185008.4174533,
-    "seen": 1794185807.259628,
-    "ast_hash": "1be93f0384888ce1ee24637113a1b693",
+    "mtime": 1794185822.6765058,
+    "seen": 1794185973.9494934,
+    "ast_hash": "b8e26bda966151c0fc6eb924fa47c0ac",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/tests.rs": {
-    "mtime": 1794059615.178338,
-    "seen": 1794059741.90934,
-    "ast_hash": "18a879f93538d3be2fcb75a323d9ea24",
+    "mtime": 1794185831.4541566,
+    "seen": 1794185973.9495132,
+    "ast_hash": "a327496ea560d9941a87a656501cef9e",
     "semantic_hash": ""
   },
   "src-tauri/src/watchdog.rs": {
@@ -702,9 +702,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/mcstore.rs": {
-    "mtime": 1794184369.909686,
-    "seen": 1794184912.0185463,
-    "ast_hash": "dcc6c38766f6ec2174adc9f7663da629",
+    "mtime": 1794185822.6765058,
+    "seen": 1794185973.949499,
+    "ast_hash": "3707b3e0833a0d4fcec3243926daf34e",
     "semantic_hash": ""
   },
   "src-tauri/src/mctrigger.rs": {
@@ -876,21 +876,21 @@
     "semantic_hash": ""
   },
   "scripts/test-settings.ps1": {
-    "mtime": 1794184657.8989925,
-    "seen": 1794184912.0185072,
-    "ast_hash": "0dc75ec844802bdc92c1f4ef3d658d87",
+    "mtime": 1794185842.1587074,
+    "seen": 1794185973.94946,
+    "ast_hash": "fa82e5c13905af154f6df250a3bd064d",
     "semantic_hash": ""
   },
   "src-tauri/src/settingslive.rs": {
-    "mtime": 1794184369.9106853,
-    "seen": 1794184912.0185566,
-    "ast_hash": "5b762998a320830dcc9d622bfd41b6e1",
+    "mtime": 1794185822.6775055,
+    "seen": 1794185973.949509,
+    "ast_hash": "d791af59262409a2746e95cde19760d8",
     "semantic_hash": ""
   },
   "src-tauri/src/settingsreg.rs": {
-    "mtime": 1794184369.9106853,
-    "seen": 1794184912.0185575,
-    "ast_hash": "a0fa436c59a7c7b3fca47cebccc19131",
+    "mtime": 1794185852.9977558,
+    "seen": 1794185973.9495096,
+    "ast_hash": "da967df2a872e9081705b7c6273bcada",
     "semantic_hash": ""
   },
   "scripts/test-settingswin.ps1": {
@@ -936,9 +936,9 @@
     "semantic_hash": ""
   },
   "scripts/test-settings-s4.ps1": {
-    "mtime": 1794177505.0994937,
-    "seen": 1794177775.7541564,
-    "ast_hash": "f4c152d5494dbc0841113bdef5a1d8b6",
+    "mtime": 1794185860.4896798,
+    "seen": 1794185973.949457,
+    "ast_hash": "2a1bc81f87c4811e7c387e7e907d2886",
     "semantic_hash": ""
   },
   "src-tauri/src/autostart.rs": {

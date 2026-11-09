@@ -99,6 +99,13 @@ impl Backend for Live {
                     Err(SettingsError("Non riesco a scrivere il rapporto.".into()))
                 }
             }
+            "windows.home" => {
+                if crate::winsettings::open("home") {
+                    Ok(())
+                } else {
+                    Err(SettingsError("Non riesco ad aprire le Impostazioni di Windows.".into()))
+                }
+            }
             _ => Err(SettingsError("Pulsante sconosciuto.".into())),
         }
     }

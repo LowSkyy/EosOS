@@ -1,17 +1,17 @@
 # Graph Report - EosOS  (2026-11-09)
 
 ## Corpus Check
-- 195 files · ~232,284 words
+- 195 files · ~232,591 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 3, .icns 1, .ico 1)
 
 ## Summary
-- 3643 nodes · 7746 edges · 233 communities (161 shown, 72 thin omitted)
-- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 479 edges (avg confidence: 0.84)
+- 3646 nodes · 7750 edges · 233 communities (155 shown, 78 thin omitted)
+- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 480 edges (avg confidence: 0.84)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c71cb95f`
+- Built from commit: `6354b034`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -37,7 +37,7 @@
 - menubar.rs
 - tokens.test.ts
 - launcherfiles.rs
-- lib.rs
+- load
 - EosOS
 - Checklist di test manuali
 - dock.rs
@@ -57,7 +57,7 @@
 - launcherrank.rs
 - launcherwin.rs
 - mcstore.rs
-- AppHandle
+- lib.rs
 - launcherclip.rs
 - menuread.rs
 - mc.rs
@@ -113,23 +113,23 @@
 - notifread.rs
 - open
 - notifmodel.rs
-- AppHandle
+- Read
 - menumodel.rs
 - show
 - run_search
 - KindOut
 - test-settingswin.ps1
-- show
-- Rect
-- build_groups
+- compose
+- reminders.rs
+- enable
 - Mission Control — specifica
 - measure-idle.ps1
 - test-menu-view.ps1
-- History
+- remember
 - Launcher — specifica
 - test-update.ps1
 - test-calendar.ps1
-- tick
+- Toggle
 - test-notif-panel.ps1
 - stacks.ts
 - super
@@ -144,25 +144,26 @@
 - @tauri-apps/api
 - Aggiornamenti automatici
 - test-stacks.ps1
+- decide
 - test-settings-s4.ps1
 - test-oggi.ps1
-- Config
+- reload_settings
 - Kind
 - rank_hits
 - LPARAM
 - HWND
 - test-settings-s6.ps1
 - test-launcher-dpi.ps1
-- .new
+- restore_autohide
 - test-dock-mixed-dpi.ps1
-- app_windows_for
+- same_app
 - test-calendar-n6.ps1
 - test-indicators-dpi.ps1
 - TopMenu
 - test-dock-scales.ps1
-- updates.rs
+- Phase
 - test-menu-dpi.ps1
-- reconcile
+- mc_state
 - test-calendar-dpi.ps1
 - react
 - Dock — specifica
@@ -175,34 +176,31 @@
 - test-cmd-policy.ps1
 - Pile nel Dock
 - Inflight
-- app_display_name
+- dock_items
 - sandbox-update.ps1
-- handle
+- LPARAM
 - pathbuf
 - Widget «Oggi»
 - test-bar-glass.ps1
-- run_child
-- Held
+- menubar_current
+- stack_list
 - notif_dismiss
-- Outcome
-- MenuAction
-- Verdict
+- KEEP_HIDDEN
 - win_ctrl
-- Run
-- settings_all
 - Dir
 - test-dock-remove.ps1
+- update_reminders
 
 ## God Nodes (most connected - your core abstractions)
 1. `Rect` - 66 edges
 2. `guard!` - 40 edges
-3. `Settings` - 28 edges
+3. `Settings` - 29 edges
 4. `Pinned` - 25 edges
 5. `st()` - 25 edges
-6. `layout()` - 23 edges
-7. `Dock()` - 22 edges
+6. `update()` - 23 edges
+7. `layout()` - 23 edges
 8. `Value` - 22 edges
-9. `update()` - 22 edges
+9. `Dock()` - 22 edges
 10. `@tauri-apps/api` - 20 edges
 
 ## Surprising Connections (you probably didn't know these)
@@ -210,17 +208,17 @@
   docs/DOCK.md → src/components/Dock.tsx
 - `M2 — Panoramica: FATTA (7 nov 2026)` --references--> `neighbour()`  [INFERRED]
   docs/MISSION-CONTROL.md → src/lib/mc.ts
-- `L6 — Rifiniture: FATTA, tranne una prova (7 nov 2026)` --references--> `useBackdrop()`  [INFERRED]
-  docs/LAUNCHER.md → src/components/useBackdrop.ts
 - `G3 — La barra: FATTA (8 nov 2026)` --references--> `acceptRow()`  [INFERRED]
   docs/MENU-GLOBALE.md → src/lib/menubar.ts
 - `N4 — L'elenco nel pannello: FATTO (8 nov 2026)` --references--> `isLatest()`  [INFERRED]
   docs/NOTIFICHE.md → src/lib/notifications.ts
+- `L6 — Rifiniture: FATTA, tranne una prova (7 nov 2026)` --references--> `useBackdrop()`  [INFERRED]
+  docs/LAUNCHER.md → src/components/useBackdrop.ts
 
 ## Import Cycles
 - 1-file cycle: `src-tauri/src/foreground.rs -> src-tauri/src/foreground.rs`
 
-## Communities (233 total, 72 thin omitted)
+## Communities (233 total, 78 thin omitted)
 
 ### Community 0 - "EosOS: Piano di lavoro"
 Cohesion: 0.25
@@ -236,7 +234,7 @@ Nodes (25): app, security, windows, build, beforeBuildCommand, beforeDevCommand,
 
 ### Community 6 - "panelwin.rs"
 Cohesion: 0.06
-Nodes (43): SEQ, a_panel_above_the_icon_keeps_its_bottom_when_it_grows(), anchor(), anchor_to_physical(), busy_for(), BUSY_UNTIL_MS, clamp_height(), click_decisions() (+35 more)
+Nodes (59): SEQ, a_panel_above_the_icon_keeps_its_bottom_when_it_grows(), anchor(), anchor_to_physical(), busy_for(), BUSY_UNTIL_MS, clamp_height(), click_decisions() (+51 more)
 
 ### Community 7 - "compilerOptions"
 Cohesion: 0.25
@@ -247,16 +245,16 @@ Cohesion: 0.33
 Nodes (5): description, identifier, permissions, $schema, windows
 
 ### Community 9 - "watchdog.rs"
-Cohesion: 0.07
-Nodes (13): remove_if_registered(), CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, HOTKEY_ID, log(), LOG_MAX_BYTES, log_path(), ready_event_name() (+5 more)
+Cohesion: 0.06
+Nodes (10): image_path(), CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, HOTKEY_ID, LOG_MAX_BYTES, ready_event_name(), READY_TIMEOUT, run() (+2 more)
 
 ### Community 11 - "backdrop.rs"
 Cohesion: 0.05
-Nodes (33): capture_info(), BAR_INTERVAL, capture_bytes(), capture_slows_down_only_after_a_quiet_second(), Channel, Bar0, Bar1, Bar2 (+25 more)
+Nodes (35): capture_info(), BAR_INTERVAL, capture_bytes(), capture_slows_down_only_after_a_quiet_second(), Channel, Bar0, Bar1, Bar2 (+27 more)
 
 ### Community 15 - "taskbar.rs"
-Cohesion: 0.11
-Nodes (18): on_ctrl(), appbar_state(), autohide_marker(), collect(), Ctx, enable_autohide(), find(), HIDDEN (+10 more)
+Cohesion: 0.15
+Nodes (15): appbar_state(), autohide_marker(), collect(), Ctx, detect_restart(), enable_autohide(), find(), hide() (+7 more)
 
 ### Community 16 - "test-taskbar.ps1"
 Cohesion: 0.52
@@ -264,7 +262,7 @@ Nodes (6): Cleanup(), EosProcs(), ForceRestore(), MainProc(), Scenario(), Taskba
 
 ### Community 18 - "appbar.rs"
 Cohesion: 0.07
-Nodes (44): APP_HANDLE, APPLIED, AppliedMap, apply(), BAR_HEIGHT_LOGICAL, bar_height_px(), bar_index(), bar_rect() (+36 more)
+Nodes (44): APPLIED, AppliedMap, apply(), BAR_HEIGHT_LOGICAL, bar_height_px(), bar_index(), bar_rect(), bar_rect_follows_monitor_with_negative_origin() (+36 more)
 
 ### Community 20 - "foreground.rs"
 Cohesion: 0.07
@@ -275,28 +273,28 @@ Cohesion: 0.46
 Nodes (6): Bars(), Check(), CheckBars(), CheckRestored(), MainPid(), Mons()
 
 ### Community 23 - "dockact.rs"
-Cohesion: 0.15
-Nodes (11): activate(), activate_or_launch(), alt_or_win_down(), focus(), launch(), minimizes_only_when_the_app_is_already_in_front(), PREFIX, quit() (+3 more)
+Cohesion: 0.09
+Nodes (24): activate(), activate_or_launch(), alt_or_win_down(), focus(), foreign_or_malformed_menu_ids_are_ignored(), launch(), menu_id(), menu_id_roundtrip_with_colons_in_the_id() (+16 more)
 
 ### Community 24 - "package.json"
 Cohesion: 0.07
-Nodes (34): dependencies, @fontsource-variable/inter@^5.3.0, react@^19.1.0, react-dom@^19.1.0, @tauri-apps/api@^2, devDependencies, @tauri-apps/cli@^2, @types/node@^26.6.6 (+26 more)
+Nodes (33): dependencies, @fontsource-variable/inter@^5.3.0, react@^19.1.0, react-dom@^19.1.0, @tauri-apps/api@^2, devDependencies, @tauri-apps/cli@^2, @types/node@^26.6.6 (+25 more)
 
 ### Community 25 - "menubar.rs"
-Cohesion: 0.07
-Nodes (39): AUTOHIDE, BLUR, MENU_OPEN, RESERVE, APP, Cache, CACHE, cache_fresh() (+31 more)
+Cohesion: 0.08
+Nodes (32): AUTOHIDE, BLUR, MENU_OPEN, RESERVE, APP, Cache, CACHE, cache_fresh() (+24 more)
 
 ### Community 26 - "tokens.test.ts"
 Cohesion: 0.09
 Nodes (16): [cmd, a, b], evaluate(), list, pending, send(), ws, BLACK, contrast() (+8 more)
 
 ### Community 27 - "launcherfiles.rs"
-Cohesion: 0.07
-Nodes (20): downloads_folder(), FALLBACK_BUDGET, FALLBACK_DEPTH, FALLBACK_MAX_ENTRIES, is_network_path(), is_risky_file(), KNOWN, KNOWN_CAP (+12 more)
+Cohesion: 0.08
+Nodes (14): files(), FALLBACK_BUDGET, FALLBACK_DEPTH, FALLBACK_MAX_ENTRIES, KNOWN, KNOWN_CAP, LATEST, LIMIT (+6 more)
 
-### Community 28 - "lib.rs"
-Cohesion: 0.10
-Nodes (16): cleanup(), dock_items(), enable_taskbar_hiding(), hide_requested(), install_local_safety_nets(), mc_state(), mc_vd_report(), menu_probe_all() (+8 more)
+### Community 28 - "load"
+Cohesion: 0.27
+Nodes (10): cleanup(), enable_taskbar_hiding(), hide_requested(), install_local_safety_nets(), oggi_reminders(), oggi_weather(), on_ctrl(), run() (+2 more)
 
 ### Community 30 - "EosOS"
 Cohesion: 0.17
@@ -308,47 +306,47 @@ Nodes (6): A. Senza nascondere la taskbar (`npm run tauri dev`), B. Con taskbar 
 
 ### Community 37 - "dock.rs"
 Cohesion: 0.05
-Nodes (15): ancestor_search_stops_at_four_levels_and_survives_cycles(), APPS_FOLDER, find_ancestor(), helper_windows_are_attributed_to_the_pinned_parent(), ICON_LOCK, ICON_SIZE, is_version_dir(), LAUNCHERS (+7 more)
+Nodes (25): ancestor_search_stops_at_four_levels_and_survives_cycles(), app_windows_for(), APPS_FOLDER, bgra_is_swapped_and_unpremultiplied(), bgra_to_rgba(), bitmap_to_rgba(), encode_png(), find_ancestor() (+17 more)
 
 ### Community 38 - "dockstore.rs"
-Cohesion: 0.06
-Nodes (73): Pinned, same_app(), a_leading_bom_is_tolerated(), a_read_error_never_reseeds_or_overwrites_the_file(), add(), add_ignores_duplicates_including_versioned_paths(), autohide_defaults_to_false_for_old_files(), blur_is_on_by_default_and_roundtrips() (+65 more)
+Cohesion: 0.07
+Nodes (67): Pinned, a_leading_bom_is_tolerated(), a_read_error_never_reseeds_or_overwrites_the_file(), add(), add_ignores_duplicates_including_versioned_paths(), autohide_defaults_to_false_for_old_files(), blur_is_on_by_default_and_roundtrips(), clamp_glass() (+59 more)
 
 ### Community 39 - "launchercalc.rs"
 Cohesion: 0.13
 Nodes (25): a_bare_number_or_percentage_is_not_a_calculation(), alternative_operator_symbols(), app_names_and_text_do_not_evaluate(), basic_arithmetic_and_precedence(), close(), decimals_accept_comma_and_dot(), division_by_zero_and_overflow_give_nothing(), ev() (+17 more)
 
 ### Community 40 - "mchook.rs"
-Cohesion: 0.08
-Nodes (14): C_CFG, C_STATE, C_SWALLOWED, C_TX, CFG, CHILD_IN, CREATE_NO_WINDOW, INSTALLED (+6 more)
+Cohesion: 0.07
+Nodes (29): C_CFG, c_cfg(), C_STATE, C_TX, cfg(), CFG, CHILD_IN, config_line() (+21 more)
 
 ### Community 41 - "dockgeom.rs"
-Cohesion: 0.18
-Nodes (20): args(), BLUR_MARGIN_CSS, BOTTOM_MARGIN, capsule_rect(), Fit, fit(), FitArgs, hysteresis_enters_on_the_capsule_and_stays_in_the_whole_window() (+12 more)
+Cohesion: 0.12
+Nodes (28): args(), at_bottom_edge(), BLUR_MARGIN_CSS, bottom_edge_is_the_last_pixel_row_of_the_monitor(), BOTTOM_MARGIN, capsule_rect(), Fit, fit() (+20 more)
 
 ### Community 42 - "mclayout.rs"
-Cohesion: 0.23
-Nodes (26): a_huge_window_is_scaled_down_keeping_its_proportions(), a_single_small_window_keeps_its_natural_size_and_is_centered(), best_scale(), check_invariants(), empty_and_degenerate_input(), gaps_are_respected_when_there_is_room(), hit_test(), hit_testing_finds_the_cell_under_the_pointer() (+18 more)
+Cohesion: 0.14
+Nodes (40): Rect, thumb_rect(), thumbnails_leave_room_for_padding_and_the_label_and_keep_the_source_proportions(), a_huge_window_is_scaled_down_keeping_its_proportions(), a_single_small_window_keeps_its_natural_size_and_is_centered(), AREA, best_scale(), check_invariants() (+32 more)
 
 ### Community 43 - "lib-dpi.ps1"
 Cohesion: 0.26
 Nodes (11): Get-MonitorScale(), Get-MonitorScaleRange(), Get-PrimaryGdi(), Get-PrimaryScale(), Get-PrimaryScaleRange(), Set-MonitorScale(), Set-PrimaryScale(), Check() (+3 more)
 
 ### Community 44 - "Window"
-Cohesion: 0.10
-Nodes (34): dock_activate(), dock_menu(), dock_reorder(), dock_settings_menu(), dock_stacks(), indicator_open(), launcher_action(), launcher_clip_delete() (+26 more)
+Cohesion: 0.11
+Nodes (29): dock_activate(), dock_reorder(), dock_settings_menu(), dock_stacks(), indicator_open(), indicators_menu(), launcher_action(), launcher_clip_delete() (+21 more)
 
 ### Community 45 - "launcheract.rs"
-Cohesion: 0.10
-Nodes (29): a_clock_going_backwards_never_confirms(), a_plain_action_in_between_cancels_the_pending_confirmation(), act(), Action, ACTIONS, commands_are_fixed_and_exact(), CONFIRM_WINDOW, confirmation_expires_and_does_not_transfer_between_actions() (+21 more)
+Cohesion: 0.07
+Nodes (39): APP_HANDLE, a_clock_going_backwards_never_confirms(), a_plain_action_in_between_cancels_the_pending_confirmation(), act(), Action, ACTIONS, commands_are_fixed_and_exact(), CONFIRM_WINDOW (+31 more)
 
 ### Community 46 - "dockwin.rs"
 Cohesion: 0.06
-Nodes (14): HIDE_DELAY_SECONDS, SHRINK_GRACE_SECONDS, build_region(), CHROME_STYLES, Geometry, LABEL, NO_ACTIVATE_STYLES, RECONCILE_EVERY (+6 more)
+Nodes (30): slide_covers_the_whole_travel_with_ease_out(), slide_y(), set_autohide(), set_reserve(), autohide(), blur_enabled(), build_region(), capture_info() (+22 more)
 
 ### Community 47 - "weather.rs"
-Cohesion: 0.12
-Nodes (29): bases(), city_names_are_checked(), current(), describe(), FC, fetch(), Forecast, FORECAST_BASE (+21 more)
+Cohesion: 0.07
+Nodes (48): AUTO_DELAY, check(), CHECK_TIMEOUT, clean_notes(), current_version(), describe(), each_state_has_an_italian_message(), idle() (+40 more)
 
 ### Community 48 - "indicators.rs"
 Cohesion: 0.11
@@ -368,27 +366,27 @@ Nodes (34): accents_and_case_do_not_matter(), bonus(), bonus_is_capped(), DAY, e
 
 ### Community 53 - "launcherwin.rs"
 Cohesion: 0.05
-Nodes (49): arrow_keys_work_in_hotkeys(), capture_info(), Change, change_hotkey(), clamp_height(), clamp_height_limits_and_survives_garbage(), configured_hotkey(), dangerous_or_malformed_hotkeys_are_rejected() (+41 more)
+Nodes (47): arrow_keys_work_in_hotkeys(), Change, change_hotkey(), clamp_height(), clamp_height_limits_and_survives_garbage(), configured_hotkey(), dangerous_or_malformed_hotkeys_are_rejected(), DEFAULT_HOTKEY (+39 more)
 
 ### Community 54 - "mcstore.rs"
-Cohesion: 0.11
-Nodes (40): a_failed_read_is_never_treated_as_missing(), decide(), Decision, BackupAndFresh, Fresh, KeepLast, Use, last() (+32 more)
+Cohesion: 0.16
+Nodes (31): last(), LAST, load_full(), lock(), parse(), read_store(), remember(), serialize() (+23 more)
 
-### Community 55 - "AppHandle"
-Cohesion: 0.11
-Nodes (19): dock_fit(), indicators_menu(), launcher_hide(), mc_activate(), mc_close(), mc_move_window(), mc_open(), mc_remove_desktop() (+11 more)
+### Community 55 - "lib.rs"
+Cohesion: 0.10
+Nodes (26): dock_fit(), dock_menu(), launcher_hide(), mc_close(), mc_move_window(), mc_new_desktop(), mc_open(), mc_remove_desktop() (+18 more)
 
 ### Community 59 - "launcherclip.rs"
-Cohesion: 0.06
-Nodes (22): age_label(), age_labels(), CF_UNICODETEXT, copy_back(), enabled(), ENABLED, format_id(), HISTORY (+14 more)
+Cohesion: 0.05
+Nodes (34): age_label(), age_labels(), capped_at_max_entries_dropping_the_oldest(), CF_UNICODETEXT, clear(), copy_back(), disabling_clears_the_global_history(), enabled() (+26 more)
 
 ### Community 60 - "menuread.rs"
-Cohesion: 0.06
+Cohesion: 0.05
 Nodes (7): INFLIGHT, LAZY_TIMEOUT, MAX_INFLIGHT, MIN_UIA_MENU_ITEMS, READ_DEPTH, READ_ITEMS, UIA_TIMEOUT
 
 ### Community 61 - "mc.rs"
-Cohesion: 0.09
-Nodes (36): a_window_without_a_registered_thumbnail_falls_back_to_a_card(), area_for(), BAND, build(), CARD, CELL_PAD, GAP, geometry() (+28 more)
+Cohesion: 0.08
+Nodes (39): raw_app_windows(), a_window_without_a_registered_thumbnail_falls_back_to_a_card(), area_for(), BAND, build(), CARD, CELL_PAD, GAP (+31 more)
 
 ### Community 62 - "NetKind"
 Cohesion: 0.15
@@ -407,12 +405,12 @@ Cohesion: 0.10
 Nodes (32): AppEntry, apps(), cached(), clean(), clean_also_drops_noise(), clean_drops_empty_and_duplicates(), clip_delete(), clip_id() (+24 more)
 
 ### Community 67 - "autostart.rs"
-Cohesion: 0.10
-Nodes (26): a_missing_or_relative_exe_is_refused_and_nothing_is_written(), a_task_manager_block_counts_as_off_and_turning_on_clears_it(), APPROVED, blocked_by_user(), clean(), current_target(), delete_value(), disable() (+18 more)
+Cohesion: 0.09
+Nodes (11): APPROVED, current_target(), exe_of(), NAME, open(), read(), RUN, run_value() (+3 more)
 
 ### Community 68 - "items_and_windows"
-Cohesion: 0.21
-Nodes (18): apply_run_order(), background_apps_get_the_grey_dot_only_when_pinned_and_without_windows(), DockItem, dump_dock(), find(), find_with_windows(), items(), items_and_windows() (+10 more)
+Cohesion: 0.20
+Nodes (15): app_display_name(), apply_run_order(), DockItem, dump_dock(), find(), find_with_windows(), items(), items_and_windows() (+7 more)
 
 ### Community 70 - "test-launcher.ps1"
 Cohesion: 0.19
@@ -420,7 +418,7 @@ Nodes (8): ClipRows(), Focused(), IsOpen(), Js(), Launcher(), Press(), PressCtrl
 
 ### Community 71 - "tests.rs"
 Cohesion: 0.08
-Nodes (14): proc(), detect_restart(), hide(), restore(), explorer_restart_detection(), FakeWindow, hide_does_not_touch_other_classes(), hide_then_restore_roundtrip() (+6 more)
+Nodes (11): C_SWALLOWED, SWALLOWED, COUNTER, FakeWindow, hide_does_not_touch_other_classes(), hide_then_restore_roundtrip(), only_explorer_windows_are_accepted_for_hiding(), restore_is_idempotent_and_safe_when_nothing_hidden() (+3 more)
 
 ### Community 72 - "indicators.ts"
 Cohesion: 0.16
@@ -455,8 +453,8 @@ Cohesion: 0.24
 Nodes (3): Event-Count(), Get-State(), Js()
 
 ### Community 81 - "mckeys.rs"
-Cohesion: 0.20
-Nodes (22): alt_tab(), alt_tab_opens_then_cycles_and_commits_on_alt_release(), cycle(), cycling_starts_from_the_second_window_and_wraps(), disabled_shortcuts_are_never_touched(), escape_cancels_and_a_later_alt_release_does_not_commit(), is_alt(), Key (+14 more)
+Cohesion: 0.15
+Nodes (28): a_lost_alt_release_is_noticed_by_the_safety_net(), alt_tab(), alt_tab_opens_then_cycles_and_commits_on_alt_release(), cycle(), cycling_starts_from_the_second_window_and_wraps(), disabled_shortcuts_are_never_touched(), escape_cancels_and_a_later_alt_release_does_not_commit(), Held (+20 more)
 
 ### Community 82 - "test-indicators-settings.ps1"
 Cohesion: 0.20
@@ -475,8 +473,8 @@ Cohesion: 0.26
 Nodes (13): Bar-Click(), Bar-Hover(), Close-Panel(), Focus(), Inv(), Js(), Open-Menu(), Panel-Click() (+5 more)
 
 ### Community 86 - "mctrigger.rs"
-Cohesion: 0.12
-Nodes (23): a_blocked_corner_never_fires_and_the_dwell_restarts_when_unblocked(), a_clock_going_backwards_never_fires(), a_thumbnail_travels_there_and_back(), blocks_corner(), CLOSE_MS, CORNER_PX, corner_step(), CornerState (+15 more)
+Cohesion: 0.13
+Nodes (24): a_blocked_corner_never_fires_and_the_dwell_restarts_when_unblocked(), a_clock_going_backwards_never_fires(), a_thumbnail_travels_there_and_back(), blocks_corner(), CLOSE_MS, CORNER_PX, corner_step(), CornerState (+16 more)
 
 ### Community 87 - "read_volume"
 Cohesion: 0.33
@@ -488,7 +486,7 @@ Nodes (17): Mc(), advancedHint(), boxStyle(), canRemove(), cardLetter(), cellTit
 
 ### Community 89 - "settingsreg.rs"
 Cohesion: 0.10
-Nodes (34): a_failing_backend_reports_the_error_and_changes_nothing(), Applied, choices_accept_only_their_options(), DOCK_SIZE, fold(), folders_must_be_absolute_and_safe(), folding_removes_accents_and_case(), GLASS (+26 more)
+Nodes (34): a_failing_backend_reports_the_error_and_changes_nothing(), Applied, buttons_run_actions_but_have_no_value(), choices_accept_only_their_options(), DOCK_SIZE, fold(), folders_must_be_absolute_and_safe(), folding_removes_accents_and_case() (+26 more)
 
 ### Community 90 - "test-vdesk-internal.ps1"
 Cohesion: 0.30
@@ -516,19 +514,19 @@ Nodes (8): Close-Mc(), Esc-If-Open(), Inv(), IsOpen(), Js(), Overlays(), St(), W
 
 ### Community 97 - "Value"
 Cohesion: 0.15
-Nodes (15): b(), launcher_hotkey_text(), Live, want_bool(), want_list(), want_text(), Backend, buttons_run_actions_but_have_no_value() (+7 more)
+Nodes (16): b(), launcher_hotkey_text(), Live, want_bool(), want_list(), want_text(), Backend, clean_list() (+8 more)
 
 ### Community 98 - "notifprobe.rs"
-Cohesion: 0.13
-Nodes (19): an_allowed_listener_is_usable_and_other_states_need_consent(), an_unexplained_error_is_never_called_an_identity_problem(), build_number(), classify(), count_toasts(), E_ILLEGAL_METHOD_CALL, err(), HR_NO_PACKAGE (+11 more)
+Cohesion: 0.11
+Nodes (24): an_allowed_listener_is_usable_and_other_states_need_consent(), an_unexplained_error_is_never_called_an_identity_problem(), build_number(), classify(), count_toasts(), E_ILLEGAL_METHOD_CALL, err(), HR_NO_PACKAGE (+16 more)
 
 ### Community 99 - "test-mc-windows.ps1"
 Cohesion: 0.38
 Nodes (3): All-Windows(), Mc(), Wait-Until-Gone()
 
 ### Community 100 - "launcherstore.rs"
-Cohesion: 0.10
-Nodes (41): clipboard_consent_defaults_to_unasked_and_roundtrips(), decide(), decide_never_treats_a_failed_read_as_missing(), Decision, BackupAndFresh, Fresh, KeepLast, Use (+33 more)
+Cohesion: 0.13
+Nodes (25): clipboard_consent_defaults_to_unasked_and_roundtrips(), decide_never_treats_a_failed_read_as_missing(), Entry, File, hotkey_and_search_folders_roundtrip_and_default(), LAST, load(), lock_store() (+17 more)
 
 ### Community 101 - "Readability"
 Cohesion: 0.22
@@ -556,19 +554,19 @@ Nodes (61): Centro notifiche e calendario — specifica, Cosa fa macOS (da repli
 
 ### Community 107 - "mcwin.rs"
 Cohesion: 0.05
-Nodes (35): thumb_at(), Anim, APP, apply_keys(), backdrop(), button_down(), Change, CORNER (+27 more)
+Nodes (53): activate(), all_labels(), alt_commit(), alt_step(), Anim, APP, apply_keys(), backdrop() (+45 more)
 
 ### Community 108 - "super"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (8): cached_icon(), ICONS, SHELL_NAMES, CACHE_FOUND_TTL, CACHE_MISSING_TTL, failures_expire_quickly_and_successes_slowly(), is_fresh(), TimedCache
 
 ### Community 109 - "stacks.rs"
-Cohesion: 0.12
-Nodes (29): clean_list(), at_most_five_stacks(), e(), effective(), Entry, EntryOut, folders(), id_of() (+21 more)
+Cohesion: 0.11
+Nodes (30): downloads_folder(), known_folder(), at_most_five_stacks(), e(), effective(), Entry, EntryOut, folders() (+22 more)
 
 ### Community 111 - "indicatorstore.rs"
-Cohesion: 0.11
-Nodes (33): a_failed_read_is_never_treated_as_missing(), decide(), Decision, BackupAndFresh, Fresh, KeepLast, Use, last() (+25 more)
+Cohesion: 0.13
+Nodes (26): strip_bom(), a_failed_read_is_never_treated_as_missing(), decide(), Decision, BackupAndFresh, Fresh, KeepLast, Use (+18 more)
 
 ### Community 114 - "test-menubar.ps1"
 Cohesion: 0.31
@@ -579,52 +577,52 @@ Cohesion: 0.29
 Nodes (6): Act(), Count-Menus(), Focus(), Js(), Row(), Wait-Until()
 
 ### Community 117 - "notifread.rs"
-Cohesion: 0.15
-Nodes (6): EPOCH_DIFF_MS, in_mta(), LAST_OPENED, open_app(), read_all(), remove()
+Cohesion: 0.13
+Nodes (8): app_ids_that_could_hide_a_command_are_refused(), valid_app_id(), EPOCH_DIFF_MS, in_mta(), LAST_OPENED, open_app(), read_all(), remove()
 
 ### Community 118 - "open"
 Cohesion: 0.24
 Nodes (13): apply_styles(), McMonitor, McWindow, create_one(), fit_exact(), hwnd_of(), icons_for(), label() (+5 more)
 
 ### Community 119 - "notifmodel.rs"
-Cohesion: 0.14
-Nodes (18): ago(), app_ids_that_could_hide_a_command_are_refused(), app_label(), clean_text(), date_short(), gate_dnd_wins_over_everything(), MAX_APP_NAME, MAX_BODY (+10 more)
+Cohesion: 0.13
+Nodes (32): a_notification_with_only_a_body_or_only_a_title_is_kept(), ago(), all_the_ids_of_an_app_are_found_even_beyond_the_group_cap(), app_label(), build_groups(), clean_text(), contains_id(), date_short() (+24 more)
 
-### Community 120 - "AppHandle"
+### Community 120 - "Read"
 Cohesion: 0.17
-Nodes (26): activate(), all_labels(), alt_commit(), alt_step(), close(), close_animated(), close_window(), corner_thread() (+18 more)
+Nodes (19): Read, Failed, Missing, decide(), Decision, BackupAndFresh, Fresh, KeepLast (+11 more)
 
 ### Community 121 - "menumodel.rs"
-Cohesion: 0.09
-Nodes (45): an_app_gets_the_hybrid_row(), build_row(), state(), the_desktop_shows_only_its_name(), an_app_that_has_its_own_window_menu_does_not_get_a_second_one(), app_menu(), app_menu_names_the_app_and_never_is_blank(), apps_with_their_own_in_window_menu_are_never_read() (+37 more)
+Cohesion: 0.13
+Nodes (28): app_menu(), app_menu_names_the_app_and_never_is_blank(), apps_with_their_own_in_window_menu_are_never_read(), browsers_and_chats_are_never_queried(), exclusions_ignore_case_and_toggle(), is_excluded(), labels_lose_accelerators_and_split_the_shortcut(), lazy_items_get_paths_from_their_source_menu() (+20 more)
 
 ### Community 122 - "show"
 Cohesion: 0.19
 Nodes (14): create(), fit(), hide(), is_visible(), on_window_event(), show(), since_start(), start() (+6 more)
 
 ### Community 123 - "run_search"
-Cohesion: 0.14
-Nodes (16): files(), bounded_walk(), bounded_walk_finds_by_name_within_depth_and_skips_noise(), bounded_walk_stops_at_budget_and_deadline_and_survives_missing_roots(), Hit, index_query(), MtaScope, real_search_smoke() (+8 more)
+Cohesion: 0.17
+Nodes (13): bounded_walk(), bounded_walk_finds_by_name_within_depth_and_skips_noise(), bounded_walk_stops_at_budget_and_deadline_and_survives_missing_roots(), Hit, index_query(), MtaScope, real_search_smoke(), run_search() (+5 more)
 
 ### Community 124 - "KindOut"
 Cohesion: 0.10
-Nodes (20): Entry, kind_out(), KindOut, Action, Bool, Choice, Folders, Hotkey (+12 more)
+Nodes (21): Entry, kind_out(), KindOut, Action, Bool, Choice, Folders, Hotkey (+13 more)
 
 ### Community 125 - "test-settingswin.ps1"
 Cohesion: 0.22
 Nodes (11): Click-Nav(), Click-Switch(), Heading(), Js(), Labels(), Navs(), Row-Js(), Switch-On() (+3 more)
 
-### Community 126 - "show"
-Cohesion: 0.22
-Nodes (15): create(), fit(), hide(), is_busy(), is_visible(), lock(), monitor_at(), on_window_event() (+7 more)
+### Community 126 - "compose"
+Cohesion: 0.21
+Nodes (17): an_app_gets_the_hybrid_row(), build_row(), state(), the_desktop_shows_only_its_name(), Eos, an_app_that_has_its_own_window_menu_does_not_get_a_second_one(), compose(), filter_view() (+9 more)
 
-### Community 127 - "Rect"
-Cohesion: 0.14
-Nodes (16): Rect, inside(), thumb_rect(), thumbnails_leave_room_for_padding_and_the_label_and_keep_the_source_proportions(), AREA, css_conversion_is_relative_to_the_monitor_and_scaled(), fit_in(), monitor_of() (+8 more)
+### Community 127 - "reminders.rs"
+Cohesion: 0.24
+Nodes (16): add(), add_assigns_new_ids_and_enforces_limits(), clean_text(), clean_time(), clear_done(), display_order(), MAX_REMINDERS, MAX_TEXT (+8 more)
 
-### Community 130 - "build_groups"
-Cohesion: 0.23
-Nodes (16): a_notification_with_only_a_body_or_only_a_title_is_kept(), all_the_ids_of_an_app_are_found_even_beyond_the_group_cap(), build_groups(), contains_id(), Group, groups_are_by_app_newest_first_and_empty_ones_dropped(), groups_serialize_for_the_page(), ids_of_app() (+8 more)
+### Community 130 - "enable"
+Cohesion: 0.26
+Nodes (15): a_missing_or_relative_exe_is_refused_and_nothing_is_written(), a_task_manager_block_counts_as_off_and_turning_on_clears_it(), blocked_by_user(), clean(), delete_value(), disable(), enable(), enable_and_disable_touch_only_our_value() (+7 more)
 
 ### Community 131 - "Mission Control — specifica"
 Cohesion: 0.14
@@ -634,9 +632,9 @@ Nodes (13): Cosa fa macOS (da replicare) e da dove viene, Cosa permette Windows 
 Cohesion: 0.36
 Nodes (4): Js(), Names(), Set-S(), Setting()
 
-### Community 134 - "History"
-Cohesion: 0.17
-Nodes (13): capped_at_max_entries_dropping_the_oldest(), clear(), disabling_clears_the_global_history(), entries_expire_after_the_ttl(), Entry, hist(), History, list() (+5 more)
+### Community 134 - "remember"
+Cohesion: 0.21
+Nodes (12): is_known(), is_network_path(), is_risky_file(), key(), known_results_are_capped(), merge_roots(), merge_roots_drops_missing_duplicates_and_nested_folders(), network_paths_and_risky_files_are_recognised() (+4 more)
 
 ### Community 135 - "Launcher — specifica"
 Cohesion: 0.15
@@ -650,9 +648,9 @@ Nodes (5): Check-Now(), Cleanup-Eos(), Js(), Start-Eos(), Status-Now()
 Cohesion: 0.25
 Nodes (5): Cal(), Click-Btn(), Js(), Key(), Title()
 
-### Community 138 - "tick"
-Cohesion: 0.17
-Nodes (12): at_bottom_edge(), bottom_edge_is_the_last_pixel_row_of_the_monitor(), only_the_part_inside_the_screen_is_visible(), slide_covers_the_whole_travel_with_ease_out(), slide_y(), step_visibility(), visibility_moves_at_a_constant_rate_and_saturates(), visible_height() (+4 more)
+### Community 138 - "Toggle"
+Cohesion: 0.29
+Nodes (8): menu_id(), menu_ids_roundtrip_and_ignore_other_menus(), parse_menu_id(), Toggle, Battery, Network, Percent, Volume
 
 ### Community 139 - "test-notif-panel.ps1"
 Cohesion: 0.33
@@ -663,8 +661,8 @@ Cohesion: 0.31
 Nodes (8): StackPanel, isLatest(), sameStacks(), stackAria(), StackEntry, StackItem, StackReply, stackSummary()
 
 ### Community 141 - "super"
-Cohesion: 0.06
-Nodes (37): allowed(), dock_panel_and_mission_control_actions_have_one_owner(), guard(), notifications_and_launcher_commands_have_one_owner(), read_only_and_opening_commands_are_not_restricted_here(), settings_belong_to_the_settings_window(), the_panel_can_only_flip_the_two_notification_switches(), the_today_widget_belongs_to_the_panel() (+29 more)
+Cohesion: 0.09
+Nodes (21): allowed(), dock_panel_and_mission_control_actions_have_one_owner(), guard(), notifications_and_launcher_commands_have_one_owner(), read_only_and_opening_commands_are_not_restricted_here(), settings_belong_to_the_settings_window(), the_panel_can_only_flip_the_two_notification_switches(), the_today_widget_belongs_to_the_panel() (+13 more)
 
 ### Community 142 - "battery_icon"
 Cohesion: 0.40
@@ -702,6 +700,10 @@ Nodes (4): Aggiornamenti automatici, Come funziona, Cosa serve a te (decisioni e
 Cohesion: 0.35
 Nodes (9): Close-Panel(), Js(), Open-Stack(), Panel-Open(), Pn(), Set-Stacks(), Stack-Names(), Stack-Titles() (+1 more)
 
+### Community 154 - "decide"
+Cohesion: 0.29
+Nodes (7): a_failed_read_is_never_treated_as_missing(), decide(), Decision, BackupAndFresh, Fresh, KeepLast, Use
+
 ### Community 158 - "test-settings-s4.ps1"
 Cohesion: 0.24
 Nodes (4): Inv(), Js(), Val(), Win()
@@ -710,21 +712,21 @@ Nodes (4): Inv(), Js(), Val(), Win()
 Cohesion: 0.28
 Nodes (13): Add-Rem(), Cleanup-Eos(), Close-Panel(), Items(), Js(), Open-Panel(), Panel-Open(), Pn() (+5 more)
 
-### Community 163 - "Config"
-Cohesion: 0.24
-Nodes (12): cfg(), config_line(), config_lines_round_trip_and_garbage_is_ignored(), Diag, diag(), may_restart(), parse_config_line(), send_cfg() (+4 more)
+### Community 163 - "reload_settings"
+Cohesion: 0.39
+Nodes (8): current(), refresh_current(), reload_settings(), set_excluded(), set_menu_off(), set_view(), toggle_current_excluded(), toggle_menu_off()
 
 ### Community 164 - "Kind"
 Cohesion: 0.22
 Nodes (9): Kind, Action, Bool, Choice, Folders, Hotkey, Names, Pinned (+1 more)
 
 ### Community 165 - "rank_hits"
-Cohesion: 0.29
-Nodes (11): hit(), is_known(), key(), known_results_are_capped(), multi_word_queries_match_names_with_separators(), name_score(), only_remembered_paths_can_be_opened(), rank_hits() (+3 more)
+Cohesion: 0.53
+Nodes (6): hit(), multi_word_queries_match_names_with_separators(), name_score(), rank_hits(), rank_hits_keeps_name_matches_dedupes_and_orders(), rank_hits_respects_limit_and_empty()
 
 ### Community 166 - "LPARAM"
 Cohesion: 0.13
-Nodes (20): aumid_from_store(), aumid_path(), collect_window(), identity(), is_app_window(), is_packaged_path(), packaged_aumid(), packaged_executables_are_recognized() (+12 more)
+Nodes (20): aumid_from_store(), aumid_path(), cached_shell_name(), collect_window(), ComScope, identity(), is_app_window(), is_packaged_path() (+12 more)
 
 ### Community 168 - "HWND"
 Cohesion: 0.29
@@ -738,17 +740,17 @@ Nodes (5): Active(), Heading(), Js(), Key(), Win()
 Cohesion: 0.35
 Nodes (8): Check(), Close-Launcher(), Focused(), IsOpen(), Js(), Open-On(), Run-Checks(), TypeChars()
 
-### Community 172 - ".new"
-Cohesion: 0.20
-Nodes (7): bgra_is_swapped_and_unpremultiplied(), bgra_to_rgba(), bitmap_to_rgba(), ComScope, encode_png(), icon_data_url(), icon_of_notepad_is_a_valid_png()
+### Community 172 - "restore_autohide"
+Cohesion: 0.32
+Nodes (8): restore(), restore_autohide(), restore_if_hidden(), restore_real(), log(), log_path(), restore_everything(), wait_and_restore()
 
 ### Community 173 - "test-dock-mixed-dpi.ps1"
 Cohesion: 0.33
 Nodes (7): Get-Monitors(), Cdp(), Check(), Rect(), Run-Checks(), Stop-Stripes(), Wait-Dock()
 
-### Community 177 - "app_windows_for"
-Cohesion: 0.27
-Nodes (10): app_windows_for(), is_launcher(), key(), launcher_names(), live_process_scan_excludes_self_and_finds_explorer(), may_inherit(), only_real_helpers_inherit_the_ancestors_icon(), processes_named() (+2 more)
+### Community 177 - "same_app"
+Cohesion: 0.20
+Nodes (17): name, background_apps_get_the_grey_dot_only_when_pinned_and_without_windows(), key(), live_process_scan_excludes_self_and_finds_explorer(), merge(), merge_has_no_duplicates(), merge_puts_pinned_first_then_unpinned_running(), only_a_single_version_folder_counts_as_the_same_app() (+9 more)
 
 ### Community 178 - "test-calendar-n6.ps1"
 Cohesion: 0.40
@@ -760,23 +762,19 @@ Nodes (7): Check(), PageFor(), PanelOpen(), PanelWin(), PJs(), Run-Checks(), Wai
 
 ### Community 180 - "TopMenu"
 Cohesion: 0.13
-Nodes (22): menu(), Action, App, Eos, action_paths_and_flags_survive_normalization(), Cmd, Close, Maximize (+14 more)
+Nodes (21): menu(), Action, App, action_paths_and_flags_survive_normalization(), Cmd, Close, Maximize, Minimize (+13 more)
 
 ### Community 182 - "test-dock-scales.ps1"
 Cohesion: 0.36
 Nodes (6): Cdp(), Check(), Rect(), Run-Checks(), Stop-Stripes(), Wait-Dock()
 
-### Community 184 - "updates.rs"
-Cohesion: 0.19
-Nodes (18): AUTO_DELAY, check(), CHECK_TIMEOUT, clean_notes(), current_version(), describe(), each_state_has_an_italian_message(), idle() (+10 more)
+### Community 184 - "Phase"
+Cohesion: 0.29
+Nodes (7): Diag, diag(), Phase, Closed, Closing, Open, Opening
 
 ### Community 186 - "test-menu-dpi.ps1"
 Cohesion: 0.47
 Nodes (7): Check(), Close-Panel(), Focus(), JsB(), Panel-Open(), Test-Scale(), Wait-Until()
-
-### Community 187 - "reconcile"
-Cohesion: 0.31
-Nodes (8): create(), enforce_styles(), fit(), hwnd_of(), lock(), reconcile(), reserve_allowed(), start()
 
 ### Community 188 - "test-calendar-dpi.ps1"
 Cohesion: 0.54
@@ -795,8 +793,8 @@ Cohesion: 0.54
 Nodes (6): Check(), Close-Panel(), Js(), Panel-Open(), Test-Scale(), Wait-Until()
 
 ### Community 192 - "latest"
-Cohesion: 0.36
-Nodes (7): latest(), latest_returns_nothing_until_there_is_a_newer_frame(), bar_backdrop(), dock_backdrop(), launcher_backdrop(), mc_backdrop(), panel_backdrop()
+Cohesion: 0.33
+Nodes (5): bar_backdrop(), dock_backdrop(), launcher_backdrop(), mc_backdrop(), panel_backdrop()
 
 ### Community 197 - "Passata finale (8 nov 2026)"
 Cohesion: 0.40
@@ -804,7 +802,7 @@ Nodes (4): Altro emerso, Consumi a riposo (`scripts/measure-idle.ps1`, build rel
 
 ### Community 200 - "capture_rect"
 Cohesion: 0.29
-Nodes (8): capture_adds_context_and_stays_on_the_monitor(), capture_margin(), capture_margin_grows_with_the_scale(), capture_rect(), blur_enabled(), capture_info(), toggle_blur(), capture_info()
+Nodes (7): capture_adds_context_and_stays_on_the_monitor(), capture_margin(), capture_margin_grows_with_the_scale(), capture_rect(), capture_info(), update_affinity(), capture_info()
 
 ### Community 201 - "test-cmd-policy.ps1"
 Cohesion: 0.43
@@ -818,73 +816,49 @@ Nodes (4): Come è fatto, Cosa fa, Pile nel Dock, Verifica
 Cohesion: 0.40
 Nodes (3): abandoned_reads_are_capped(), Inflight, may_start_read()
 
-### Community 205 - "app_display_name"
-Cohesion: 0.25
-Nodes (8): app_display_name(), cached_shell_name(), parse_aumid(), shell_display_name(), stem(), store_app_identifiers_roundtrip(), cached_description(), file_description()
-
-### Community 207 - "handle"
-Cohesion: 0.33
-Nodes (7): c_cfg(), c_send(), handle(), Msg, Release, Run, Swallowed
+### Community 207 - "LPARAM"
+Cohesion: 0.26
+Nodes (9): wndproc(), c_send(), handle(), Msg, Release, Run, Swallowed, proc() (+1 more)
 
 ### Community 209 - "Widget «Oggi»"
 Cohesion: 0.33
 Nodes (5): Come è fatto, Cosa fa, Privacy e rete, Verifica, Widget «Oggi»
 
-### Community 212 - "run_child"
-Cohesion: 0.29
-Nodes (7): down(), is_extended(), release_after_neutral(), run_child(), say(), a_lost_alt_release_is_noticed_by_the_safety_net(), stuck()
-
-### Community 213 - "Held"
-Cohesion: 0.50
-Nodes (4): Held, Alt, None, Win
-
 ### Community 221 - "notif_dismiss"
 Cohesion: 0.33
 Nodes (7): notif_allowed(), notif_clear_app(), notif_dismiss(), notif_list(), notif_open(), NotifReply, now_ms()
-
-### Community 222 - "Outcome"
-Cohesion: 0.40
-Nodes (5): Outcome, Confirm, Done, Failed, Unknown
-
-### Community 223 - "MenuAction"
-Cohesion: 0.17
-Nodes (13): foreign_or_malformed_menu_ids_are_ignored(), menu_id(), menu_id_roundtrip_with_colons_in_the_id(), MenuAction, Open, Pin, Quit, SetGlass (+5 more)
-
-### Community 224 - "Verdict"
-Cohesion: 0.40
-Nodes (5): Verdict, NeedsConsent, NeedsPackageIdentity, Unknown, Usable
 
 ### Community 225 - "win_ctrl"
 Cohesion: 0.38
 Nodes (5): create(), key_event(), key_events_are_well_formed(), remove_current(), win_ctrl()
 
-### Community 226 - "Run"
-Cohesion: 0.50
-Nodes (4): Run, Exec, Internal, Open
-
 ### Community 228 - "Dir"
 Cohesion: 0.33
 Nodes (6): Dir, Left, Right, plan_switch(), switch_to(), switching_plans_the_right_number_of_steps()
 
+### Community 232 - "update_reminders"
+Cohesion: 0.53
+Nodes (5): oggi_add(), oggi_clear_done(), oggi_remove(), oggi_toggle(), update_reminders()
+
 ## Knowledge Gaps
-- **120 isolated node(s):** `Dock`, `Launcher`, `Panel`, `Bar0`, `Bar1` (+115 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1051 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **72 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **120 isolated node(s):** `Use`, `Fresh`, `BackupAndFresh`, `General`, `Appearance` (+115 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1053 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **78 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `same_app()` connect `dockstore.rs` to `items_and_windows`, `dock.rs`, `LPARAM`, `app_windows_for`, `dockact.rs`, `package.json`?**
-  _High betweenness centrality (0.166) - this node is a cross-community bridge._
-- **What connects `Dock`, `Launcher`, `Panel` to the rest of the system?**
+- **Why does `same_app()` connect `same_app` to `items_and_windows`, `dock.rs`, `dockstore.rs`, `dockact.rs`?**
+  _High betweenness centrality (0.169) - this node is a cross-community bridge._
+- **What connects `Use`, `Fresh`, `BackupAndFresh` to the rest of the system?**
   _120 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `compilerOptions` be split into smaller, more focused modules?**
   _Cohesion score 0.1 - nodes in this community are weakly interconnected._
-- **Why does `name` connect `package.json` to `dockstore.rs`?**
-  _High betweenness centrality (0.165) - this node is a cross-community bridge._
+- **Why does `name` connect `same_app` to `package.json`?**
+  _High betweenness centrality (0.168) - this node is a cross-community bridge._
 - **Should `tauri.conf.json` be split into smaller, more focused modules?**
   _Cohesion score 0.07692307692307693 - nodes in this community are weakly interconnected._
 - **Why does `vitest` connect `package.json` to `indicators.ts`, `menubar.ts`, `calendar.ts`, `stacks.ts`, `launcher.ts`, `Dock.tsx`, `@tauri-apps/api`, `Mc.tsx`, `tokens.test.ts`, `Settings.tsx`, `react`?**
-  _High betweenness centrality (0.061) - this node is a cross-community bridge._
+  _High betweenness centrality (0.084) - this node is a cross-community bridge._
 - **Should `panelwin.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.06207482993197279 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05754475703324808 - nodes in this community are weakly interconnected._
