@@ -89,6 +89,7 @@ impl Backend for Live {
             "mc.corner" => b(mc().hot_corner),
             "mc.alttab" => b(!mc().windows_alt_tab),
             "mc.wintab" => b(!mc().windows_win_tab),
+            "capture.keys" => Some(Value::Text(match mc().capture_keys.as_str() { "" => "off".to_string(), s => s.to_string() })),
             "snap.keys" => Some(Value::Text(match mc().snap_keys.as_str() { "" => "off".to_string(), s => s.to_string() })),
             "launcher.winkey" => b(!mc().win_key_off),
             _ => None,
@@ -188,6 +189,14 @@ impl Backend for Live {
                 }
                 crate::mcstore::set_dock_keys(id);
                 crate::dockkeys::reload();
+            }
+            "capture.keys" => {
+                let id = want_text(value)?;
+                if !crate::capture::MODES.iter().any(|m| m.0 == id) {
+                    return Err(SettingsError("Scelta non ammessa.".into()));
+                }
+                crate::mcstore::set_capture_keys(id);
+                crate::capture::reload();
             }
             "snap.keys" => {
                 let id = want_text(value)?;

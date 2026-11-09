@@ -155,7 +155,7 @@ pub fn latest(ch: Channel, since: u64) -> Vec<u8> {
 }
 
 /// Cattura il rettangolo `r` dello schermo (BGRA, righe dall'alto, `w*h*4` byte).
-fn grab(r: Rect) -> Option<Vec<u8>> {
+pub fn grab(r: Rect) -> Option<Vec<u8>> {
     if r.w <= 0 || r.h <= 0 {
         return None;
     }

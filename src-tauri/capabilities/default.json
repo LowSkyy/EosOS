@@ -10,6 +10,7 @@
     "panel",
     "mc-*",
     "settings",
+    "capture",
     "dock-*"
   ],
   "permissions": [

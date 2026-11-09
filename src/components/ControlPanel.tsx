@@ -67,6 +67,8 @@ const ControlPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cont
   const volume = indicators?.volume ?? null;
   const shown = vol ?? volume?.percent ?? 0;
   const muted = !!volume?.muted && vol === null;
+  // Cattura dello schermo: Rust la fa partire dopo un attimo, così il pannello si chiude e non finisce nell'immagine.
+  const snap = (kind: "screen" | "region") => void invoke("capture_run", { kind }).then(() => invoke("panel_hide"));
   const open = (id: string) => void invoke("eosmenu_run", { id }).then(() => invoke("panel_hide"));
 
   return (
@@ -103,6 +105,14 @@ const ControlPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cont
             />
           </div>
         )}
+        <div className="control-capture" role="group" aria-label="Cattura schermo">
+          <button type="button" className="control-cap" onClick={() => snap("screen")}>
+            Schermo intero
+          </button>
+          <button type="button" className="control-cap" onClick={() => snap("region")}>
+            Selezione…
+          </button>
+        </div>
         <div className="eosmenu-sep" role="separator" />
         <button type="button" className="control-link" onClick={() => open("settings")}>
           Impostazioni di EosOS…

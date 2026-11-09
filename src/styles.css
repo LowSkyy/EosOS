@@ -960,3 +960,11 @@ body {
   box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.25);
   pointer-events: none;
 }
+/* Cattura dello schermo: il velo per la selezione e i due pulsanti del Centro di controllo. */
+.capture { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.18); cursor: crosshair; outline: none; user-select: none; }
+.capture-hint { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); padding: 6px 12px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #fff; font: 500 13px system-ui, sans-serif; pointer-events: none; }
+.capture-box { position: absolute; box-sizing: border-box; border: 1px solid rgba(255, 255, 255, 0.95); background: transparent; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.32); pointer-events: none; }
+.capture-size { position: absolute; padding: 2px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.7); color: #fff; font: 600 12px system-ui, sans-serif; pointer-events: none; }
+.control-capture { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
+.control-cap { padding: 7px 10px; border: 0; border-radius: 10px; background: rgba(128, 128, 128, 0.18); color: var(--bar-fg); font: inherit; text-align: center; cursor: default; }
+.control-cap:hover, .control-cap:focus-visible { background: rgba(10, 132, 255, 0.85); color: #fff; outline: none; }

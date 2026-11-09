@@ -21,6 +21,9 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         "mc_activate" | "mc_close_window" | "mc_switch_desktop" | "mc_new_desktop" | "mc_move_window" | "mc_remove_desktop" | "mc_rename_desktop" => label.starts_with("mc-"),
         // Menu EosOS (il «menu mela» a sinistra della barra): lo gestisce il pannello.
         c if c.starts_with("eosmenu_") => label == "panel",
+        // Cattura dello schermo: l'avvio dal pannello; il rettangolo scelto lo manda solo la finestra di selezione.
+        "capture_run" => label == "panel",
+        "capture_region" | "capture_cancel" => label == "capture",
         // Centro di controllo (Wi-Fi, Bluetooth, mantieni sveglio): lo gestisce il pannello.
         c if c.starts_with("control_") => label == "panel",
         // Impostazioni di Windows: l'elenco e l'apertura sono della finestra Impostazioni.
@@ -95,6 +98,20 @@ mod tests {
         assert!(allowed("dock", "dock_badges", None) && allowed("dock-1", "dock_badges", None));
         for other in ["panel", "settings", "launcher", "bar-0", "main", "mc-0"] {
             assert!(!allowed(other, "dock_badges", None), "{other}");
+        }
+    }
+
+    #[test]
+    fn screen_capture_commands_have_their_own_windows() {
+        assert!(allowed("panel", "capture_run", None));
+        for other in ["capture", "settings", "launcher", "dock", "bar-0", "main", "mc-0"] {
+            assert!(!allowed(other, "capture_run", None), "{other}");
+        }
+        for c in ["capture_region", "capture_cancel"] {
+            assert!(allowed("capture", c, None), "{c}");
+            for other in ["panel", "settings", "launcher", "dock", "bar-0", "main", "mc-0"] {
+                assert!(!allowed(other, c, None), "{other} {c}");
+            }
         }
     }
 

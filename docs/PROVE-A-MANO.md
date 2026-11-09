@@ -65,3 +65,16 @@ il punto da guardare è `mckeys::step` in `src-tauri/src/mckeys.rs` (logica pura
 - [ ] Leggere o chiudere le notifiche la fa sparire (entro qualche secondo).
 - [ ] Con Non disturbare acceso i badge spariscono; spegnendolo tornano.
 - [ ] Un app che NON ha il badge pur avendo notifiche: dimmi quale (nome e icona), l abbinamento si puo allargare.
+
+## 10. Cattura dello schermo (nuovo)
+- [ ] Centro di controllo → «Schermo intero»: nasce un PNG in Immagini\Screenshots, si sente un suono e l immagine e negli appunti (incollala in Paint). Nell immagine ci sono anche Dock e barra dei menu.
+- [ ] «Selezione…»: il velo scuro compare, si trascina un rettangolo, la misura si vede; Esc annulla; il file ha la misura scelta.
+- [ ] Impostazioni → Mission Control → «Scorciatoie per la cattura dello schermo» → Ctrl+Maiusc: Ctrl+Maiusc+3 / 4 / 5 (schermo, selezione, finestra in primo piano).
+- [ ] Su un secondo monitor, e con scala diversa dal 100
+
+## 10. Cattura dello schermo (nuovo)
+- [ ] Centro di controllo → «Schermo intero»: nasce un PNG in Immagini\Screenshots, si sente un suono e l'immagine è negli appunti (incollala in Paint). Nell'immagine ci sono anche Dock e barra dei menu.
+- [ ] «Selezione…»: il velo scuro compare, si trascina un rettangolo, la misura si vede; Esc annulla; il file ha la misura scelta.
+- [ ] Impostazioni → Mission Control → «Scorciatoie per la cattura dello schermo» → Ctrl+Maiusc: Ctrl+Maiusc+3 / 4 / 5 (schermo, selezione, finestra in primo piano).
+- [ ] Su un secondo monitor, e con scala diversa dal 100%: la selezione ha la misura giusta.
+- [ ] Nessun conflitto con altre app (Ctrl+Maiusc+3/4/5 in un editor): se ti dà fastidio scegli un altro modificatore.

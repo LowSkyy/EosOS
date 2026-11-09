@@ -43,6 +43,7 @@ try {
   Check 'le radio finte partono: Wi-Fi acceso, Bluetooth spento' (((Tile 'wifi') -eq 'true') -and ((Tile 'bluetooth') -eq 'false'))
   Check 'Mantieni sveglio parte spento' ((Tile 'awake') -eq 'false')
   Check 'ogni interruttore e un pulsante con aria-pressed' ((Pn "Array.from(document.querySelectorAll('.control-tile')).every(function(t){return t.hasAttribute('aria-pressed')})") -eq $true)
+  Check 'ci sono i due pulsanti di cattura dello schermo' ((Pn "Array.from(document.querySelectorAll('.control-cap')).map(function(b){return b.textContent.trim()}).join('|')") -like 'Schermo intero|Selezione*')
   Check 'il primo controllo ha il focus' (Wait-Until { (Pn "document.activeElement && document.activeElement.classList.contains('control-tile')") -eq $true } 3)
 
   Write-Host 'B. Wi-Fi e Bluetooth (finti)'
