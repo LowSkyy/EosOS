@@ -344,7 +344,7 @@ mod tests {
         let order: Vec<&str> = alphabetical(&entries).iter().map(|&i| entries[i].1.as_str()).collect();
         assert_eq!(order, ["àlfa", "Alfa", "beta", "Chrome", "Zeta"], "pari merito: l'ordine dell'indice");
         assert!(alphabetical(&[]).is_empty());
-        assert!(GRID_PAGE_MAX >= 32);
+        const { assert!(GRID_PAGE_MAX >= 32) };
     }
 
     use super::*;

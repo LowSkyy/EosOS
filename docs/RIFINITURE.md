@@ -84,6 +84,15 @@ macOS non ha un menu Start: ha il **menu mela** (a sinistra della barra) e il **
   sfondo per chiudere. Si apre dall'**icona in testa al Dock** o dal menu EosOS. Le app arrivano a pagine da Rust (le prime subito).
   `test-launchpad.ps1` (apertura, copertura del monitor, ordine, ricerca, avvio di un Blocco note mio, chiusura, comandi vietati
   alle altre finestre).
-- **Non fatto:** il **tasto Windows** apre ancora il menu Start di Windows (intercettarlo richiede di toccare il filtro dei tasti e
-  senza una tastiera vera non posso provarlo: lo propongo come passo successivo, spento di base). Il menu Start si apre anche con la
-  barra di Windows nascosta; l'alternativa pronta è Alt+Spazio (Launcher) e l'icona Launchpad del Dock.
+
+## Il tasto Windows apre il Launcher (9 nov 2026)
+Premere e rilasciare **il tasto Windows da solo** apre (o chiude) il Launcher al posto del menu Start. Impostazione
+**«Tasto Windows apre il Launcher»** (sezione Launcher, **accesa** di base); spenta, il tasto torna a Windows subito.
+- Come funziona: la macchina a stati dell'hook (`mckeys.rs`) segna Win come «tocco» solo se, tra la pressione e il rilascio, **non
+  arriva nessun altro tasto** e nessun Ctrl/Maiusc/Alt era già premuto. Win+E, Win+D, Win+Maiusc+S, Win+Tab, Win+Ctrl+D… restano a
+  Windows, intatti. Le ripetizioni del tasto tenuto non contano; dopo un'altra combinazione le ripetizioni non riarmano il tocco.
+- Al rilascio vero di Win si inserisce il tasto neutro (lo stesso trucco già usato per Win+Tab) così Windows non apre il menu Start.
+- Prove: 5 test puri sulla macchina a stati (tocco, tasto destro, ripetizioni, 7 altri tasti, Win+Tab, modificatori già premuti,
+  impostazione spenta) e sul protocollo (`cfg a w t`). **Non provato:** con una tastiera vera (non posso simulare tasti premuti).
+  Da provare a mano: tocco di Win → Launcher; Win+E/Win+D/Win+Tab come prima; spegnendo l'impostazione il menu Start torna.
+- Resta ancora il menu Start con Ctrl+Esc (non toccato) e con la barra di Windows nascosta non cambia nulla.

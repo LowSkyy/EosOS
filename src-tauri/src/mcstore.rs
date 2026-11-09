@@ -59,6 +59,9 @@ pub struct Settings {
     /// Dimensione del Dock: "small", "medium" (predefinita, anche se vuoto), "large" o "xl".
     #[serde(rename = "dockSize")]
     pub dock_size: String,
+    /// Il tasto Windows da solo NON apre il Launcher (di base lo apre, al posto del menu Start).
+    #[serde(rename = "winKeyOff")]
+    pub win_key_off: bool,
     /// Barra dei menu: nasconde il menu col nome dell'app (di base si vede).
     #[serde(rename = "menuHideName")]
     pub menu_hide_name: bool,
@@ -295,6 +298,11 @@ pub fn set_menu_excluded(list: Vec<String>) -> Settings {
     update(|s| s.menu_excluded = list)
 }
 
+/// Sceglie se il tasto Windows da solo apre il Launcher (`on` vero) e salva.
+pub fn set_win_key_launcher(on: bool) -> Settings {
+    update(|s| s.win_key_off = !on)
+}
+
 /// Sceglie se Win+Tab resta quello di Windows e salva.
 pub fn set_windows_win_tab(keep: bool) -> Settings {
     update(|s| s.windows_win_tab = keep)
@@ -351,7 +359,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), menu_hide_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into() }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), win_key_off: true, menu_hide_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into() }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

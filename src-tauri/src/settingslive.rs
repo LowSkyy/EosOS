@@ -88,6 +88,7 @@ impl Backend for Live {
             "mc.corner" => b(mc().hot_corner),
             "mc.alttab" => b(!mc().windows_alt_tab),
             "mc.wintab" => b(!mc().windows_win_tab),
+            "launcher.winkey" => b(!mc().win_key_off),
             _ => None,
         }
     }
@@ -256,6 +257,7 @@ impl Backend for Live {
             "mc.corner" => crate::mcwin::set_corner(want_bool(value)?),
             "mc.alttab" => crate::mcwin::set_key("alt", want_bool(value)?),
             "mc.wintab" => crate::mcwin::set_key("win", want_bool(value)?),
+            "launcher.winkey" => crate::mcwin::set_win_key_launcher(want_bool(value)?),
             _ => return Err(SettingsError("Impostazione sconosciuta.".into())),
         }
         Ok(())

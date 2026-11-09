@@ -21,11 +21,13 @@ pub fn is_alt(vk: u32) -> bool {
 pub struct Config {
     pub alt_tab: bool,
     pub win_tab: bool,
+    /// Un tocco del tasto Windows da solo apre il Launcher (invece del menu Start).
+    pub win_tap: bool,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config { alt_tab: true, win_tab: true }
+        Config { alt_tab: true, win_tab: true, win_tap: true }
     }
 }
 
@@ -53,6 +55,8 @@ pub enum Cmd {
     Commit,
     /// Esc: chiude senza cambiare finestra.
     Cancel,
+    /// Tasto Windows premuto e rilasciato da solo: apre (o chiude) il Launcher.
+    Launcher,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,10 +75,14 @@ pub struct State {
     win_used: bool,
     /// Un Alt+Tab è stato mangiato e Alt non è ancora stato rilasciato (anche dopo Esc).
     alt_used: bool,
+    /// Win è premuto e finora nessun altro tasto: se lo si rilascia così è un «tocco».
+    win_tap: bool,
+    /// Win è tenuto premuto (da prima di questo evento): le ripetizioni non armano un nuovo tocco.
+    win_held: bool,
 }
 
 impl State {
-    pub const DEFAULT: State = State { active: false, tab: Held::None, win_used: false, alt_used: false };
+    pub const DEFAULT: State = State { active: false, tab: Held::None, win_used: false, alt_used: false, win_tap: false, win_held: false };
 }
 
 impl Default for State {
@@ -105,7 +113,16 @@ const PASS: Out = Out { swallow: false, cmd: None, neutral: false };
 
 /// Un passo della macchina a stati. Pura, testata.
 pub fn step(s: State, cfg: Config, k: Key) -> (State, Out) {
+    let is_win = matches!(k.vk, 0x5B | 0x5C);
     if k.down {
+        if is_win {
+            // Win da solo (nessun altro modificatore già premuto): potrebbe essere un tocco. Le ripetizioni
+            // del tasto tenuto premuto non cambiano nulla.
+            let alone = cfg.win_tap && !s.win_held && !s.win_used && !k.alt && !k.ctrl && !k.shift;
+            return (State { win_tap: s.win_tap || alone, win_held: true, ..s }, PASS);
+        }
+        // Qualunque altro tasto premuto con Win giù: non è più un tocco (Win+E, Win+D, Win+Tab, ...).
+        let s = if s.win_tap { State { win_tap: false, ..s } } else { s };
         if k.vk == VK_TAB {
             // Alt+Tab (non Ctrl+Alt+Tab, che è il selettore fisso di Windows, né con Windows premuto).
             if cfg.alt_tab && k.alt && !k.ctrl && !k.win {
@@ -144,8 +161,15 @@ pub fn step(s: State, cfg: Config, k: Key) -> (State, Out) {
         let cmd = if s.active { Some(Cmd::Commit) } else { None };
         return (State { active: false, alt_used: false, ..s }, Out { swallow: false, cmd, neutral: true });
     }
-    if matches!(k.vk, 0x5B | 0x5C) && s.win_used {
-        return (State { win_used: false, ..s }, Out { swallow: false, cmd: None, neutral: true });
+    if is_win && s.win_tap && !s.win_used {
+        // Tocco: il rilascio di Win passa preceduto dal tasto neutro (senza, si aprirebbe il menu Start).
+        return (State { win_tap: false, win_held: false, ..s }, Out { swallow: false, cmd: Some(Cmd::Launcher), neutral: true });
+    }
+    if is_win && s.win_used {
+        return (State { win_used: false, win_held: false, win_tap: false, ..s }, Out { swallow: false, cmd: None, neutral: true });
+    }
+    if is_win {
+        return (State { win_held: false, win_tap: false, ..s }, PASS);
     }
     (s, PASS)
 }
@@ -269,14 +293,81 @@ mod tests {
 
     #[test]
     fn disabled_shortcuts_are_never_touched() {
-        let off = Config { alt_tab: false, win_tab: false };
+        let off = Config { alt_tab: false, win_tab: false, win_tap: false };
         assert_eq!(step(State::default(), off, alt_tab(true)).1, PASS);
         assert_eq!(step(State::default(), off, win_tab(true)).1, PASS);
-        let only_win = Config { alt_tab: false, win_tab: true };
+        let only_win = Config { alt_tab: false, win_tab: true, win_tap: false };
         assert_eq!(step(State::default(), only_win, alt_tab(true)).1, PASS);
         assert_eq!(step(State::default(), only_win, win_tab(true)).1.cmd, Some(Cmd::Toggle));
-        let only_alt = Config { alt_tab: true, win_tab: false };
+        let only_alt = Config { alt_tab: true, win_tab: false, win_tap: false };
         assert_eq!(step(State::default(), only_alt, win_tab(true)).1, PASS);
+    }
+
+    const WIN: u32 = 0x5B;
+
+    #[test]
+    fn a_lone_win_tap_opens_the_launcher_and_hides_the_release_from_start() {
+        let cfg = Config::default();
+        let (s, o) = step(State::default(), cfg, key(WIN, true));
+        assert_eq!(o, PASS, "la pressione passa: Windows non apre niente finché Win è giù");
+        // Il tasto tenuto si ripete: sempre un tocco.
+        let (s, o) = step(s, cfg, key(WIN, true));
+        assert_eq!(o, PASS);
+        let (s, o) = step(s, cfg, key(WIN, false));
+        assert_eq!(o, Out { swallow: false, cmd: Some(Cmd::Launcher), neutral: true });
+        assert_eq!(s, State::default());
+        // Il Win destro (0x5C) vale lo stesso.
+        let (s, _) = step(State::default(), cfg, key(0x5C, true));
+        assert_eq!(step(s, cfg, key(0x5C, false)).1.cmd, Some(Cmd::Launcher));
+    }
+
+    #[test]
+    fn win_with_any_other_key_is_not_a_tap() {
+        let cfg = Config::default();
+        // Win+E, Win+D, Win+Maiusc+S...: tutto a Windows, nessun Launcher, nessun tasto neutro.
+        for other in [0x45_u32, 0x44, 0x10, 0x11, 0x12, 0x1B, 0x70] {
+            let (s, _) = step(State::default(), cfg, key(WIN, true));
+            let (s, o) = step(s, cfg, key(other, true));
+            assert_eq!(o, PASS);
+            let (s, _) = step(s, cfg, key(other, false));
+            // Una ripetizione di Win dopo l'altro tasto non riarma il tocco.
+            let (s, _) = step(s, cfg, key(WIN, true));
+            let (s, o) = step(s, cfg, key(WIN, false));
+            assert_eq!(o, PASS, "tasto {other:#x}");
+            assert_eq!(s, State::default());
+        }
+    }
+
+    #[test]
+    fn win_tab_is_not_a_tap_and_keeps_its_own_release() {
+        let cfg = Config::default();
+        let (s, _) = step(State::default(), cfg, key(WIN, true));
+        let (s, o) = step(s, cfg, win_tab(true));
+        assert_eq!(o.cmd, Some(Cmd::Toggle));
+        let (s, _) = step(s, cfg, win_tab(false));
+        let (s, o) = step(s, cfg, key(WIN, false));
+        assert_eq!(o, Out { swallow: false, cmd: None, neutral: true }, "solo il tasto neutro, niente Launcher");
+        assert_eq!(s, State::default());
+        // Anche con Win+Tab lasciato a Windows (win_tab spento) non si apre il Launcher.
+        let cfg = Config { win_tab: false, ..cfg };
+        let (s, _) = step(State::default(), cfg, key(WIN, true));
+        let (s, _) = step(s, cfg, win_tab(true));
+        let (s, _) = step(s, cfg, win_tab(false));
+        assert_eq!(step(s, cfg, key(WIN, false)).1, PASS);
+    }
+
+    #[test]
+    fn a_modifier_held_before_win_or_the_setting_off_means_no_tap() {
+        let cfg = Config::default();
+        for k in [Key { ctrl: true, ..key(WIN, true) }, Key { shift: true, ..key(WIN, true) }, Key { alt: true, ..key(WIN, true) }] {
+            let (s, _) = step(State::default(), cfg, k);
+            assert_eq!(step(s, cfg, key(WIN, false)).1, PASS, "{k:?}");
+        }
+        let off = Config { win_tap: false, ..cfg };
+        let (s, _) = step(State::default(), off, key(WIN, true));
+        assert_eq!(step(s, off, key(WIN, false)).1, PASS);
+        // Un rilascio di Win senza pressione vista (stato pulito) passa e non apre niente.
+        assert_eq!(step(State::default(), cfg, key(WIN, false)).1, PASS);
     }
 
     #[test]

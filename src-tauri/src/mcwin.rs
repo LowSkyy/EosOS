@@ -750,7 +750,7 @@ pub fn diag() -> Diag {
 // ------------------------------------------------------------------ Win+Tab e Alt+Tab (hook di tastiera)
 
 fn keys_config(s: &crate::mcstore::Settings) -> crate::mckeys::Config {
-    crate::mckeys::Config { alt_tab: !s.windows_alt_tab, win_tab: !s.windows_win_tab }
+    crate::mckeys::Config { alt_tab: !s.windows_alt_tab, win_tab: !s.windows_win_tab, win_tap: !s.win_key_off }
 }
 
 /// Le finestre elencate in ordine di uso recente: l'ordine di sovrapposizione di Windows (la più in alto per prima).
@@ -799,6 +799,7 @@ fn on_key_cmd(cmd: crate::mckeys::Cmd) {
         Cmd::Next => alt_step(&app, 1),
         Cmd::Prev => alt_step(&app, -1),
         Cmd::Commit => alt_commit(&app),
+        Cmd::Launcher => crate::launcherwin::toggle(&app),
         Cmd::Cancel => {
             reset_selection();
             close_animated(&app, None);
@@ -884,6 +885,12 @@ pub fn set_key(which: &str, eos: bool) {
         "win" => crate::mcstore::set_windows_win_tab(!eos),
         _ => return,
     };
+    apply_keys();
+}
+
+/// Il tasto Windows da solo apre il Launcher (`on`) o lascia il menu Start. Vale subito.
+pub fn set_win_key_launcher(on: bool) {
+    crate::mcstore::set_win_key_launcher(on);
     apply_keys();
 }
 

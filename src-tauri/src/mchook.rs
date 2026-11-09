@@ -8,7 +8,7 @@
 //! problema.
 //!
 //! Protocollo, a righe di testo: il figlio scrive su stdout `installed`, `cmd <Nome>` e `swallowed <n>`; il
-//! genitore scrive su stdin `cfg <alt 0|1> <win 0|1>`. Se lo stdin si chiude (il genitore è morto) il figlio
+//! genitore scrive su stdin `cfg <alt 0|1> <win 0|1> <tap 0|1>`. Se lo stdin si chiude (il genitore è morto) il figlio
 //! esce da solo.
 //!
 //! Regole che tengono l'hook innocuo:
@@ -62,6 +62,7 @@ pub fn cmd_name(c: Cmd) -> &'static str {
         Cmd::Prev => "Prev",
         Cmd::Commit => "Commit",
         Cmd::Cancel => "Cancel",
+        Cmd::Launcher => "Launcher",
     }
 }
 
@@ -86,6 +87,7 @@ pub fn parse_child_line(line: &str) -> Option<FromChild> {
                 "Prev" => Cmd::Prev,
                 "Commit" => Cmd::Commit,
                 "Cancel" => Cmd::Cancel,
+                "Launcher" => Cmd::Launcher,
                 _ => return None,
             };
             Some(FromChild::Cmd(c))
@@ -96,7 +98,7 @@ pub fn parse_child_line(line: &str) -> Option<FromChild> {
 
 /// La riga di configurazione per il figlio.
 pub fn config_line(c: Config) -> String {
-    format!("cfg {} {}\n", u8::from(c.alt_tab), u8::from(c.win_tab))
+    format!("cfg {} {} {}\n", u8::from(c.alt_tab), u8::from(c.win_tab), u8::from(c.win_tap))
 }
 
 /// Legge una riga di configurazione del genitore. Pura, testata.
@@ -112,10 +114,11 @@ pub fn parse_config_line(line: &str) -> Option<Config> {
     };
     let alt_tab = flag(it.next())?;
     let win_tab = flag(it.next())?;
+    let win_tap = flag(it.next())?;
     if it.next().is_some() {
         return None;
     }
-    Some(Config { alt_tab, win_tab })
+    Some(Config { alt_tab, win_tab, win_tap })
 }
 
 /// Si può rilanciare il figlio? Al massimo 3 avvii negli ultimi 5 minuti. Pura, testata.
@@ -125,7 +128,7 @@ pub fn may_restart(recent_starts: &[Duration], now: Duration) -> bool {
 
 // ------------------------------------------------------------------ genitore
 
-static CFG: AtomicU8 = AtomicU8::new(0b11);
+static CFG: AtomicU8 = AtomicU8::new(0b111);
 static INSTALLED: AtomicBool = AtomicBool::new(false);
 static SESSION: AtomicBool = AtomicBool::new(false);
 static SWALLOWED: AtomicU32 = AtomicU32::new(0);
@@ -133,7 +136,7 @@ static CHILD_IN: Mutex<Option<ChildStdin>> = Mutex::new(None);
 
 fn cfg() -> Config {
     let b = CFG.load(Ordering::Relaxed);
-    Config { alt_tab: b & 1 != 0, win_tab: b & 2 != 0 }
+    Config { alt_tab: b & 1 != 0, win_tab: b & 2 != 0, win_tap: b & 4 != 0 }
 }
 
 fn send_cfg() {
@@ -145,7 +148,7 @@ fn send_cfg() {
 
 /// Cambia quali scorciatoie sostituiscono quelle di Windows (vale subito, anche nel figlio).
 pub fn set_config(c: Config) {
-    CFG.store(u8::from(c.alt_tab) | (u8::from(c.win_tab) << 1), Ordering::Relaxed);
+    CFG.store(u8::from(c.alt_tab) | (u8::from(c.win_tab) << 1) | (u8::from(c.win_tap) << 2), Ordering::Relaxed);
     if !c.alt_tab {
         SESSION.store(false, Ordering::Relaxed);
     }
@@ -215,7 +218,7 @@ pub fn start(handler: fn(Cmd), initial: Config) {
                             match c {
                                 Cmd::Next | Cmd::Prev => SESSION.store(true, Ordering::Relaxed),
                                 Cmd::Commit | Cmd::Cancel => SESSION.store(false, Ordering::Relaxed),
-                                Cmd::Toggle => {}
+                                Cmd::Toggle | Cmd::Launcher => {}
                             }
                             handler(c);
                         }
@@ -235,7 +238,7 @@ pub fn start(handler: fn(Cmd), initial: Config) {
 
 // ------------------------------------------------------------------ figlio (processo --keyhook)
 
-static C_CFG: AtomicU8 = AtomicU8::new(0b11);
+static C_CFG: AtomicU8 = AtomicU8::new(0b111);
 static C_STATE: Mutex<State> = Mutex::new(State::DEFAULT);
 static C_TX: OnceLock<Mutex<Sender<Msg>>> = OnceLock::new();
 static C_SWALLOWED: AtomicU32 = AtomicU32::new(0);
@@ -250,7 +253,7 @@ enum Msg {
 
 fn c_cfg() -> Config {
     let b = C_CFG.load(Ordering::Relaxed);
-    Config { alt_tab: b & 1 != 0, win_tab: b & 2 != 0 }
+    Config { alt_tab: b & 1 != 0, win_tab: b & 2 != 0, win_tap: b & 4 != 0 }
 }
 
 fn down(vk: i32) -> bool {
@@ -302,7 +305,7 @@ fn handle(code: i32, w: WPARAM, l: LPARAM) -> bool {
     let is_down = matches!(w.0 as u32, WM_KEYDOWN | WM_SYSKEYDOWN);
     // I modificatori si leggono solo quando servono (il Tab): costa poco, ma questo è il percorso di ogni tasto.
     let (mut alt, mut win, mut ctrl, mut shift) = (false, false, false, false);
-    if vk == mckeys::VK_TAB {
+    if vk == mckeys::VK_TAB || matches!(vk, 0x5B | 0x5C) {
         alt = info.flags.0 & 0x20 != 0; // LLKHF_ALTDOWN
         win = down(0x5B) || down(0x5C);
         ctrl = down(0x11);
@@ -346,7 +349,7 @@ pub fn run_child() -> ! {
     std::thread::spawn(|| {
         for line in std::io::stdin().lock().lines().map_while(Result::ok) {
             if let Some(c) = parse_config_line(&line) {
-                C_CFG.store(u8::from(c.alt_tab) | (u8::from(c.win_tab) << 1), Ordering::Relaxed);
+                C_CFG.store(u8::from(c.alt_tab) | (u8::from(c.win_tab) << 1) | (u8::from(c.win_tap) << 2), Ordering::Relaxed);
                 if !c.alt_tab {
                     *C_STATE.lock().unwrap_or_else(|e| e.into_inner()) = State::DEFAULT;
                 }
@@ -399,7 +402,7 @@ mod tests {
 
     #[test]
     fn child_lines_round_trip_and_garbage_is_ignored() {
-        for c in [Cmd::Toggle, Cmd::Next, Cmd::Prev, Cmd::Commit, Cmd::Cancel] {
+        for c in [Cmd::Toggle, Cmd::Next, Cmd::Prev, Cmd::Commit, Cmd::Cancel, Cmd::Launcher] {
             assert_eq!(parse_child_line(&format!("cmd {}", cmd_name(c))), Some(FromChild::Cmd(c)));
         }
         assert_eq!(parse_child_line("installed"), Some(FromChild::Installed));
@@ -411,11 +414,11 @@ mod tests {
 
     #[test]
     fn config_lines_round_trip_and_garbage_is_ignored() {
-        for (a, w) in [(true, true), (true, false), (false, true), (false, false)] {
-            let c = Config { alt_tab: a, win_tab: w };
+        for (a, w, t) in [(true, true, true), (true, false, false), (false, true, true), (false, false, false), (true, true, false), (false, false, true)] {
+            let c = Config { alt_tab: a, win_tab: w, win_tap: t };
             assert_eq!(parse_config_line(&config_line(c)), Some(c));
         }
-        for bad in ["", "cfg", "cfg 1", "cfg 1 2", "cfg 1 1 1", "conf 1 1", "cfg a b"] {
+        for bad in ["", "cfg", "cfg 1", "cfg 1 2", "cfg 1 1", "cfg 1 1 2", "cfg 1 1 1 1", "conf 1 1 1", "cfg a b c"] {
             assert_eq!(parse_config_line(bad), None, "{bad:?}");
         }
     }
