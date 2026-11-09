@@ -76,6 +76,7 @@ const DOCK_SIZE: &[(&str, &str)] = &[("small", "Piccolo"), ("medium", "Medio"), 
 const DOCK_KEYS: &[(&str, &str)] = &[("ctrl_alt", "Ctrl+Alt+1…9"), ("ctrl_shift", "Ctrl+Maiusc+1…9"), ("alt_shift", "Alt+Maiusc+1…9"), ("off", "Disattivate")];
 const LANGUAGES: &[(&str, &str)] = &[("it", "Italiano")];
 const GLASS: &[(&str, &str)] = &[("clear", "Vetro trasparente"), ("standard", "Vetro standard"), ("solid", "Vetro opaco")];
+const SNAP_KEYS: &[(&str, &str)] = &[("off", "Disattivate"), ("ctrl_alt", "Ctrl+Alt+…"), ("ctrl_shift", "Ctrl+Maiusc+…"), ("alt_shift", "Alt+Maiusc+…")];
 const LAUNCHER_HOTKEYS: &[(&str, &str)] = &[("Alt+Space", "Alt+Spazio"), ("Ctrl+Alt+Space", "Ctrl+Alt+Spazio"), ("Ctrl+Shift+Space", "Ctrl+Maiusc+Spazio")];
 
 /// L'elenco chiuso di tutte le impostazioni. Le chiavi sono stabili: la pagina e i test le usano.
@@ -109,6 +110,7 @@ pub const SPECS: &[Spec] = &[
     Spec { key: "mc.hotkey", section: Section::MissionControl, label: "Scorciatoia di Mission Control", help: "Il tasto che apre e chiude la panoramica.", kind: Kind::Hotkey, keywords: &["tastiera", "panoramica"], live: true },
     Spec { key: "mc.corner", section: Section::MissionControl, label: "Angolo attivo", help: "Fermare il mouse nell'angolo in alto a sinistra apre la panoramica.", kind: Kind::Bool, keywords: &["angolo", "mouse"], live: true },
     Spec { key: "mc.alttab", section: Section::MissionControl, label: "Alt+Tab di EosOS", help: "Al posto del selettore di Windows. Spento: resta quello di Windows.", kind: Kind::Bool, keywords: &["selettore", "finestre", "tastiera"], live: true },
+    Spec { key: "snap.keys", section: Section::MissionControl, label: "Scorciatoie per disporre le finestre", help: "Con il tasto scelto più ←/→ la finestra in primo piano va a metà schermo; T/B alto/basso; U/I/J/K i quarti; D/F/G i terzi; Invio massimizza; C centra; Backspace torna com'era; PagGiù/PagSu la sposta sull'altro monitor. Spente di base.", kind: Kind::Choice(SNAP_KEYS), keywords: &["finestre", "snap", "metà", "affianca", "dividi", "schermo", "monitor", "tastiera", "scorciatoie"], live: true },
     Spec { key: "mc.wintab", section: Section::MissionControl, label: "Win+Tab di EosOS", help: "Apre Mission Control. Spento: resta la Visualizzazione attività di Windows.", kind: Kind::Bool, keywords: &["visualizzazione attività", "task view", "tastiera"], live: true },
     Spec { key: "notif.read", section: Section::Notifications, label: "Mostra le notifiche", help: "EosOS legge le notifiche di Windows e le mostra nel pannello sotto l'orologio. Restano solo in memoria. Spento finché non lo accendi.", kind: Kind::Bool, keywords: &["centro notifiche", "avvisi", "toast", "privacy"], live: true },
     Spec { key: "notif.dnd", section: Section::Notifications, label: "Non disturbare", help: "Il pannello sotto l'orologio non legge né mostra le notifiche finché è acceso. Riguarda solo EosOS: le notifiche e le impostazioni di Windows non cambiano.", kind: Kind::Bool, keywords: &["silenzioso", "concentrazione", "avvisi", "notifiche"], live: true },

@@ -47,3 +47,9 @@ Gli installer firmati sono in `src-tauri\target\release\bundle\` (NSIS e MSI); l
 ## Come riportare i problemi
 Scrivi la riga e cosa vedi (es. «1: Win+E apre anche il Launcher»), e su quale schermo. Per i problemi di tasti basta il nome della combinazione:
 il punto da guardare è `mckeys::step` in `src-tauri/src/mckeys.rs` (logica pura, testata).
+
+## 7. Gestione finestre (nuovo, spenta di base)
+- [ ] Impostazioni → Mission Control → «Scorciatoie per disporre le finestre» → Ctrl+Alt: con una finestra qualsiasi (Blocco note, Chrome) prova ←, →, T, B, U/I/J/K, D/F/G, Invio, C, Backspace.
+- [ ] PagGiù / PagSu la sposta sull altro monitor; la metà sul secondo schermo usa il suo spazio.
+- [ ] Su app moderne (Impostazioni di Windows, Esplora file) la finestra si dispone senza bordi vuoti o sovrapposizioni.
+- [ ] Nessuna combinazione ti disturba in altre app (es. Ctrl+Alt+← in un editor): in tal caso scegli un altro modificatore o spegni.
