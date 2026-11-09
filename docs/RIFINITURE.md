@@ -56,3 +56,12 @@ ottimizzata), per questo le barre si catturano al massimo ogni 0,5 s.
 - **Due Dock a scale diverse provati** (`test-dock-multi-dpi.ps1`, scale vere cambiate e ripristinate a 100%/100%): primario 100→125% e secondario 100→150%, dal vivo e a freddo: ogni Dock dentro il proprio monitor, centrato in basso, con la scala del proprio monitor e la sua sfocatura.
 
 **Non provato:** l'effetto a occhio su sfondi molto chiari, il clic reale sulle voci nuove del menu del Dock.
+
+## Scorciatoie per le app del Dock (9 nov 2026)
+Premendo **Ctrl+Alt+1…9** (di base) si apre la 1ª…9ª app del Dock, come un clic sulla sua icona (si avvia, si porta davanti o si
+minimizza se è già davanti). Con la barra di Windows nascosta i tasti Windows+numero non funzionano più: questi li sostituiscono. Il
+modificatore si sceglie in Impostazioni → Dock (**Ctrl+Alt**, **Ctrl+Maiusc**, **Alt+Maiusc** o disattivate) e vale subito.
+- **Ctrl+Windows+numero non si può usare:** su questo PC Windows lo tiene riservato (nessun altro processo riesce a registrarlo, anche con EosOS spento): provato e scartato.
+- Se una combinazione è già presa da un'altra app, quella sola non si registra (senza errori).
+- **Prova** (`test-dock-keys.ps1`, nessun tasto premuto): nelle build di prova di base sono spente; accese risultano **registrate** (un altro processo riceve l'errore 1409 «già presa» su tutte e nove), cambiano e si spengono dalle Impostazioni, una scelta inventata è rifiutata; la pressione del numero 1 simulata dal comando di prova avvia il Blocco note messo come prima app (solo per la prova, ripristinato) e chiude solo quello nuovo.
+- **Non provato:** la pressione vera dei tasti (la tastiera non si simula), e conflitti con app che usano le stesse combinazioni.

@@ -1320,9 +1320,15 @@
     "semantic_hash": ""
   },
   "docs/RIFINITURE.md": {
-    "mtime": 1794188331.988588,
-    "seen": 1794188334.5530698,
-    "ast_hash": "27de5a08bca70ed40c621f73e5467f1d",
+    "mtime": 1794204579.5627563,
+    "seen": 1794204582.3161566,
+    "ast_hash": "12f28ce20653b9bdb76fdda0b706b1f9",
+    "semantic_hash": ""
+  },
+  "scripts/test-dock-multi-dpi.ps1": {
+    "mtime": 1794204527.1352353,
+    "seen": 1794204582.3159885,
+    "ast_hash": "8db380bd56a4f76e8fe4b1e1ea937211",
     "semantic_hash": ""
   },
   "package-lock.json": {

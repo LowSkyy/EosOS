@@ -73,6 +73,7 @@ pub struct Spec {
 
 const WEEK_START: &[(&str, &str)] = &[("mon", "Lunedì"), ("sun", "Domenica")];
 const DOCK_SIZE: &[(&str, &str)] = &[("small", "Piccolo"), ("medium", "Medio"), ("large", "Grande"), ("xl", "Molto grande")];
+const DOCK_KEYS: &[(&str, &str)] = &[("ctrl_alt", "Ctrl+Alt+1…9"), ("ctrl_shift", "Ctrl+Maiusc+1…9"), ("alt_shift", "Alt+Maiusc+1…9"), ("off", "Disattivate")];
 const LANGUAGES: &[(&str, &str)] = &[("it", "Italiano")];
 const GLASS: &[(&str, &str)] = &[("clear", "Vetro trasparente"), ("standard", "Vetro standard"), ("solid", "Vetro opaco")];
 const LAUNCHER_HOTKEYS: &[(&str, &str)] = &[("Alt+Space", "Alt+Spazio"), ("Ctrl+Alt+Space", "Ctrl+Alt+Spazio"), ("Ctrl+Shift+Space", "Ctrl+Maiusc+Spazio")];
@@ -88,6 +89,7 @@ pub const SPECS: &[Spec] = &[
     Spec { key: "dock.glass", section: Section::Appearance, label: "Livello di vetro", help: "Quanto sono trasparenti Dock, barra e pannelli.", kind: Kind::Choice(GLASS), keywords: &["vetro", "trasparente", "opaco", "aspetto"], live: true },
     Spec { key: "dock.size", section: Section::Dock, label: "Dimensione del Dock", help: "Quanto sono grandi il Dock e le sue icone.", kind: Kind::Choice(DOCK_SIZE), keywords: &["dimensione", "grandezza", "icone", "ridimensiona", "scala"], live: true },
     Spec { key: "dock.all_screens", section: Section::Dock, label: "Dock su tutti gli schermi", help: "Un Dock su ogni monitor, ciascuno con la sua misura dello schermo. Spento: solo sul monitor principale.", kind: Kind::Bool, keywords: &["monitor", "schermi", "più schermi", "secondo schermo", "multi"], live: true },
+    Spec { key: "dock.keys", section: Section::Dock, label: "Scorciatoie per le app del Dock", help: "Premendo il tasto scelto più un numero da 1 a 9 si apre la 1ª…9ª app del Dock, come un clic sulla sua icona. Con la barra di Windows nascosta i tasti Windows+numero di Windows non funzionano più: questi li sostituiscono.", kind: Kind::Choice(DOCK_KEYS), keywords: &["scorciatoie", "tastiera", "numeri", "windows+1", "app del dock", "tasti"], live: true },
     Spec { key: "dock.autohide", section: Section::Dock, label: "Nascondi automaticamente", help: "Il Dock scompare quando non serve e riappare spostando il mouse sul bordo.", kind: Kind::Bool, keywords: &["auto", "nascondi", "scompare"], live: true },
     Spec { key: "dock.reserve", section: Section::Dock, label: "Riserva spazio alle finestre", help: "Le finestre ingrandite non finiscono sotto il Dock.", kind: Kind::Bool, keywords: &["area di lavoro", "spazio", "ingrandite"], live: true },
     Spec { key: "dock.pinned", section: Section::Dock, label: "App fissate", help: "Le app fissate nel Dock: riordinale o toglile (per fissarne una, trascinala nel Dock).", kind: Kind::Pinned, keywords: &["fissate", "pin", "icone", "ordine"], live: true },

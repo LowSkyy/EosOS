@@ -71,6 +71,9 @@ pub struct Settings {
     /// Il Dock sta solo sul monitor primario (di base ce n'è uno per monitor).
     #[serde(rename = "dockPrimaryOnly")]
     pub dock_primary_only: bool,
+    /// Scorciatoie per aprire le app del Dock: "off", "ctrl_win", "ctrl_alt", "ctrl_shift" (vuoto = quella di base).
+    #[serde(rename = "dockKeys")]
+    pub dock_keys: String,
 }
 
 fn store_path() -> Option<PathBuf> {
@@ -215,6 +218,11 @@ pub fn set_calendar_sunday(on: bool) -> Settings {
     update(|s| s.calendar_sunday = on)
 }
 
+/// Sceglie le scorciatoie per le app del Dock e salva.
+pub fn set_dock_keys(id: &str) -> Settings {
+    update(|s| s.dock_keys = id.to_string())
+}
+
 /// Sceglie se il Dock sta su tutti i monitor (`all`) o solo sul primario, e salva.
 pub fn set_dock_all_screens(all: bool) -> Settings {
     update(|s| s.dock_primary_only = !all)
@@ -318,6 +326,7 @@ mod tests {
         assert!(!d.menu_off && d.menu_excluded.is_empty());
         assert!(!d.notif_read, "la lettura delle notifiche e' spenta di default");
         assert!(d.reminders.is_empty() && !d.weather_on && d.weather_city.is_none(), "il widget Oggi parte vuoto e senza rete");
+        assert!(d.dock_keys.is_empty(), "scorciatoie del Dock: quelle di base");
         assert!(!d.dock_primary_only, "di base il Dock c'e' su ogni monitor");
         assert!(!d.keep_taskbar, "di base EosOS nasconde la barra delle applicazioni di Windows");
         assert!(!d.menu_hide_name && !d.menu_show_window, "di base: nome dell'app visibile, menu Finestra nascosto");
@@ -342,7 +351,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), menu_hide_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), menu_hide_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into() }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

@@ -1,4 +1,5 @@
 mod appbar;
+mod dockkeys;
 mod winsettings;
 mod reminders;
 mod weather;
@@ -245,6 +246,24 @@ async fn update_check(window: tauri::Window, app: tauri::AppHandle) -> Option<up
 async fn update_install(window: tauri::Window, app: tauri::AppHandle) -> Result<(), String> {
     cmdpolicy::guard(window.label(), "update_install", None)?;
     updates::install(&app).await
+}
+
+/// Solo build di prova: esegue come se fosse premuta la scorciatoia del numero `n` (senza tastiera).
+#[tauri::command(async)]
+fn dockkeys_fire(n: usize) -> bool {
+    #[cfg(feature = "test-hooks")]
+    return dockkeys::open_nth(n);
+    #[cfg(not(feature = "test-hooks"))]
+    {
+        let _ = n;
+        false
+    }
+}
+
+/// Quante scorciatoie del Dock sono registrate adesso (per le prove).
+#[tauri::command]
+fn dockkeys_registered() -> usize {
+    dockkeys::registered_count()
 }
 
 /// Le pile del Dock (cartelle con la loro icona). Solo il Dock.
@@ -1018,7 +1037,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, winsettings_list, winsettings_open, winsettings_last_open, bar_backdrop, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, dockkeys_fire, dockkeys_registered, winsettings_list, winsettings_open, winsettings_last_open, bar_backdrop, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
@@ -1033,6 +1052,7 @@ pub fn run() {
         .setup(|app| {
             appbar::start(app.handle());
             dockwin::start(app.handle());
+            dockkeys::start();
             backdrop::start();
             // Aggiornamenti: solo se l'utente ha acceso la ricerca all'avvio; cerca soltanto, non installa mai.
             if mcstore::load().update_auto {
