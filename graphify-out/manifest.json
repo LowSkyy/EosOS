@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794205007.4287379,
-    "seen": 1794205326.2978392,
-    "ast_hash": "3eb18174814e271ff2885f90b05170f6",
+    "mtime": 1794209292.991835,
+    "seen": 1794209769.7168334,
+    "ast_hash": "e35793570ee88f10cdd58ec135ad23f5",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -66,9 +66,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1794208205.253526,
-    "seen": 1794208308.1015956,
-    "ast_hash": "5608f222bade6125e48286bdd41e45d8",
+    "mtime": 1794209340.1198912,
+    "seen": 1794209769.7168658,
+    "ast_hash": "000fa9d5599023b093c185b09961eb2c",
     "semantic_hash": ""
   },
   "src/main.tsx": {
@@ -522,9 +522,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/launcheract.rs": {
-    "mtime": 1794155697.383655,
-    "seen": 1794156743.5585272,
-    "ast_hash": "fa7f5c58bf9ff973d4a9e79992760faf",
+    "mtime": 1794209292.9641395,
+    "seen": 1794209769.716827,
+    "ast_hash": "3882d87c9954e755a5018f61e08bc46e",
     "semantic_hash": ""
   },
   "src-tauri/src/launchercalc.rs": {
@@ -600,9 +600,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/panelwin.rs": {
-    "mtime": 1794180424.0004952,
-    "seen": 1794181690.7168517,
-    "ast_hash": "45fa4014693c564e85797db902e8fe8d",
+    "mtime": 1794209292.9641395,
+    "seen": 1794209769.7168472,
+    "ast_hash": "eee368849a6dbf8c4cb94865a8ea57e5",
     "semantic_hash": ""
   },
   "src/components/IndicatorGlyph.tsx": {
@@ -612,9 +612,9 @@
     "semantic_hash": ""
   },
   "src/components/Panel.tsx": {
-    "mtime": 1794173851.5833218,
-    "seen": 1794174424.6898594,
-    "ast_hash": "a88844e2520cafd6aaeb856342b3f84c",
+    "mtime": 1794209340.1193876,
+    "seen": 1794209769.716879,
+    "ast_hash": "5ef73a7715c458cce6991528a6e47789",
     "semantic_hash": ""
   },
   "src/components/useIndicators.ts": {
@@ -1086,9 +1086,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/cmdpolicy.rs": {
-    "mtime": 1794186535.2548783,
-    "seen": 1794187742.0909402,
-    "ast_hash": "af7a4dae18f8afedf6500c2cd9ad7073",
+    "mtime": 1794209292.965142,
+    "seen": 1794209769.7168145,
+    "ast_hash": "487508dd0a4a4ec22eb601b03fbb1089",
     "semantic_hash": ""
   },
   "scripts/prepare-sandbox-install.ps1": {
@@ -1347,6 +1347,36 @@
     "mtime": 1794208130.6378257,
     "seen": 1794208308.1014824,
     "ast_hash": "0b341e55127ae79562f4b301a359ed17",
+    "semantic_hash": ""
+  },
+  "scripts/test-eosmenu.ps1": {
+    "mtime": 1794209685.2210252,
+    "seen": 1794209769.716765,
+    "ast_hash": "2d4663fec2334b207bc094c24a758a00",
+    "semantic_hash": ""
+  },
+  "src/components/EosButton.tsx": {
+    "mtime": 1794209335.84461,
+    "seen": 1794209769.7168703,
+    "ast_hash": "eac6169574af447a13fa98133172aab9",
+    "semantic_hash": ""
+  },
+  "src/components/EosMenuPanel.tsx": {
+    "mtime": 1794209321.6343615,
+    "seen": 1794209769.7168715,
+    "ast_hash": "86d6aad8e078f213544bd3e494367118",
+    "semantic_hash": ""
+  },
+  "src/lib/eosmenu.test.ts": {
+    "mtime": 1794209321.8077967,
+    "seen": 1794209769.716893,
+    "ast_hash": "eb562c63bae712a7a19aa8df67a4a6d0",
+    "semantic_hash": ""
+  },
+  "src/lib/eosmenu.ts": {
+    "mtime": 1794209321.7243695,
+    "seen": 1794209769.716894,
+    "ast_hash": "fb6ed7873db3c2838be1b1ab2cd82b44",
     "semantic_hash": ""
   },
   "package-lock.json": {

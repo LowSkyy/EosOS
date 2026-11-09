@@ -215,6 +215,43 @@ pub fn search(query: &str, have: &[String], filter: Option<&str>) -> Vec<Launche
     out
 }
 
+/// Una pagina dell'elenco di TUTTE le app (per il Launchpad): quante ce ne sono in tutto e le voci di questa pagina.
+#[derive(Serialize, Clone, Debug)]
+pub struct GridPage {
+    pub total: usize,
+    pub items: Vec<LauncherItem>,
+}
+
+/// Quante app al massimo in una pagina del Launchpad.
+pub const GRID_PAGE_MAX: usize = 64;
+
+/// Gli indici delle app in ordine alfabetico (senza badare ad accenti e maiuscole), a parità l'ordine dell'indice. Pura, testata.
+pub fn alphabetical(entries: &[(String, String)]) -> Vec<usize> {
+    let mut idx: Vec<usize> = (0..entries.len()).collect();
+    idx.sort_by_key(|&i| fold(&entries[i].1));
+    idx
+}
+
+/// Tutte le app, in ordine alfabetico, a pagine: `offset` e `limit` (al massimo `GRID_PAGE_MAX`). `have`: gli id di cui la
+/// pagina ha già l'icona. Il Launchpad le chiede a pezzi, così le prime compaiono subito e le icone si caricano man mano.
+pub fn all_page(offset: usize, limit: usize, have: &[String]) -> GridPage {
+    let index = apps();
+    let entries: Vec<(String, String)> = index.iter().map(|e| (e.id.clone(), e.name.clone())).collect();
+    let order = alphabetical(&entries);
+    let have: HashSet<String> = have.iter().map(|h| fold(h)).collect();
+    let items = order
+        .iter()
+        .skip(offset)
+        .take(limit.min(GRID_PAGE_MAX))
+        .map(|&i| {
+            let e = &index[i];
+            let icon = (!have.contains(&fold(&e.id))).then(|| cached_icon(&aumid_path(&e.id))).flatten();
+            LauncherItem { id: e.id.clone(), name: e.name.clone(), kind: "app", detail: None, icon }
+        })
+        .collect();
+    GridPage { total: index.len(), items }
+}
+
 /// Cerca `query` tra i file (indice di Windows Search, con ripiego). Lento rispetto al resto: la
 /// pagina lo chiama a parte. L'`id` di un file è il suo percorso; il nome è il nome del file e il
 /// testo secondario la cartella accorciata.
@@ -300,6 +337,16 @@ pub fn launch(id: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_app_grid_is_alphabetical_ignoring_accents_and_case() {
+        let e = |n: &str| (format!("id-{n}"), n.to_string());
+        let entries = vec![e("Zeta"), e("àlfa"), e("beta"), e("Alfa"), e("Chrome")];
+        let order: Vec<&str> = alphabetical(&entries).iter().map(|&i| entries[i].1.as_str()).collect();
+        assert_eq!(order, ["àlfa", "Alfa", "beta", "Chrome", "Zeta"], "pari merito: l'ordine dell'indice");
+        assert!(alphabetical(&[]).is_empty());
+        assert!(GRID_PAGE_MAX >= 32);
+    }
+
     use super::*;
 
     fn e(id: &str, name: &str) -> AppEntry {

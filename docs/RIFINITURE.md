@@ -73,3 +73,17 @@ mescolato con la tinta (luminanze lineari, come WCAG), non dal tema: chiaro o sc
 puro: **almeno 4,5:1 per ogni tema e per undici livelli di luminosità dello sfondo**. La tinta scura è un po' più forte sugli sfondi
 chiari (fino a 0,70). Si ricalcola anche se il tema del sistema cambia a barra aperta. Impostazioni, Dock e pannelli in tema chiaro
 guardati a occhio: a posto (il pannello sotto l'orologio è nascosto nelle foto, non confrontato).
+
+## Menu EosOS e Launchpad (9 nov 2026) — il «menu mela» e la griglia delle app
+macOS non ha un menu Start: ha il **menu mela** (a sinistra della barra) e il **Launchpad** (tutte le app in griglia). Fatti entrambi.
+- **Menu EosOS** (pulsante a sinistra della barra, prima dei menu dell'app): Informazioni su EosOS (versione di EosOS e di Windows),
+  Impostazioni di EosOS…, Impostazioni di Windows…, **Launchpad**, Mission Control, Blocca lo schermo, Sospendi, **Riavvia…**,
+  **Spegni…** (chiedono comunque il «Sì» in una finestra di Windows) ed Esci da EosOS. Frecce su/giù, Invio, Esc. `test-eosmenu.ps1`.
+- **Launchpad**: tutte le app in ordine alfabetico, a griglia, a tutta area di lavoro (è la finestra del Launcher in un'altra
+  modalità, con lo stesso sfondo sfocato), con ricerca (senza badare ad accenti e maiuscole), frecce, Invio, Esc o un clic nello
+  sfondo per chiudere. Si apre dall'**icona in testa al Dock** o dal menu EosOS. Le app arrivano a pagine da Rust (le prime subito).
+  `test-launchpad.ps1` (apertura, copertura del monitor, ordine, ricerca, avvio di un Blocco note mio, chiusura, comandi vietati
+  alle altre finestre).
+- **Non fatto:** il **tasto Windows** apre ancora il menu Start di Windows (intercettarlo richiede di toccare il filtro dei tasti e
+  senza una tastiera vera non posso provarlo: lo propongo come passo successivo, spento di base). Il menu Start si apre anche con la
+  barra di Windows nascosta; l'alternativa pronta è Alt+Spazio (Launcher) e l'icona Launchpad del Dock.

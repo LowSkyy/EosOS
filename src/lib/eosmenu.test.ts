@@ -6,7 +6,7 @@ describe("EosOS menu", () => {
     const ids = EOS_ITEMS.map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const id of ["restart", "shutdown"]) expect(EOS_ITEMS.find((i) => i.id === id)?.hint).toBe("chiede conferma");
-    expect(ids).toEqual(["about", "settings", "winsettings", "mission", "lock", "sleep", "restart", "shutdown", "quit"]);
+    expect(ids).toEqual(["about", "settings", "winsettings", "launchpad", "mission", "lock", "sleep", "restart", "shutdown", "quit"]);
   });
   it("moves with the arrows without wrapping and enters from the right end", () => {
     expect(nextIndex(-1, 5, 1)).toBe(0);

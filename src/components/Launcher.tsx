@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useBackdrop } from "./useBackdrop";
+import Launchpad from "./Launchpad";
 import {
   clampSelection,
   combine,
@@ -49,6 +50,8 @@ export default function Launcher() {
   const panel = useRef<HTMLDivElement>(null);
   const blurCanvas = useRef<HTMLCanvasElement>(null);
   const [opens, setOpens] = useState(0);
+  // Launchpad: la stessa finestra, a tutto schermo, con tutte le app in griglia.
+  const [grid, setGrid] = useState(false);
   // Ultima posizione del mouse registrata: vedi `pointerMoved`.
   const pointer = useRef<Point | null>(null);
   useBackdrop("launcher_backdrop", panel, blurCanvas, BLUR_MARGIN, opens);
@@ -101,7 +104,8 @@ export default function Launcher() {
 
   // All'apertura: campo vuoto e a fuoco, elenco delle app più usate.
   useEffect(() => {
-    const un = listen("launcher-open", () => {
+    const un = listen<boolean>("launcher-open", (e) => {
+      setGrid(e.payload === true);
       setQuery("");
       setSel(0);
       setFilter(null);
@@ -113,6 +117,7 @@ export default function Launcher() {
     });
     // Alla chiusura la pagina dimentica tutto ciò che mostrava (voci degli Appunti comprese).
     const unClose = listen("launcher-close", () => {
+      setGrid(false);
       epoch.current++;
       fileEpoch.current++;
       setQuery("");
@@ -131,8 +136,8 @@ export default function Launcher() {
 
   // La finestra segue l'altezza che serve.
   useEffect(() => {
-    void invoke("launcher_fit", { height: windowHeight(items.length, query.trim() !== "") });
-  }, [items.length, query]);
+    if (!grid) void invoke("launcher_fit", { height: windowHeight(items.length, query.trim() !== "") });
+  }, [items.length, query, grid]);
 
   const hide = () => void invoke("launcher_hide");
 
@@ -211,9 +216,10 @@ export default function Launcher() {
 
   const hasQuery = query.trim() !== "";
   return (
-    <div className="launcher" ref={panel} onKeyDown={onKeyDown}>
+    <div className="launcher" ref={panel} onKeyDown={grid ? undefined : onKeyDown} data-grid={grid ? "true" : undefined}>
       <canvas className="launcher-blur" ref={blurCanvas} aria-hidden />
-      <div className="launcher-field">
+      {grid && <Launchpad opens={opens} />}
+      <div className="launcher-field" hidden={grid}>
         <svg className="launcher-glass" viewBox="0 0 20 20" aria-hidden="true">
           <circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
           <path d="M13 13l4.5 4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -237,7 +243,7 @@ export default function Launcher() {
         />
         {filter && <span className="launcher-chip">{filterLabel(filter)}</span>}
       </div>
-      {(items.length > 0 || hasQuery) && (
+      {!grid && (items.length > 0 || hasQuery) && (
         <ul className="launcher-list" id="launcher-list" role="listbox">
           {items.length === 0 && <li className="launcher-empty">Nessun risultato</li>}
           {items.map((it, i) => (

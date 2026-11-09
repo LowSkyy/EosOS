@@ -102,6 +102,20 @@ function StackIcon({ stack }: { stack: StackItem }) {
   );
 }
 
+/** L'icona del Launchpad (tutte le app) in testa al Dock, come in macOS. */
+function LaunchpadIcon() {
+  return (
+    <div className="dock-item dock-launchpad" title="Launchpad" role="button" aria-label="Launchpad" onClick={() => void invoke("dock_launchpad")}>
+      <div className="dock-icon dock-launchpad-icon" aria-hidden>
+        <svg viewBox="0 0 24 24" width="62%" height="62%">
+          {[0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={3 + c * 7} y={3 + r * 7} width="4.6" height="4.6" rx="1.2" fill="currentColor" />))}
+        </svg>
+      </div>
+      <span className="dock-dot" />
+    </div>
+  );
+}
+
 /** Stesso aspetto della capsula a riposo, invisibile: se ne misura la dimensione. */
 function Ghost({ items, stacks, ref }: { items: DockItem[]; stacks: StackItem[]; ref: React.Ref<HTMLDivElement> }) {
   const { pinned, others } = splitDock(items);
@@ -113,6 +127,7 @@ function Ghost({ items, stacks, ref }: { items: DockItem[]; stacks: StackItem[];
   );
   return (
     <div className="dock dock-ghost" aria-hidden ref={ref}>
+      {cell({ id: "launchpad-cell" } as DockItem)}
       {pinned.map(cell)}
       {pinned.length > 0 && others.length > 0 && <div className="dock-separator" />}
       {others.map(cell)}
@@ -518,6 +533,7 @@ export default function Dock() {
     >
       <div className="dock" ref={pill}>
         <canvas className="dock-blur" ref={blurCanvas} aria-hidden />
+        <LaunchpadIcon />
         {pinned.map(icon)}
         {pinned.length > 0 && others.length > 0 && <div className="dock-separator" />}
         {others.map(icon)}

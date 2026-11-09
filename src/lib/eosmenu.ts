@@ -13,6 +13,7 @@ export const EOS_ITEMS: EosItem[] = [
   { id: "about", label: "Informazioni su EosOS" },
   { id: "settings", label: "Impostazioni di EosOS…", separatorBefore: true },
   { id: "winsettings", label: "Impostazioni di Windows…" },
+  { id: "launchpad", label: "Launchpad", hint: "tutte le app" },
   { id: "mission", label: "Mission Control" },
   { id: "lock", label: "Blocca lo schermo", separatorBefore: true },
   { id: "sleep", label: "Sospendi" },

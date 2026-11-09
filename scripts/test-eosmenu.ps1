@@ -19,7 +19,7 @@ function Cleanup-Eos { Get-CimInstance Win32_Process -Filter "Name='eosos.exe'" 
 function Js([string]$view, [string]$expr) { $env:CDP_VIEW = $view; $env:CDP_INDEX = '0'; $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'; try { $o = & node $cdp eval $expr 2>$null; if ($o) { try { $o | ConvertFrom-Json } catch { $null } } } finally { $ErrorActionPreference = $old; Remove-Item env:CDP_INDEX -ErrorAction SilentlyContinue } }
 function Pn([string]$e) { Js 'panel' $e }
 function Wait-Until([scriptblock]$cond, [double]$seconds = 8) { $t0 = Get-Date; while (((Get-Date) - $t0).TotalSeconds -lt $seconds) { if (& $cond) { return $true }; Start-Sleep -Milliseconds 200 }; $false }
-function Open-Menu { Js 'bar' "document.querySelector('.eos-btn').click()" | Out-Null; Wait-Until { ([EM]::Visible('EosOS Pannello')) -and ((Pn "document.querySelectorAll('.eosmenu-item').length") -ge 9) } 6 }
+function Open-Menu { Js 'bar' "document.querySelector('.eos-btn').click()" | Out-Null; Wait-Until { ([EM]::Visible('EosOS Pannello')) -and ((Pn "document.querySelectorAll('.eosmenu-item').length") -ge 10) } 6 }
 function Close-Panel { [void](Js 'launcher' "window.__TAURI_INTERNALS__.invoke('panel_hide')"); Wait-Until { -not ([EM]::Visible('EosOS Pannello')) } 3 | Out-Null; Start-Sleep -Milliseconds 300 }
 function Click-Item([string]$id) { Pn "document.querySelector('.eosmenu-item[data-index=\'$id\']').click()" | Out-Null }
 $log = Join-Path $env:TEMP 'eosos-actions.log'
@@ -33,9 +33,9 @@ try {
   Write-Host 'A. il pulsante e il pannello'
   Check 'c e il pulsante a sinistra della barra, prima dei menu dell app' ((Js 'bar' "(function(){var l=document.querySelector('.menubar-left');return l.children[0].classList.contains('eos-btn')})()") -eq $true)
   Check 'ha un nome per i lettori di schermo' ((Js 'bar' "document.querySelector('.eos-btn').getAttribute('aria-label')") -eq 'Menu EosOS')
-  Check 'un clic apre il pannello con le nove voci' (Open-Menu)
+  Check 'un clic apre il pannello con le dieci voci' (Open-Menu)
   $labels = Pn "Array.from(document.querySelectorAll('.eosmenu-item span:first-child')).map(function(e){return e.textContent}).join('|')"
-  Check 'le voci sono quelle attese (in italiano)' ($labels -like 'Informazioni su EosOS|Impostazioni di EosOS*|Impostazioni di Windows*|Mission Control|Blocca lo schermo|Sospendi|Riavvia*|Spegni*|Esci da EosOS') $labels
+  Check 'le voci sono quelle attese (in italiano)' ($labels -like 'Informazioni su EosOS|Impostazioni di EosOS*|Impostazioni di Windows*|Launchpad*|Mission Control|Blocca lo schermo|Sospendi|Riavvia*|Spegni*|Esci da EosOS') $labels
   Check 'il pannello e un menu per i lettori di schermo' ((Pn "document.querySelector('.eosmenu').getAttribute('role')") -eq 'menu')
   Check 'il primo elemento ha il focus' (Wait-Until { (Pn "document.activeElement && document.activeElement.getAttribute('data-index')") -eq '0' } 3)
 
@@ -54,11 +54,11 @@ try {
 
   Write-Host 'D. spegni e riavvia (nelle build di prova non eseguono niente)'
   [void](Open-Menu)
-  Click-Item 7
+  Click-Item 8
   Check 'Spegni scrive solo la riga di prova' (Wait-Until { (Test-Path $log) -and ((Get-Content $log -Raw) -match 'action:shutdown') } 5)
   Check 'e il pannello si chiude' (Wait-Until { -not ([EM]::Visible('EosOS Pannello')) } 4)
   [void](Open-Menu)
-  Click-Item 6
+  Click-Item 7
   Check 'Riavvia scrive la sua riga' (Wait-Until { (Get-Content $log -Raw) -match 'action:restart' } 5)
   Check 'EosOS e ancora in esecuzione' (@(Get-Process eosos -ErrorAction SilentlyContinue).Count -ge 1)
 

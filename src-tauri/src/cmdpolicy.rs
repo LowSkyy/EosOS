@@ -11,7 +11,7 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         // Il pannello sotto l'orologio può solo accendere/spegnere la lettura delle notifiche e «Non disturbare».
         "settings_set" => label == "settings" || (label == "panel" && matches!(key, Some("notif.read" | "notif.dnd"))),
         // Dock: aprire app e cambiare le app fissate.
-        "dock_activate" | "dock_reorder" | "dock_stacks" => label == "dock" || label.starts_with("dock-"),
+        "dock_activate" | "dock_reorder" | "dock_stacks" | "dock_launchpad" => label == "dock" || label.starts_with("dock-"),
         // Contenuto delle pile: lo chiede solo il pannello.
         c if c.starts_with("stack_") => label == "panel",
         // Pannello degli indicatori: volume vero, apertura delle impostazioni di Windows, scelta di una voce di menu di
@@ -133,7 +133,7 @@ mod tests {
         for c in ["stack_list", "stack_open", "stack_open_folder"] {
             assert!(allowed("panel", c, None) && !allowed("dock", c, None) && !allowed("bar-0", c, None) && !allowed("launcher", c, None), "{c}");
         }
-        for c in ["dock_activate", "dock_reorder", "dock_stacks"] {
+        for c in ["dock_activate", "dock_reorder", "dock_stacks", "dock_launchpad"] {
             // Il Dock di un monitor secondario (etichetta «dock-...») vale come quello del primario.
             assert!(allowed("dock-DISPLAY2", c, None) && !allowed("bar-DISPLAY2", c, None), "{c}");
             assert!(allowed("dock", c, None) && !allowed("bar-0", c, None) && !allowed("panel", c, None) && !allowed("launcher", c, None), "{c}");

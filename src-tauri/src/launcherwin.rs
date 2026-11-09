@@ -194,11 +194,28 @@ pub fn is_visible() -> bool {
     VISIBLE.load(Ordering::Relaxed)
 }
 
+/// La finestra è in modalità Launchpad (tutte le app in griglia, a tutto schermo) e non in quella di ricerca?
+static GRID: AtomicBool = AtomicBool::new(false);
+
+pub fn is_grid() -> bool {
+    GRID.load(Ordering::Relaxed)
+}
+
 /// Mostra il Launcher sul monitor del cursore e gli dà la tastiera.
 pub fn show(app: &AppHandle) {
+    show_inner(app, false);
+}
+
+/// Mostra il Launchpad: la stessa finestra a tutta area di lavoro del monitor del cursore, con tutte le app in griglia.
+pub fn show_grid(app: &AppHandle) {
+    show_inner(app, true);
+}
+
+fn show_inner(app: &AppHandle, grid: bool) {
     let Some(win) = win_of(app) else { return };
     let Some((area, scale)) = target_monitor(app, &win) else { return };
-    let r = place(area, scale, MIN_HEIGHT);
+    GRID.store(grid, Ordering::Relaxed);
+    let r = if grid { area } else { place(area, scale, MIN_HEIGHT) };
     SCALE_BITS.store(scale.to_bits(), Ordering::Relaxed);
     let _ = win.set_position(PhysicalPosition::new(r.x, r.y));
     let _ = win.set_size(PhysicalSize::new(r.w as u32, r.h as u32));
@@ -213,7 +230,7 @@ pub fn show(app: &AppHandle) {
     }
     let _ = win.set_focus();
     // La pagina azzera il campo e lo mette a fuoco.
-    let _ = app.emit_to(LABEL, "launcher-open", ());
+    let _ = app.emit_to(LABEL, "launcher-open", grid);
     // Se il primo piano non arriva (Windows lo nega), la finestra non servirebbe a nulla.
     let app = app.clone();
     std::thread::spawn(move || {
@@ -232,6 +249,7 @@ pub fn show(app: &AppHandle) {
 
 pub fn hide(app: &AppHandle) {
     VISIBLE.store(false, Ordering::Relaxed);
+    GRID.store(false, Ordering::Relaxed);
     if let Some(win) = win_of(app) {
         let _ = win.hide();
         crate::webmem::hidden(&win);
@@ -251,6 +269,10 @@ pub fn toggle(app: &AppHandle) {
 
 /// La pagina comunica l'altezza che le serve (campo + risultati), in px CSS. La cima resta ferma.
 pub fn fit(app: &AppHandle, height_css: f64) {
+    // Il Launchpad occupa tutta l'area di lavoro: la pagina non lo ridimensiona.
+    if is_grid() {
+        return;
+    }
     let Some(win) = win_of(app) else { return };
     let scale = f64::from_bits(SCALE_BITS.load(Ordering::Relaxed));
     let scale = if scale > 0.0 { scale } else { win.scale_factor().unwrap_or(1.0) };
