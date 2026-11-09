@@ -13,6 +13,13 @@ public static class DN { public delegate bool EP(IntPtr h, IntPtr l);
  [DllImport("user32.dll")] static extern bool EnumWindows(EP p, IntPtr l);
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+ [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; }
+ [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr h, out R r);
+ [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr h, out R r);
+ [DllImport("user32.dll")] static extern long GetWindowLongPtr(IntPtr h, int i);
+ [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int n);
+ public static IntPtr Find(string title){ IntPtr f=IntPtr.Zero; EnumWindows((h,l)=>{var sb=new StringBuilder(256);GetWindowText(h,sb,256); if(sb.ToString()==title){f=h;return false;} return true;},IntPtr.Zero); return f; }
+ public static string Frame(IntPtr h){ R w,c; GetWindowRect(h,out w); GetClientRect(h,out c); long st=GetWindowLongPtr(h,-16); int pol=-1; DwmGetWindowAttribute(h,2,out pol,4); return (w.Rt-w.L)+"x"+(w.B-w.T)+"|"+c.Rt+"x"+c.B+"|"+(st & 0xC00000).ToString()+"|"+pol; }
  public static bool Visible(string part){ bool f=false; EnumWindows((h,l)=>{var sb=new StringBuilder(256);GetWindowText(h,sb,256); if(IsWindowVisible(h)&&sb.ToString().Contains(part)){f=true;return false;} return true;},IntPtr.Zero); return f; } }
 '@
 $script:fail = 0
@@ -25,7 +32,12 @@ function Entry([string]$key) { (@(Js 'launcher' "window.__TAURI_INTERNALS__.invo
 function Attr([string]$name) { Js 'dock' "document.documentElement.getAttribute('$name')" }
 $mc = Join-Path $env:LOCALAPPDATA 'EosOS\mission.json'
 $bkMc = if (Test-Path $mc) { [System.IO.File]::ReadAllBytes($mc) } else { $null }
+# Le impostazioni del Dock dell'utente (nascondi automaticamente, dimensione, pile...) falserebbero le misure: la prova parte da quelle di base e il suo file si ripristina.
+$isoDir = Join-Path $env:LOCALAPPDATA 'EosOS'
+$isoBackup = @{}
+foreach ($isoF in 'dock.json', 'mission.json') { $isoP = Join-Path $isoDir $isoF; $isoBackup[$isoF] = if (Test-Path $isoP) { [System.IO.File]::ReadAllBytes($isoP) } else { $null } }
 try {
+  foreach ($isoF in 'dock.json', 'mission.json') { Remove-Item (Join-Path $isoDir $isoF) -ErrorAction SilentlyContinue }
   Cleanup-Eos; Start-Sleep 1; Remove-Item $mc -ErrorAction SilentlyContinue
   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'; Start-Process $exe | Out-Null; Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS; Start-Sleep 13
 
@@ -33,6 +45,13 @@ try {
   Check 'nessuna icona del Dock ha l attributo title' ((Js 'dock' "document.querySelectorAll('.dock:not(.dock-ghost) .dock-item[title]').length") -eq 0)
   Check 'le icone hanno la loro etichetta (data-label)' ((Js 'dock' "document.querySelectorAll('.dock:not(.dock-ghost) .dock-item[data-label]').length") -ge 2)
   Check 'l icona del Launchpad si chiama Launchpad' ((Js 'dock' "document.querySelector('.dock-launchpad').getAttribute('data-label')") -eq 'Launchpad')
+
+  Write-Host 'A2. nessuna cornice (era la barra del titolo «EosOS Dock» in cima al Dock)'
+  $fr = [DN]::Frame([DN]::Find('EosOS Dock'))
+  Write-Host ("  (finestra|client|stile con cornice|criterio DWM: " + $fr + ")")
+  $parts = $fr -split '\|'
+  Check 'la finestra del Dock non ha lo stile con barra del titolo (WS_CAPTION)' ($parts[2] -eq '0')
+  Check 'e la sua area client e grande quanto la finestra (nessuna parte non client)' ($parts[0] -eq $parts[1])
 
   Write-Host 'B. dimensioni'
   $size = Entry 'dock.size'
@@ -91,6 +110,7 @@ try {
   Check 'dal Dock tray_open non apre' ((Js 'dock' "window.__TAURI_INTERNALS__.invoke('tray_open',{id:'x'}).then(function(r){return r},function(e){return false})") -ne $true)
 }
 finally {
+  foreach ($isoF in 'dock.json', 'mission.json') { $isoP = Join-Path $isoDir $isoF; Remove-Item $isoP -ErrorAction SilentlyContinue; if ($null -ne $isoBackup[$isoF]) { [System.IO.File]::WriteAllBytes($isoP, $isoBackup[$isoF]) } }
   Cleanup-Eos
   Remove-Item env:EOSOS_TEST_STRICT -ErrorAction SilentlyContinue
   Remove-Item $mc -ErrorAction SilentlyContinue

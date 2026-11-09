@@ -42,7 +42,12 @@ $bkDj = if (Test-Path $dj) { [System.IO.File]::ReadAllBytes($dj) } else { $null 
 $bkMc = if (Test-Path $mc) { [System.IO.File]::ReadAllBytes($mc) } else { $null }
 $screens = [System.Windows.Forms.Screen]::AllScreens
 Write-Host "Monitor trovati: $($screens.Count)"
+# Le impostazioni del Dock dell'utente (nascondi automaticamente, dimensione, pile...) falserebbero le misure: la prova parte da quelle di base e il suo file si ripristina.
+$isoDir = Join-Path $env:LOCALAPPDATA 'EosOS'
+$isoBackup = @{}
+foreach ($isoF in 'dock.json', 'mission.json') { $isoP = Join-Path $isoDir $isoF; $isoBackup[$isoF] = if (Test-Path $isoP) { [System.IO.File]::ReadAllBytes($isoP) } else { $null } }
 try {
+  foreach ($isoF in 'dock.json', 'mission.json') { Remove-Item (Join-Path $isoDir $isoF) -ErrorAction SilentlyContinue }
   Cleanup-Eos; Start-Sleep 1; Remove-Item $mc -ErrorAction SilentlyContinue
   $env:EOSOS_DOCK_ALL = '1'
   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'; Start-Process $exe | Out-Null; Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
@@ -88,6 +93,7 @@ try {
   }
 }
 finally {
+  foreach ($isoF in 'dock.json', 'mission.json') { $isoP = Join-Path $isoDir $isoF; Remove-Item $isoP -ErrorAction SilentlyContinue; if ($null -ne $isoBackup[$isoF]) { [System.IO.File]::WriteAllBytes($isoP, $isoBackup[$isoF]) } }
   Cleanup-Eos
   Remove-Item env:EOSOS_DOCK_ALL -ErrorAction SilentlyContinue
   if ($null -ne $bkDj) { [System.IO.File]::WriteAllBytes($dj, $bkDj) }

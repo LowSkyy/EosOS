@@ -31,11 +31,11 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
 use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::Graphics::Gdi::{
-    CombineRgn, CreateRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ, HRGN,
+    ClientToScreen, CombineRgn, CreateRectRgn, DeleteObject, SetWindowRgn, HGDIOBJ, HRGN,
     RGN_AND,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetCursorPos, GetWindowLongPtrW, GetWindowRect, IsWindowVisible, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    GetClientRect, GetCursorPos, GetWindowLongPtrW, GetWindowRect, IsWindowVisible, SetWindowLongPtrW, SetWindowPos, ShowWindow,
     GWL_EXSTYLE, GWL_STYLE, SW_SHOWNOACTIVATE,
     SetWindowDisplayAffinity, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
     WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WS_CAPTION,
@@ -157,7 +157,7 @@ struct State {
     p: f64,
     last_tick: Option<Instant>,
     applied_pos: Option<(i32, i32)>,
-    applied_region: Option<[i32; 9]>,
+    applied_region: Option<[i32; 13]>,
 }
 
 impl State {
@@ -323,6 +323,26 @@ fn create(app: &AppHandle, label: &str, monitor: Option<&tauri::Monitor>) -> tau
     Ok(())
 }
 
+/// Dove sta l'area client dentro la finestra, in coordinate della finestra (con una cornice ci sarebbe un margine in alto): serve a non mostrare mai
+/// la parte non client. Pura, testata: `win` e `origin` sono la posizione della finestra e dello zero dell'area client sullo schermo.
+pub fn client_in_window(win: (i32, i32), origin: (i32, i32), size: (i32, i32)) -> Rect {
+    Rect { x: (origin.0 - win.0).max(0), y: (origin.1 - win.1).max(0), w: size.0.max(0), h: size.1.max(0) }
+}
+
+unsafe fn client_rect(hwnd: HWND) -> Option<Rect> {
+    unsafe {
+        let mut wr = RECT::default();
+        let mut cr = RECT::default();
+        GetWindowRect(hwnd, &mut wr).ok()?;
+        GetClientRect(hwnd, &mut cr).ok()?;
+        let mut p = POINT { x: 0, y: 0 };
+        if !ClientToScreen(hwnd, &mut p).as_bool() {
+            return None;
+        }
+        Some(client_in_window((wr.left, wr.top), (p.x, p.y), (cr.right - cr.left, cr.bottom - cr.top)))
+    }
+}
+
 /// Stili che il Dock deve avere, cioè niente cornice (barra del titolo, menu di
 /// sistema, pulsanti) e finestra che non si attiva, non ruba il focus e non sta in
 /// Alt+Tab. Tauri li riapplica dopo la creazione e a certe operazioni: si
@@ -368,7 +388,7 @@ fn cursor() -> Option<(i32, i32)> {
 /// Regione cliccabile e visibile della finestra, in coordinate della finestra:
 /// la capsula a riposo (cursore fuori) oppure tutta la finestra (cursore dentro),
 /// sempre ritagliata alla parte che sta dentro lo schermo.
-unsafe fn build_region(w: i32, h: i32, cap: Rect, _radius: i32, active: bool, vis_h: i32) -> HRGN {
+unsafe fn build_region(w: i32, h: i32, cap: Rect, _radius: i32, active: bool, vis_h: i32, client: Rect) -> HRGN {
     unsafe {
         let base = if active {
             CreateRectRgn(0, 0, w, h)
@@ -380,10 +400,16 @@ unsafe fn build_region(w: i32, h: i32, cap: Rect, _radius: i32, active: bool, vi
             CreateRectRgn(cap.x - p, cap.y - p, cap.x + cap.w + 1 + p, cap.y + cap.h + 1 + p)
         };
         let clip = CreateRectRgn(0, 0, w, vis_h.max(0));
+        let first = CreateRectRgn(0, 0, 0, 0);
+        CombineRgn(Some(first), Some(base), Some(clip), RGN_AND);
+        // Mai la parte non client (una cornice con la barra del titolo): solo l'area client.
+        let only_client = CreateRectRgn(client.x, client.y, client.x + client.w, client.y + client.h);
         let out = CreateRectRgn(0, 0, 0, 0);
-        CombineRgn(Some(out), Some(base), Some(clip), RGN_AND);
+        CombineRgn(Some(out), Some(first), Some(only_client), RGN_AND);
         let _ = DeleteObject(HGDIOBJ(base.0));
         let _ = DeleteObject(HGDIOBJ(clip.0));
+        let _ = DeleteObject(HGDIOBJ(first.0));
+        let _ = DeleteObject(HGDIOBJ(only_client.0));
         out
     }
 }
@@ -391,6 +417,10 @@ unsafe fn build_region(w: i32, h: i32, cap: Rect, _radius: i32, active: bool, vi
 /// Un passo di animazione e di aggiornamento della zona cliccabile.
 fn tick(label: &str) {
     let Some(mut st) = lock_if_exists(label) else { return };
+    // Gli stili si controllano sempre, anche prima che la finestra sia pronta o mentre non e' mostrata.
+    if st.hwnd != 0 {
+        unsafe { enforce_styles(hwnd_of(st.hwnd)) };
+    }
     let (Some(fit), Some(geo)) = (st.fit, st.geo) else { return };
     if !st.shown || st.hwnd == 0 {
         return;
@@ -487,10 +517,11 @@ fn tick(label: &str) {
     let region_active = active || grace;
     let vis_h = visible_height(y, shown.h, geo.monitor.y + geo.monitor.h);
     let radius = (fit.radius * geo.scale).round() as i32;
-    let key = [shown.w, shown.h, vis_h, region_active as i32, cap.x, cap.y, cap.w, cap.h, radius];
+    let client = unsafe { client_rect(hwnd_of(st.hwnd)) }.unwrap_or(Rect { x: 0, y: 0, w: shown.w, h: shown.h });
+    let key = [shown.w, shown.h, vis_h, region_active as i32, cap.x, cap.y, cap.w, cap.h, radius, client.x, client.y, client.w, client.h];
     if st.applied_region != Some(key) {
         unsafe {
-            let rgn = build_region(shown.w, shown.h, cap, radius, region_active, vis_h);
+            let rgn = build_region(shown.w, shown.h, cap, radius, region_active, vis_h, client);
             // Dopo la chiamata la regione appartiene al sistema.
             SetWindowRgn(hwnd_of(st.hwnd), Some(rgn), true);
         }
@@ -646,6 +677,16 @@ pub fn start(app: &AppHandle) {
 #[cfg(test)]
 mod multi_tests {
     use super::*;
+
+    #[test]
+    fn the_client_area_is_found_inside_the_window() {
+        // Senza cornice: l'area client e' tutta la finestra.
+        assert_eq!(client_in_window((100, 200), (100, 200), (800, 160)), Rect { x: 0, y: 0, w: 800, h: 160 });
+        // Con una barra del titolo di 31 px: l'area client comincia piu' in basso e la regione non include la barra.
+        assert_eq!(client_in_window((100, 200), (100, 231), (800, 129)), Rect { x: 0, y: 31, w: 800, h: 129 });
+        // Valori strani: mai negativi.
+        assert_eq!(client_in_window((100, 200), (90, 190), (-5, -5)), Rect { x: 0, y: 0, w: 0, h: 0 });
+    }
 
     #[test]
     fn dock_labels_follow_the_monitors() {

@@ -45,7 +45,12 @@ $backup = if (Test-Path $mc) { [System.IO.File]::ReadAllBytes($mc) } else { $nul
 $root = Join-Path $env:TEMP ("eosos-stacks-" + [guid]::NewGuid().ToString('N').Substring(0, 8))
 $dirA = Join-Path $root 'ProvaPila'; $dirEmpty = Join-Path $root 'Vuota'
 New-Item -ItemType Directory -Force $dirA, $dirEmpty | Out-Null
+# Le impostazioni del Dock dell'utente (nascondi automaticamente, dimensione, pile...) falserebbero le misure: la prova parte da quelle di base e il suo file si ripristina.
+$isoDir = Join-Path $env:LOCALAPPDATA 'EosOS'
+$isoBackup = @{}
+foreach ($isoF in 'dock.json', 'mission.json') { $isoP = Join-Path $isoDir $isoF; $isoBackup[$isoF] = if (Test-Path $isoP) { [System.IO.File]::ReadAllBytes($isoP) } else { $null } }
 try {
+  foreach ($isoF in 'dock.json', 'mission.json') { Remove-Item (Join-Path $isoDir $isoF) -ErrorAction SilentlyContinue }
   # File miei, con date diverse (il piu recente per primo: nuovo, medio, vecchio).
   $now = Get-Date
   Set-Content (Join-Path $dirA 'vecchio.txt') 'v'; (Get-Item (Join-Path $dirA 'vecchio.txt')).LastWriteTime = $now.AddDays(-9)
@@ -130,6 +135,7 @@ try {
   Check 'e niente separatore delle pile' ((Js 'dock' "document.querySelectorAll('.dock:not(.dock-ghost) .dock-separator-stacks').length") -eq 0)
 }
 finally {
+  foreach ($isoF in 'dock.json', 'mission.json') { $isoP = Join-Path $isoDir $isoF; Remove-Item $isoP -ErrorAction SilentlyContinue; if ($null -ne $isoBackup[$isoF]) { [System.IO.File]::WriteAllBytes($isoP, $isoBackup[$isoF]) } }
   [void](Js 'launcher' "window.__TAURI_INTERNALS__.invoke('panel_hide')")
   Cleanup-Eos
   Remove-Item env:EOSOS_TEST_NO_OPEN -ErrorAction SilentlyContinue

@@ -61,7 +61,12 @@ function Wait-Dock {
   while (((Get-Date) - $t0).TotalSeconds -lt 20) { $h = [DR]::Find('EosOS Dock'); if ($h -ne [IntPtr]::Zero) { Write-Host ("Dock visibile dopo {0:N1} s dall'avvio + 9 s" -f ((Get-Date) - $t0).TotalSeconds); return $h }; Start-Sleep -Milliseconds 300 }
   [IntPtr]::Zero
 }
+# Le impostazioni del Dock dell'utente (nascondi automaticamente...) falserebbero le misure: parte da quelle di base e il suo file si ripristina.
+$isoDir = Join-Path $env:LOCALAPPDATA 'EosOS'
+$isoBackup = @{}
+foreach ($isoF in 'dock.json', 'mission.json') { $isoP = Join-Path $isoDir $isoF; $isoBackup[$isoF] = if (Test-Path $isoP) { [System.IO.File]::ReadAllBytes($isoP) } else { $null } }
 try {
+  foreach ($isoF in 'dock.json', 'mission.json') { Remove-Item (Join-Path $isoDir $isoF) -ErrorAction SilentlyContinue }
   Cleanup; Start-Sleep 1
   $before = [DR]::Work(); Write-Host "area di lavoro a EosOS spento: $($before.T)..$($before.B)"
 
@@ -136,6 +141,7 @@ try {
   }
 }
 finally {
+  foreach ($isoF in 'dock.json', 'mission.json') { $isoP = Join-Path $isoDir $isoF; Remove-Item $isoP -ErrorAction SilentlyContinue; if ($null -ne $isoBackup[$isoF]) { [System.IO.File]::WriteAllBytes($isoP, $isoBackup[$isoF]) } }
   Cleanup
   Stop-NewNotepad
   Restore-Json
