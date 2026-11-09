@@ -1319,6 +1319,12 @@
     "ast_hash": "9ddb7e8aef770b5e2b59d30469d20234",
     "semantic_hash": ""
   },
+  "docs/RIFINITURE.md": {
+    "mtime": 1794188331.988588,
+    "seen": 1794188334.5530698,
+    "ast_hash": "27de5a08bca70ed40c621f73e5467f1d",
+    "semantic_hash": ""
+  },
   "package-lock.json": {
     "mtime": 1794023864.0802197,
     "seen": 1794024042.3013453,

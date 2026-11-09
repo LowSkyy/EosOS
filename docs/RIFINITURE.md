@@ -53,5 +53,6 @@ ottimizzata), per questo le barre si catturano al massimo ogni 0,5 s.
 `test-winsettings.ps1`, `shot-dock.ps1` (foto del Dock), `measure-open.ps1`, `measure-hover.ps1`. Prove esistenti adattate
 (conteggi delle impostazioni, misure dell'ingrandimento, il menu «Finestra» ora acceso dentro le prove che lo riguardano).
 
-**Non provato:** il Dock su due monitor con scale diverse (la prova automatica del Dock singolo a 100–175% passa; con due Dock non l'ho
-rifatta), l'effetto a occhio su sfondi molto chiari, il clic reale sulle voci nuove del menu del Dock.
+- **Due Dock a scale diverse provati** (`test-dock-multi-dpi.ps1`, scale vere cambiate e ripristinate a 100%/100%): primario 100→125% e secondario 100→150%, dal vivo e a freddo: ogni Dock dentro il proprio monitor, centrato in basso, con la scala del proprio monitor e la sua sfocatura.
+
+**Non provato:** l'effetto a occhio su sfondi molto chiari, il clic reale sulle voci nuove del menu del Dock.
