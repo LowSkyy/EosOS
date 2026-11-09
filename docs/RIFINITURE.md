@@ -97,3 +97,11 @@ Premere e rilasciare **il tasto Windows da solo** apre (o chiude) il Launcher al
   Da provare a mano: tocco di Win → Launcher; Win+E/Win+D/Win+Tab come prima; spegnendo l'impostazione il menu Start torna.
 - Resta ancora il menu Start con Ctrl+Esc (non toccato) e con la barra di Windows nascosta non cambia nulla.
 - Rete di sicurezza: se Win risulta premuto ma la tastiera dice di no (rilascio perso, es. dopo Win+L), lo stato lo dimentica al tasto successivo, così il tocco seguente funziona. Win + clic o rotellina del mouse: l'hook del processo `--keyhook` osserva anche i pulsanti e la rotellina (senza mai mangiarli) e annulla il tocco, quindi non si apre il Launcher. Se l'hook del mouse non si installasse, resterebbe solo quel limite (non provato con mouse vero).
+
+## Consumi a riposo con i due Dock (9 nov 2026, dopo le fasi nuove)
+Misura (build di produzione, 30 s a riposo, due monitor): CPU totale **4,4-4,6 s** ogni 30 s (la passata finale era 1,38 s con meno funzioni:
+il secondo Dock, il vetro della barra e le fasi nuove costano). Fatto: (1) l'elenco delle app del Dock si calcola **una volta** anche con due Dock
+(condiviso 700 ms, invalidato da cambi certi); (2) la cattura dello sfondo **rallenta ancora** quando lo sfondo e' fermo da 8 s (Dock 350 ms,
+barre 1,5 s; al primo cambiamento si torna subito al passo veloce). Risultato: **3,6-3,9 s** con due Dock, **2,1 s** con un solo Dock; processo
+principale 1,3-1,6 s (era 1,75-2,4). Le misure oscillano molto da una prova all'altra (il PC fa anche altro). Chi vuole il minimo spegne
+«Dock su tutti gli schermi».

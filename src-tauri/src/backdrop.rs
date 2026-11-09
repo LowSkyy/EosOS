@@ -37,10 +37,21 @@ const INTERVAL: Duration = Duration::from_millis(40);
 /// (a riposo la cattura era il lavoro più costoso di EosOS). Appena qualcosa cambia si torna a `INTERVAL`.
 const IDLE_INTERVAL: Duration = Duration::from_millis(120);
 const QUIET_AFTER: Duration = Duration::from_millis(1000);
+/// Passo a riposo profondo: se lo sfondo è fermo da `DEEP_QUIET_AFTER` si cattura ancora più di rado. Il primo cambiamento si nota con
+/// questo ritardo al massimo, poi si torna subito al passo veloce.
+const DEEP_IDLE_INTERVAL: Duration = Duration::from_millis(350);
+const DEEP_QUIET_AFTER: Duration = Duration::from_secs(8);
 
 /// Quanto aspettare prima del prossimo giro, dato da quanto tempo lo sfondo è fermo. Pura, testata.
 /// Ogni quanto si cattura lo sfondo delle barre dei menu.
 const BAR_INTERVAL: Duration = Duration::from_millis(500);
+/// Lo stesso, quando lo sfondo è fermo da `DEEP_QUIET_AFTER`.
+const BAR_DEEP_INTERVAL: Duration = Duration::from_millis(1500);
+
+/// Ogni quanto catturare le barre, dato da quanto tempo lo sfondo è fermo. Pura, testata.
+pub fn bar_interval(since_change: Duration) -> Duration {
+    if since_change >= DEEP_QUIET_AFTER { BAR_DEEP_INTERVAL } else { BAR_INTERVAL }
+}
 
 /// Il canale è quello di una barra dei menu? Pura, testata.
 fn is_bar(ch: Channel) -> bool {
@@ -48,7 +59,9 @@ fn is_bar(ch: Channel) -> bool {
 }
 
 pub fn next_interval(since_change: Duration) -> Duration {
-    if since_change >= QUIET_AFTER {
+    if since_change >= DEEP_QUIET_AFTER {
+        DEEP_IDLE_INTERVAL
+    } else if since_change >= QUIET_AFTER {
         IDLE_INTERVAL
     } else {
         INTERVAL
@@ -214,7 +227,7 @@ pub fn start() {
             std::thread::sleep(next_interval(changed_at.elapsed()));
             // Le barre cambiano poco (sfondo fermo, finestre che passano sotto di rado): si catturano al massimo ogni
             // `BAR_INTERVAL`, così non pesano a riposo e non rallentano il Dock e i pannelli.
-            let bars_due = bar_at.is_none_or(|t| t.elapsed() >= BAR_INTERVAL);
+            let bars_due = bar_at.is_none_or(|t| t.elapsed() >= bar_interval(changed_at.elapsed()));
             if bars_due {
                 bar_at = Some(std::time::Instant::now());
             }
@@ -276,6 +289,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_capture_slows_down_in_steps_while_the_background_is_still() {
+        let ms = |n| Duration::from_millis(n);
+        assert_eq!(next_interval(ms(0)), INTERVAL);
+        assert_eq!(next_interval(ms(999)), INTERVAL);
+        assert_eq!(next_interval(QUIET_AFTER), IDLE_INTERVAL);
+        assert_eq!(next_interval(DEEP_QUIET_AFTER - ms(1)), IDLE_INTERVAL);
+        assert_eq!(next_interval(DEEP_QUIET_AFTER), DEEP_IDLE_INTERVAL);
+        assert_eq!(next_interval(Duration::from_secs(3600)), DEEP_IDLE_INTERVAL);
+        assert!(INTERVAL < IDLE_INTERVAL && IDLE_INTERVAL < DEEP_IDLE_INTERVAL && DEEP_IDLE_INTERVAL < BAR_INTERVAL);
+    }
+
+    #[test]
+    fn the_bars_are_captured_less_often_when_everything_is_still() {
+        assert_eq!(bar_interval(Duration::from_secs(0)), BAR_INTERVAL);
+        assert_eq!(bar_interval(DEEP_QUIET_AFTER - Duration::from_millis(1)), BAR_INTERVAL);
+        assert_eq!(bar_interval(DEEP_QUIET_AFTER), BAR_DEEP_INTERVAL);
+        assert!(BAR_DEEP_INTERVAL > BAR_INTERVAL);
+    }
+
+    #[test]
     fn only_bar_channels_are_bars() {
         assert!(is_bar(Channel::Bar0) && is_bar(Channel::Bar3));
         assert!(!is_bar(Channel::Dock) && !is_bar(Channel::Launcher) && !is_bar(Channel::Panel));
@@ -308,7 +341,7 @@ mod tests {
         assert_eq!(next_interval(Duration::from_millis(0)), INTERVAL);
         assert_eq!(next_interval(Duration::from_millis(999)), INTERVAL);
         assert_eq!(next_interval(Duration::from_millis(1000)), IDLE_INTERVAL);
-        assert_eq!(next_interval(Duration::from_secs(60)), IDLE_INTERVAL);
+        assert_eq!(next_interval(Duration::from_secs(5)), IDLE_INTERVAL);
         assert!(IDLE_INTERVAL > INTERVAL);
     }
 
