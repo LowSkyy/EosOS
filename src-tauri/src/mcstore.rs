@@ -59,6 +59,12 @@ pub struct Settings {
     /// Dimensione del Dock: "small", "medium" (predefinita, anche se vuoto), "large" o "xl".
     #[serde(rename = "dockSize")]
     pub dock_size: String,
+    /// Barra dei menu: nasconde il menu col nome dell'app (di base si vede).
+    #[serde(rename = "menuHideName")]
+    pub menu_hide_name: bool,
+    /// Barra dei menu: mostra anche il menu «Finestra» (di base è nascosto).
+    #[serde(rename = "menuShowWindow")]
+    pub menu_show_window: bool,
 }
 
 fn store_path() -> Option<PathBuf> {
@@ -203,6 +209,18 @@ pub fn set_calendar_sunday(on: bool) -> Settings {
     update(|s| s.calendar_sunday = on)
 }
 
+/// Barra dei menu: mostrare il nome dell'app e il menu «Finestra».
+pub fn set_menu_view(show_name: Option<bool>, show_window: Option<bool>) -> Settings {
+    update(|s| {
+        if let Some(v) = show_name {
+            s.menu_hide_name = !v;
+        }
+        if let Some(v) = show_window {
+            s.menu_show_window = v;
+        }
+    })
+}
+
 /// Sceglie la dimensione del Dock e salva.
 pub fn set_dock_size(id: &str) -> Settings {
     update(|s| s.dock_size = id.to_string())
@@ -284,6 +302,7 @@ mod tests {
         assert!(!d.menu_off && d.menu_excluded.is_empty());
         assert!(!d.notif_read, "la lettura delle notifiche e' spenta di default");
         assert!(d.reminders.is_empty() && !d.weather_on && d.weather_city.is_none(), "il widget Oggi parte vuoto e senza rete");
+        assert!(!d.menu_hide_name && !d.menu_show_window, "di base: nome dell'app visibile, menu Finestra nascosto");
         assert!(d.dock_size.is_empty(), "dimensione del Dock non scelta: quella media");
         assert!(!d.update_auto, "nessuna richiesta di rete da sola di default");
         assert!(d.dock_stacks.is_none(), "di default nessuna scelta: c'e' solo Download");
@@ -305,7 +324,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into() }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), menu_hide_name: true, menu_show_window: true }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

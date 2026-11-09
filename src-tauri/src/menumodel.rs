@@ -223,6 +223,9 @@ pub fn never_read(app_name: &str) -> bool {
     matches!(
         app_name.trim().to_lowercase().as_str(),
         "google chrome" | "microsoft edge" | "brave" | "vivaldi" | "opera" | "opera gx" | "discord" | "firefox" | "mozilla firefox"
+            // App che disegnano il loro menu DENTRO la finestra (Electron e simili): ripeterlo nella barra non ha senso.
+            | "visual studio code" | "code" | "code - insiders" | "vscodium" | "cursor" | "windsurf" | "slack" | "microsoft teams" | "teams"
+            | "spotify" | "obsidian" | "notion" | "figma" | "postman" | "whatsapp" | "telegram" | "signal"
     )
 }
 
@@ -331,9 +334,42 @@ pub fn compose(app_name: &str, read: Option<Vec<TopMenu>>, w: WinState) -> Vec<T
     row
 }
 
+/// Toglie dalla riga ciò che l'utente non vuole vedere: il menu col nome dell'app (`show_name` falso) e il menu «Finestra»
+/// (`show_window` falso; vale sia per quello di EosOS sia per quello dell'app). Gli altri restano com'erano, con le loro
+/// indicazioni di lettura. Pura, testata.
+pub fn filter_view(menus: Vec<TopMenu>, show_name: bool, show_window: bool) -> Vec<TopMenu> {
+    menus.into_iter().filter(|m| (show_name || !m.bold) && (show_window || !is_window_menu(&m.title))).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn view_filter_hides_name_and_window_menus() {
+        let row = compose("Blocco note", Some(vec![TopMenu { title: "File".into(), items: vec![it("Nuovo")], bold: false, lazy: false, source: Some(0) }]), w());
+        let titles = |v: &[TopMenu]| v.iter().map(|m| m.title.clone()).collect::<Vec<_>>();
+        assert_eq!(titles(&row), ["Blocco note", "File", "Finestra"]);
+        assert_eq!(titles(&filter_view(row.clone(), true, true)), ["Blocco note", "File", "Finestra"]);
+        assert_eq!(titles(&filter_view(row.clone(), true, false)), ["Blocco note", "File"]);
+        assert_eq!(titles(&filter_view(row.clone(), false, false)), ["File"]);
+        assert_eq!(titles(&filter_view(row, false, true)), ["File", "Finestra"]);
+        // Il menu «Finestra» dell'app si toglie come quello di EosOS, anche in inglese.
+        let app = vec![
+            TopMenu { title: "Window".into(), items: vec![it("x")], bold: false, lazy: false, source: Some(3) },
+            TopMenu { title: "Help".into(), items: vec![it("y")], bold: false, lazy: false, source: Some(4) },
+        ];
+        assert_eq!(titles(&filter_view(app, false, false)), ["Help"]);
+        assert!(filter_view(name_only("X"), false, false).is_empty(), "solo il nome e lo si nasconde: barra senza menu");
+    }
+
+    #[test]
+    fn apps_with_their_own_in_window_menu_are_never_read() {
+        for n in ["Visual Studio Code", "Code", "Cursor", "Slack", "Spotify", "  visual studio code "] {
+            assert!(never_read(n), "{n}");
+        }
+        assert!(!never_read("Blocco note") && !never_read("Esplora file") && !never_read("Codice"));
+    }
 
     fn it(title: &str) -> Item {
         Item::leaf(title, Action::App(vec![0]))
@@ -483,7 +519,8 @@ mod tests {
     #[test]
     fn browsers_and_chats_are_never_queried() {
         assert!(never_read("Google Chrome") && never_read(" microsoft edge ") && never_read("Discord"));
-        assert!(!never_read("Visual Studio Code") && !never_read("Blocco note") && !never_read(""));
+        // Le app con il menu disegnato dentro la finestra (Visual Studio Code e simili) non si leggono: ripeterlo non ha senso.
+        assert!(never_read("Visual Studio Code") && !never_read("Blocco note") && !never_read(""));
     }
 
     #[test]

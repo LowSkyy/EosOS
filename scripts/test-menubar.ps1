@@ -53,7 +53,14 @@ $m = New-Object System.Windows.Forms.MenuStrip
 foreach ($n in 'File', 'Modifica', 'Aiuto') { $i = New-Object System.Windows.Forms.ToolStripMenuItem $n; [void]$i.DropDownItems.Add('Voce'); [void]$m.Items.Add($i) }
 $f.MainMenuStrip = $m; $f.Controls.Add($m); [void]$f.ShowDialog()
 '@ -Encoding UTF8
+$mcPath = Join-Path $env:LOCALAPPDATA 'EosOS\mission.json'
+$mcBackup = if (Test-Path $mcPath) { [System.IO.File]::ReadAllBytes($mcPath) } else { $null }
+
 try {
+  # Di base il menu Finestra e' nascosto: questa prova lo riguarda, quindi lo si accende nel file (salvato prima e ripristinato dopo).
+  $mcSeed = Join-Path $env:LOCALAPPDATA 'EosOS\mission.json'
+  New-Item -ItemType Directory -Force (Split-Path $mcSeed) | Out-Null
+  [System.IO.File]::WriteAllText($mcSeed, '{"menuShowWindow": true}', (New-Object System.Text.UTF8Encoding($false)))
   Cleanup-Eos; Start-Sleep 1
   Write-Host 'Preparazione: finestre di prova NUOVE'
   Start-Process powershell -ArgumentList '-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-File', $formA | Out-Null
@@ -106,6 +113,8 @@ try {
   Check 'con tutti i menu' ((Titles (Row)).Count -eq 6)
 }
 finally {
+  Remove-Item $mcPath -ErrorAction SilentlyContinue
+  if ($null -ne $mcBackup) { [System.IO.File]::WriteAllBytes($mcPath, $mcBackup) }
   Cleanup-Eos
   Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*eosos-menubar-*' -or $_.CommandLine -like '*EosOS-Barra-C*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
   Remove-Item $formA, $formB -ErrorAction SilentlyContinue

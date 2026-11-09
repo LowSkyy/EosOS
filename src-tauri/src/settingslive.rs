@@ -76,6 +76,8 @@ impl Backend for Live {
             "bar.volume" => b(ind().volume),
             "menu.enabled" => b(!mc().menu_off),
             "menu.excluded" => Some(Value::List(mc().menu_excluded)),
+            "menu.show_name" => b(!mc().menu_hide_name),
+            "menu.show_window" => b(mc().menu_show_window),
             "launcher.hotkey" => Some(Value::Text(launcher_hotkey_text())),
             "launcher.clipboard" => b(crate::launcherstore::settings().clipboard == Some(true)),
             "launcher.folders" => Some(Value::List(crate::launcherstore::settings().search_folders)),
@@ -198,6 +200,8 @@ impl Backend for Live {
             "bar.volume" => indicator(Toggle::Volume, crate::indicatorstore::load().volume, want_bool(value)?),
             "menu.enabled" => crate::menubar::set_menu_off(!want_bool(value)?),
             "menu.excluded" => crate::menubar::set_excluded(want_list(value)?),
+            "menu.show_name" => crate::menubar::set_view(Some(want_bool(value)?), None),
+            "menu.show_window" => crate::menubar::set_view(None, Some(want_bool(value)?)),
             "launcher.hotkey" => {
                 let h = crate::launcherwin::parse_hotkey(want_text(value)?).ok_or_else(|| SettingsError("Scorciatoia non valida.".into()))?;
                 // Cambia subito; si salva solo se la nuova combinazione è libera.

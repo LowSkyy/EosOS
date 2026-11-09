@@ -95,7 +95,7 @@ try {
   Write-Host 'E. altre sezioni e lista delle app escluse'
   Click-Nav 'Barra dei menu'; Start-Sleep -Milliseconds 400
   Check 'la sezione cambia' ((Heading) -eq 'Barra dei menu')
-  Check 'ci sono indicatori, menu globale e app escluse' (((Labels) -join '|') -eq 'Batteria|Percentuale della batteria|Rete|Volume|Menu globale|App escluse dal menu globale') ((Labels) -join '|')
+  Check 'ci sono indicatori, menu globale e app escluse' (((Labels) -join '|') -like 'Batteria|Percentuale della batteria|Rete|Volume|Menu globale|Mostra il nome dell*app|Mostra il menu Finestra|App escluse dal menu globale') ((Labels) -join '|')
   Type-In '.names-add input' 'AppDiProva'
   Win "document.querySelector('.names-add button').click()" | Out-Null
   Check 'aggiungendo un nome entra nell elenco vero' (Wait-Until { @(Val 'menu.excluded') -contains 'AppDiProva' } 4)

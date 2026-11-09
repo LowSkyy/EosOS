@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "src/components/Dock.tsx": {
-    "mtime": 1794183862.836141,
-    "seen": 1794184159.6894581,
-    "ast_hash": "0d1bcd08c11c48ff1af05c79fcb917f8",
+    "mtime": 1794184290.9702885,
+    "seen": 1794184309.591676,
+    "ast_hash": "5f7fa434ba5002a52e0493eb9b9e4582",
     "semantic_hash": ""
   },
   "src/lib/dock.test.ts": {
@@ -1251,6 +1251,12 @@
     "mtime": 1794183771.682315,
     "seen": 1794184159.6893458,
     "ast_hash": "30c0d89b794b0ab414352ec1daf6b8f6",
+    "semantic_hash": ""
+  },
+  "scripts/test-dock-remove.ps1": {
+    "mtime": 1794184239.9297154,
+    "seen": 1794184309.5915685,
+    "ast_hash": "3599ff1a39eefe9b5422a7360e1fbc9e",
     "semantic_hash": ""
   },
   "package-lock.json": {

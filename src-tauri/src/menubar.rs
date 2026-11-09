@@ -19,7 +19,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, WM_CLOSE,
 };
 
-use crate::menumodel::{never_read, quits_only_this_window, is_excluded, toggle_excluded, compose, item_at, name_only, normalize, raw_items, raw_to_top, Action, Cmd, TopMenu, WinState};
+use crate::menumodel::{filter_view, never_read, quits_only_this_window, is_excluded, toggle_excluded, compose, item_at, name_only, normalize, raw_items, raw_to_top, Action, Cmd, TopMenu, WinState};
 
 pub const EVENT_NAME: &str = "menubar-row";
 
@@ -43,6 +43,9 @@ struct Req {
 static APP: OnceLock<AppHandle> = OnceLock::new();
 static TX: OnceLock<Mutex<Sender<Req>>> = OnceLock::new();
 static MENU_OFF: AtomicBool = AtomicBool::new(false);
+/// Cosa mostrare nella riga: il nome dell'app e il menu «Finestra» (vedi `filter_view`).
+static SHOW_NAME: AtomicBool = AtomicBool::new(true);
+static SHOW_WINDOW: AtomicBool = AtomicBool::new(false);
 static EXCLUDED: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static CURRENT: AtomicUsize = AtomicUsize::new(0);
 static LAST: Mutex<Option<Row>> = Mutex::new(None);
@@ -57,11 +60,9 @@ pub fn cache_fresh(age: Duration, found: bool) -> bool {
 
 /// La riga per un'app: sul desktop solo il nome, altrimenti l'ibrido. Pura, testata.
 pub fn build_row(name: &str, read: Option<Vec<TopMenu>>, state: WinState, desktop: bool) -> Vec<TopMenu> {
-    if desktop {
-        name_only(name)
-    } else {
-        compose(name, read, state)
-    }
+    let row = if desktop { name_only(name) } else { compose(name, read, state) };
+    // Le scelte dell'utente (nome dell'app e menu Finestra) valgono per ogni riga pubblicata.
+    filter_view(row, SHOW_NAME.load(Ordering::Relaxed), SHOW_WINDOW.load(Ordering::Relaxed))
 }
 
 fn win_state(hwnd: usize) -> WinState {
@@ -88,6 +89,8 @@ pub fn current() -> Option<Row> {
 pub fn reload_settings() {
     let s = crate::mcstore::load();
     MENU_OFF.store(s.menu_off, Ordering::Relaxed);
+    SHOW_NAME.store(!s.menu_hide_name, Ordering::Relaxed);
+    SHOW_WINDOW.store(s.menu_show_window, Ordering::Relaxed);
     *EXCLUDED.lock().unwrap_or_else(|e| e.into_inner()) = s.menu_excluded;
 }
 
@@ -124,6 +127,13 @@ pub fn toggle_menu_off() {
 /// Accende (`off` falso) o spegne il menu globale, salva e ridisegna la barra.
 pub fn set_menu_off(off: bool) {
     crate::mcstore::set_menu_off(off);
+    reload_settings();
+    refresh_current();
+}
+
+/// Sceglie se mostrare il nome dell'app e il menu «Finestra», salva e ridisegna la barra.
+pub fn set_view(show_name: Option<bool>, show_window: Option<bool>) {
+    crate::mcstore::set_menu_view(show_name, show_window);
     reload_settings();
     refresh_current();
 }
@@ -417,8 +427,9 @@ mod tests {
             source: None,
         }];
         let r = build_row("Blocco note", Some(read), state(), false);
-        assert_eq!(r.iter().map(|m| m.title.as_str()).collect::<Vec<_>>(), vec!["Blocco note", "File", "Finestra"]);
+        // Di base il menu «Finestra» è nascosto (vedi `filter_view`): restano il nome dell'app e i menu letti.
+        assert_eq!(r.iter().map(|m| m.title.as_str()).collect::<Vec<_>>(), vec!["Blocco note", "File"]);
         let fallback = build_row("Chrome", None, state(), false);
-        assert_eq!(fallback.len(), 2);
+        assert_eq!(fallback.len(), 1, "senza lettura: solo il nome dell'app");
     }
 }

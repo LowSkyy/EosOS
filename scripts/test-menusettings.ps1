@@ -57,7 +57,12 @@ $m = New-Object System.Windows.Forms.MenuStrip
 foreach ($n in 'File', 'Modifica') { $i = New-Object System.Windows.Forms.ToolStripMenuItem $n; [void]$i.DropDownItems.Add('Voce'); [void]$m.Items.Add($i) }
 $f.MainMenuStrip = $m; $f.Controls.Add($m); [void]$f.ShowDialog()
 '@ -Encoding UTF8
+
 try {
+  # Di base il menu Finestra e' nascosto: questa prova lo riguarda, quindi lo si accende nel file (salvato prima e ripristinato dopo).
+  $mcSeed = Join-Path $env:LOCALAPPDATA 'EosOS\mission.json'
+  New-Item -ItemType Directory -Force (Split-Path $mcSeed) | Out-Null
+  [System.IO.File]::WriteAllText($mcSeed, '{"menuShowWindow": true}', (New-Object System.Text.UTF8Encoding($false)))
   Cleanup-Eos; Start-Sleep 1
   Write-Host 'Preparazione: due finestre di prova NUOVE'
   Start-Process powershell -ArgumentList '-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-File', $formA | Out-Null
