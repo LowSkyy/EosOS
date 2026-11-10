@@ -8,8 +8,19 @@ export type EosItem = {
   danger?: boolean;
 };
 
-/** Le voci, nell'ordine in cui si vedono. Gli id sono quelli che Rust conosce (`eosmenu_run`). Una sola: le impostazioni generali di EosOS (che includono quelle di Windows). */
-export const EOS_ITEMS: EosItem[] = [{ id: "settings", label: "Impostazioni…" }];
+/** Le voci, nell'ordine in cui si vedono. Gli id sono quelli che Rust conosce (`eosmenu_run`). */
+export const EOS_ITEMS: EosItem[] = [
+  { id: "about", label: "Informazioni su EosOS" },
+  { id: "settings", label: "Impostazioni di EosOS…", separatorBefore: true },
+  { id: "winsettings", label: "Impostazioni di Windows…" },
+  { id: "launchpad", label: "Launchpad", hint: "tutte le app" },
+  { id: "mission", label: "Mission Control" },
+  { id: "lock", label: "Blocca lo schermo", separatorBefore: true },
+  { id: "sleep", label: "Sospendi" },
+  { id: "restart", label: "Riavvia…", hint: "chiede conferma" },
+  { id: "shutdown", label: "Spegni…", hint: "chiede conferma", danger: true },
+  { id: "quit", label: "Esci da EosOS", separatorBefore: true },
+];
 
 /** Posizione successiva muovendosi di `delta` (+1 giù, -1 su), senza girare oltre le estremità. Da fuori (-1) si entra dal primo/ultimo. Pura. */
 export function nextIndex(current: number, count: number, delta: 1 | -1): number {

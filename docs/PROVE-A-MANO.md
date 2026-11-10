@@ -86,6 +86,6 @@ il punto da guardare è `mckeys::step` in `src-tauri/src/mckeys.rs` (logica pura
 - [ ] Impostazioni: i menu a tendina (dimensione del Dock, scorciatoie…) si leggono bene sia con il tema scuro sia con quello chiaro.
 - [ ] Dock: sei dimensioni; animazione all'apertura (rimbalzo / pulsazione / nessuna); ingrandimento al passaggio del mouse acceso/spento.
 - [ ] Launchpad: solo applicazioni (niente cmd, PowerShell, Python, manuali, strumenti); pagine con puntini, rotellina, frecce, PagSu/PagGiù; Esc cancella la ricerca e poi chiude.
-- [ ] Menu in alto a sinistra: una sola voce, «Impostazioni…».
+- [ ] Menu in alto a sinistra (il logo EosOS): le dieci voci (Informazioni su EosOS, Impostazioni di EosOS…, Impostazioni di Windows…, Launchpad, Mission Control, Blocca lo schermo, Sospendi, Riavvia…, Spegni…, Esci da EosOS). Riavvia e Spegni chiedono conferma: rispondi «No».
 - [ ] Barra in alto: compare l'icona «App in background» (una freccia su, a sinistra degli indicatori) con NVIDIA Broadcast, G HUB, AnyDesk…; un clic apre il pannello sotto l'icona e un clic su un'app la porta davanti. Nel Dock non c'è più. Si spegne in Impostazioni → Barra dei menu.
 - [ ] Impostazioni → Windows: le schede (informazioni, aspetto, alimentazione, app all'avvio, archiviazione, schermi) funzionano; cambia il tema chiaro/scuro (attenzione: cambia davvero Windows) e rimettilo.

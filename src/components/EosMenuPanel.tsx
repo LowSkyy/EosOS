@@ -45,7 +45,7 @@ const EosMenuPanel = forwardRef<HTMLDivElement, { opens: number }>(function EosM
   };
 
   return (
-    <div className="eosmenu" ref={ref} role="menu" aria-label="Menu EosOS" onKeyDown={onKey}>
+    <div className="eosmenu" ref={ref} role="menu" aria-label="Menu EosOS" data-phase={opens % 2 ? "a" : "b"} onKeyDown={onKey}>
       <div ref={list}>
         {EOS_ITEMS.map((it, i) => (
           <div key={it.id}>

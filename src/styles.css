@@ -962,8 +962,8 @@ body {
 /* L'apertura riparte a ogni clic alternando due animazioni uguali (data-phase cambia a ogni apertura del pannello). */
 @keyframes panel-in-a { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
 @keyframes panel-in-b { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
-.tray[data-phase="a"], .control[data-phase="a"], .stack[data-phase="a"] { animation: panel-in-a var(--dur-med) var(--ease-out) both; }
-.tray[data-phase="b"], .control[data-phase="b"], .stack[data-phase="b"] { animation: panel-in-b var(--dur-med) var(--ease-out) both; }
+.tray[data-phase="a"], .control[data-phase="a"], .stack[data-phase="a"], .eosmenu[data-phase="a"] { animation: panel-in-a var(--dur-med) var(--ease-out) both; }
+.tray[data-phase="b"], .control[data-phase="b"], .stack[data-phase="b"], .eosmenu[data-phase="b"] { animation: panel-in-b var(--dur-med) var(--ease-out) both; }
 
 /* ---- App in background: il vassoio come quello di Windows (solo icone da 16 px in celle da 32 px, sei per riga, nessun nome) ---- */
 .tray { box-sizing: border-box; padding: 8px; }
@@ -1024,7 +1024,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .launchpad { animation: none; }
   .launchpad-grid, .launchpad-app, .launchpad-dot, .tray-app, .stack-file, .stack-folder, .control-tile, .control-cap, .control-link { transition: none; }
-  .tray[data-phase], .control[data-phase], .stack[data-phase] { animation: none; }
+  .tray[data-phase], .control[data-phase], .stack[data-phase], .eosmenu[data-phase] { animation: none; }
 }
 
 /* Badge delle notifiche: pallina rossa con il numero, in alto a destra dell'icona. */
