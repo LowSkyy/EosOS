@@ -59,7 +59,7 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 - Prova manuale (`Ctrl+Alt+Shift+Esc`, chiusura, kill dal Task Manager, ripristino): tutto OK.
 
 **Non verificato / aperto**
-- Scale oltre il 125% e ritorno al 100% con EosOS aperto (rinviati su richiesta).
+- ~~Scale oltre il 125% e ritorno al 100% con EosOS aperto~~: verificati il 10 nov 2026 con `test-dock-scales.ps1` a 125%, 150% e 175% (dal vivo e avvio a freddo, ritorno al 100%), tutto OK.
 - Scollegamento reale di un monitor (solo hook di debug).
 - Prova in VM Hyper-V o con un secondo utente: sostituita dalla Windows Sandbox per la parte automatica.
 - Un'esecuzione isolata di `test-multimonitor -Hotplug` è risultata KO senza righe di errore; 5 esecuzioni consecutive successive sono tutte OK, quindi non riproducibile (probabile interferenza esterna).

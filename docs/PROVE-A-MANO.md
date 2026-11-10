@@ -81,7 +81,7 @@ il punto da guardare è `mckeys::step` in `src-tauri/src/mckeys.rs` (logica pura
 
 ## 11. Correzioni del 10 novembre (da provare a mano)
 - [ ] Alt+Tab: il pulsante per chiudere una finestra ha una X vera.
-- [ ] Clic su un'app del Dock: nessun rettangolo «EosOS Dock»; passando il mouse sull'icona compare il nome in un'etichetta sopra di lei.
+- [x] Clic su un'app del Dock: nessun rettangolo «EosOS Dock» (provato dall'utente il 10 nov 2026 dopo la correzione di `chromeguard.rs`, vedi `docs/NOVITA-10-NOV.md`). Resta da guardare: passando il mouse sull'icona compare il nome in un'etichetta sopra di lei.
 - [ ] Barra in alto: accanto al menu EosOS non c'è più il nome dell'app attiva (si riaccende da Impostazioni → Barra dei menu).
 - [ ] Impostazioni: i menu a tendina (dimensione del Dock, scorciatoie…) si leggono bene sia con il tema scuro sia con quello chiaro.
 - [ ] Dock: sei dimensioni; animazione all'apertura (rimbalzo / pulsazione / nessuna); ingrandimento al passaggio del mouse acceso/spento.
