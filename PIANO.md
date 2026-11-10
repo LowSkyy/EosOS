@@ -68,8 +68,8 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 ## Roadmap (FUORI SCOPE per ora)
 
 - Dock: FATTO (7 nov 2026), vedi `docs/DOCK.md`
-- Launcher stile Spotlight: specifica scritta (7 nov 2026), vedi `docs/LAUNCHER.md`; L1-L6 fatte (vedi `docs/LAUNCHER.md`); manca solo la prova del riavvio di Explorer con il Launcher attivo (`scripts\test-launcher.ps1 -WithExplorerRestart`)
-- Indicatori di sistema (batteria, rete, volume): I1-I4 fatte (7 nov 2026), vedi `docs/INDICATORI.md`; non provati: riavvio di Explorer, ripresa dalla sospensione, scrittura sull'audio vero
+- Launcher stile Spotlight: specifica scritta (7 nov 2026), vedi `docs/LAUNCHER.md`; L1-L6 fatte (vedi `docs/LAUNCHER.md`); la prova del riavvio di Explorer con il Launcher attivo e' fatta (10 nov 2026): `scripts/test-launcher.ps1 -WithExplorerRestart` TUTTO OK (scorciatoia, Launcher e sfondo sfocato sopravvivono) e `scripts/test-explorer-restart.ps1 -Dock` TUTTO OK (barra ri-registrata, taskbar ancora nascosta, Dock allo stesso posto)
+- Indicatori di sistema (batteria, rete, volume): I1-I4 fatte (7 nov 2026), vedi `docs/INDICATORI.md`; riavvio di Explorer: la barra con gli indicatori si ri-registra (`test-explorer-restart.ps1 -Dock` OK, 10 nov 2026); non provati: ripresa dalla sospensione, scrittura sull'audio vero
 - Mission Control: specifica scritta (7 nov 2026), vedi `docs/MISSION-CONTROL.md`; M1-M6 fatte (dati, panoramica, animazione/scorciatoia/angolo, scale e fascia dei desktop, Spaces completo con profili e degradazione, Win+Tab e Alt+Tab con l'hook in un processo separato); spostare/rinominare/rimuovere desktop collaudati dal vivo (8 nov 2026)
 - Menu globale per app: scelta: ibrido; G1-G6 fatte: il menu globale è completo (misura, modello, barra, tendina, invocazione, impostazioni e revisione), vedi `docs/MENU-GLOBALE.md`
 - Impostazioni di EosOS (finestra unica per tutte le preferenze): specifica scritta, decisioni prese (8 nov 2026), S1-S6 fatte: Impostazioni complete (elenco, finestra, sezioni, avvio automatico, punti d'ingresso, rifiniture), vedi `docs/IMPOSTAZIONI.md`
