@@ -8,11 +8,12 @@
 use std::time::Duration;
 
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMNCRP_ENABLED, DWMWA_NCRENDERING_POLICY};
 use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
 use windows::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetWindowLongPtrW, GetWindowThreadProcessId, SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, SWP_NOZORDER, STYLESTRUCT, WM_NCCALCSIZE, WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU,
+    SWP_NOSIZE, SWP_NOZORDER, STYLESTRUCT, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCPAINT, WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU,
 };
 
 /// Gli stili di una finestra con cornice.
@@ -60,8 +61,13 @@ unsafe extern "system" fn guard_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpara
             let ss = unsafe { &mut *(lparam.0 as *mut STYLESTRUCT) };
             ss.styleNew = style_allowed(ss.styleNew);
         }
-        // Area client = tutta la finestra, comunque.
-        WM_NCCALCSIZE if wparam.0 != 0 => return LRESULT(0),
+        // Area client = tutta la finestra, comunque (con wParam = 0 lParam e' un RECT che resta com'e': nessuna area non client).
+        WM_NCCALCSIZE => return LRESULT(0),
+        // Non c'e' niente da disegnare fuori dall'area client: Windows non deve mai disegnare (nemmeno una volta) una cornice, la barra del titolo
+        // «EosOS Dock» che compariva sopra il Dock ad ogni clic su un'app era un disegno del genere, rimasto nella finestra.
+        WM_NCPAINT => return LRESULT(0),
+        // L'attivazione/disattivazione non deve ridisegnare la cornice: lParam = -1 dice a Windows di non toccarla.
+        WM_NCACTIVATE => return unsafe { DefSubclassProc(hwnd, msg, wparam, LPARAM(-1)) },
         _ => {}
     }
     unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
@@ -71,6 +77,10 @@ unsafe extern "system" fn guard_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lpara
 pub fn protect_hwnd(h: HWND) {
     unsafe {
         let _ = SetWindowSubclass(h, Some(guard_proc), SUBCLASS_ID, 0);
+        // Il rendering non client di DWM acceso: con quello spento (come lo lasciava la creazione della finestra trasparente) Windows disegna
+        // la cornice in stile classico, azzurra, con il titolo.
+        let policy = DWMNCRP_ENABLED;
+        let _ = DwmSetWindowAttribute(h, DWMWA_NCRENDERING_POLICY, &policy as *const _ as *const _, size_of_val(&policy) as u32);
         // E toglie subito una cornice eventualmente gia' presente.
         let style = GetWindowLongPtrW(h, GWL_STYLE);
         if without_chrome(style).is_some() {
