@@ -1,4 +1,4 @@
-# Cornici: nessuna finestra di EosOS deve mai avere, nemmeno per un fotogramma, la barra del titolo di Windows (la barra azzurra «EosOS Dock» sopra il Dock).
+﻿# Cornici: nessuna finestra di EosOS deve mai avere, nemmeno per un fotogramma, la barra del titolo di Windows (la barra azzurra «EosOS Dock» sopra il Dock).
 # Si campionano gli stili di TUTTE le finestre VISIBILI del processo (una finestra nascosta con la cornice non si vede) ogni ~2 ms per qualche secondo mentre si aprono e si chiudono molte volte le Impostazioni, il
 # pannello sotto l'orologio e il Launcher; si conta quante volte compare WS_CAPTION / WS_SYSMENU. Deve essere zero. Non si clicca niente di vero.
 #
@@ -17,6 +17,10 @@ public static class CO {
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
  static volatile bool stop; static int samples; static int framed; static string first = ""; static Thread t;
  public static void Start(uint pid){ stop=false; samples=0; framed=0; first=""; t=new Thread(()=>{ while(!stop){ EnumWindows((h,x)=>{ uint p; GetWindowThreadProcessId(h,out p); if(p==pid){ long st=GetWindowLongPtr(h,-16); if((st & 0xCB0000)!=0 && (st & 0x10000000)!=0){ framed++; if(first==""){ var sb=new StringBuilder(100); GetWindowText(h,sb,100); first=sb.ToString()+" stile 0x"+st.ToString("X"); } } } return true; },IntPtr.Zero); samples++; Thread.Sleep(2); } }); t.IsBackground=true; t.Start(); }
+ [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr h, int a, out int v, int s);
+ [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+ // Le finestre VISIBILI e con un titolo (non la finestrella di servizio «Tao Thread Event Target», 16x16 px) che hanno il rendering non client di DWM spento (con quello spento Windows disegnava la barra azzurra «EosOS Dock»).
+ public static string NcSpento(uint pid){ var o=new StringBuilder(); EnumWindows((h,x)=>{ uint p; GetWindowThreadProcessId(h,out p); if(p==pid && IsWindowVisible(h)){ int v=1; DwmGetWindowAttribute(h,1,out v,4); if(v==0){ var sb=new StringBuilder(100); GetWindowText(h,sb,100); if(sb.Length>0) o.Append(sb.ToString()+"; "); } } return true; },IntPtr.Zero); return o.ToString(); }
  public static string Stop(){ stop=true; t.Join(); return samples+"|"+framed+"|"+first; }
 }
 '@
@@ -38,6 +42,8 @@ try {
   $a = ([CO]::Stop()) -split '\|'
   Write-Host ("  avvio: campioni " + $a[0] + ", con cornice " + $a[1] + " " + $a[2])
   Check 'dall avvio: nessuna finestra (barre in alto, Dock, pannelli...) ha avuto la cornice' ([int]$a[1] -eq 0) ("prima: " + $a[2])
+  $nc = [CO]::NcSpento($pid0)
+  Check 'tutte le finestre visibili di EosOS hanno il rendering non client DWM acceso (niente barra azzurra sopra il Dock)' ([string]::IsNullOrEmpty($nc)) ("spento su: " + $nc)
   [CO]::Start($pid0)
   Write-Host "campionamento degli stili avviato (processo $pid0): $Giri aperture e chiusure"
   for ($i = 0; $i -lt $Giri; $i++) {
