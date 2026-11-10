@@ -5,9 +5,9 @@ import { filterApps, layoutFor, moveInPages, nextOffsets, pageCount, pageOf, pag
 /** Quante app si chiedono a Rust per volta (le prime arrivano subito, le altre man mano). */
 const PAGE = 48;
 /** Misure di una tessera (px CSS): larghezza, altezza e spazio. */
-const TILE_W = 128;
-const TILE_H = 144;
-const GAP = 14;
+const TILE_W = 140;
+const TILE_H = 152;
+const GAP = 18;
 
 type Page = { total: number; items: GridApp[] };
 

@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { isLatest, stackAria, stackSummary, type StackReply } from "../lib/stacks";
+import { isLatest, shortName, stackAria, stackSummary, type StackReply } from "../lib/stacks";
 
 /**
  * Il pannello di una pila del Dock (dentro la finestra "panel", sopra l'icona): i file più recenti della cartella in
@@ -38,7 +38,7 @@ const StackPanel = forwardRef<HTMLDivElement, { index: number; opens: number }>(
   };
 
   return (
-    <div className="stack" ref={ref} role="group" aria-label={stackAria(reply)}>
+    <div className="stack" ref={ref} role="group" aria-label={stackAria(reply)} data-phase={opens % 2 ? "a" : "b"}>
       <div className="stack-head">
         <h2 className="stack-title">{reply?.title || "Pila"}</h2>
         {reply && reply.state !== "missing" && (
@@ -59,7 +59,7 @@ const StackPanel = forwardRef<HTMLDivElement, { index: number; opens: number }>(
             {reply.entries.map((e) => (
               <button key={e.id} type="button" className="stack-file" role="listitem" title={e.name} aria-label={`${e.is_dir ? "Cartella" : "Apri"} ${e.name}`} onClick={() => void open(e.id)}>
                 {e.icon ? <img className="stack-icon" src={e.icon} alt="" draggable={false} /> : <span className="stack-icon stack-icon-fallback">{e.is_dir ? "▤" : "▫"}</span>}
-                <span className="stack-name">{e.name}</span>
+                <span className={e.name.includes(" ") ? "stack-name" : "stack-name stack-name-one"}>{shortName(e.name)}</span>
               </button>
             ))}
           </div>

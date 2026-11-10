@@ -27,3 +27,22 @@ export function stackAria(r: StackReply | null): string {
 
 /** Una risposta più vecchia non deve sovrascrivere una più nuova. */
 export const isLatest = (mine: number, current: number): boolean => mine === current;
+
+/**
+ * Accorcia ogni «parola» troppo lunga di un nome di file (senza spazi non puo' andare a capo e verrebbe spezzata a meta') tenendo l'inizio e
+ * l'estensione: «CheraxLoader.exe» → «Chera….exe». Le parole tutte maiuscole sono piu' larghe e hanno 2 caratteri in meno. Le parole corte e
+ * gli spazi restano com'erano. Pura, testata.
+ */
+export function shortName(name: string, max = 10): string {
+  return name
+    .split(" ")
+    .map((w) => {
+      const limit = /^[^a-z]*$/.test(w) ? max - 2 : max;
+      if (w.length <= limit) return w;
+      const dot = w.lastIndexOf(".");
+      const ext = dot > 0 && w.length - dot <= 6 ? w.slice(dot) : "";
+      const base = ext ? w.slice(0, dot) : w;
+      return base.slice(0, Math.max(2, limit - ext.length - 1)) + "…" + ext;
+    })
+    .join(" ");
+}

@@ -100,7 +100,7 @@ const ControlPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cont
   const open = (id: string) => void invoke("eosmenu_run", { id }).then(() => invoke("panel_hide"));
 
   return (
-    <div className="control" ref={ref} role="group" aria-label="Centro di controllo" onKeyDown={onKey}>
+    <div className="control" ref={ref} role="group" aria-label="Centro di controllo" data-phase={opens % 2 ? "a" : "b"} onKeyDown={onKey}>
       <h2 className="panel-title">Centro di controllo</h2>
       <div ref={list} className="control-body">
         <div className="control-tiles">

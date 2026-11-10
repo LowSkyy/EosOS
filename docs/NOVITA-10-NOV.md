@@ -25,6 +25,15 @@ Le Impostazioni di Windows non sono un programma da rifare: Bluetooth e disposit
 - **La prova:** `scripts/test-cornici.ps1` controlla che ogni finestra visibile e con titolo abbia `NCRENDERING_ENABLED = 1` (esclusa la finestrella di servizio «Tao Thread Event Target», 16x16 px). Serve una build `test-hooks`.
 - **Per provare l'exe a mano:** `npx tauri build --no-bundle` (non `cargo build --release` da solo: carica `localhost:1420` e barra e Dock restano vuoti).
 
+## Box ridisegnati con un sistema comune (10 nov, sera)
+Su richiesta: «graficamente e esteticamente sono veramente una schifezza»; rifatti usando la skill `ui-ux-pro-max` (vetro, movimento 150-300 ms con ease-out, stati di focus e pressione sempre visibili, `prefers-reduced-motion`).
+- **Sistema comune** (`styles.css`, variabili `--surface*`, `--radius-card`, `--ease-out`, `--dur-fast` 140 ms, `--dur-med` 220 ms): stesse superfici, stessi raggi (14 px le schede, 10 px i controlli), stessa apertura (dissolvenza con lieve zoom, che riparte a ogni apertura alternando `data-phase` a/b) e stessa pressione per vassoio, Centro di controllo, pile e Launchpad.
+- **App in background = vassoio come quello di Windows:** celle da 40 px con la sola icona da 24 px (sei per riga), il nome sotto il mouse o selezionato da tastiera in una riga fissa sotto la griglia (il pannello non cambia altezza), «N app in background» quando non c'e' niente di evidenziato.
+- **Pile (Download…):** icone da 48 px, margini stretti (celle da ~70 px), nomi accorciati da `shortName()` (inizio ed estensione: «CheraxLoader.exe» → «Chera….exe», le parole tutte maiuscole 2 caratteri in meno) e, se senza spazi, su una riga con i puntini; intestazione con «Apri cartella» a pillola, barra di scorrimento sottile, «+N altri» sotto un filetto.
+- **Launchpad:** tessere 140x152 con 18 px di spazio e icone da 88 px (circa 10 colonne, 4 righe su 1080p), ricerca da 420 px con anello di focus blu, nomi con ombra, puntini con area cliccabile da 24 px.
+- **Centro di controllo:** stati di pressione e passaggi allineati agli altri.
+- Prove: `test-stacks`, `test-launchpad`, `test-dock-novita`, `test-control`, `test-panel`, `test-notif-panel`, `test-launcher` TUTTO OK; vitest 203, tsc pulito.
+
 ## Prove
 - Rust 472 test, vitest 199, clippy a 0, tipi ok.
 - Da eseguire con il PC libero: `test-dock-novita.ps1` (etichette senza `title`, sei dimensioni, animazione, ingrandimento, icona e pannello delle app in background, accessi), `test-winsys.ps1` (le schede; scrive solo riscrivendo il valore già presente e su una voce di prova `EosOS-Prova-Winsys`), `test-launchpad.ps1` (aggiornato: niente prompt/PowerShell/Python/manuali, pagine e puntini), `test-eosmenu.ps1` (una sola voce), `test-menu-view.ps1`, `test-menubar.ps1`, `test-menudrop.ps1`, `test-menusettings.ps1`, `test-menuinvoke.ps1`, `test-menu-dpi.ps1`, `test-settings.ps1` (42 impostazioni), `test-settingswin.ps1`.

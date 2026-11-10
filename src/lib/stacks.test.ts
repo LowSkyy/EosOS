@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isLatest, sameStacks, stackAria, stackSummary, type StackReply } from "./stacks";
+import { isLatest, sameStacks, shortName, stackAria, stackSummary, type StackReply } from "./stacks";
 
 const reply = (over: Partial<StackReply> = {}): StackReply => ({ title: "Download", state: "ok", entries: [], total: 0, ...over });
 const entry = (i: number) => ({ id: `stk:${i}`, name: `f${i}`, is_dir: false, icon: null });
@@ -28,5 +28,26 @@ describe("stack helpers", () => {
   it("only the newest answer counts", () => {
     expect(isLatest(3, 3)).toBe(true);
     expect(isLatest(2, 3)).toBe(false);
+  });
+});
+
+describe("shortName", () => {
+  it("leaves short names and spaces alone", () => {
+    expect(shortName("a.txt")).toBe("a.txt");
+    expect(shortName("my file name.pdf")).toBe("my file name.pdf");
+    expect(shortName("")).toBe("");
+  });
+  it("keeps the start and the extension of a long unbreakable word", () => {
+    expect(shortName("CheraxLoader.exe")).toBe("Chera….exe");
+    expect(shortName("EqualizerAPO-x64-1.4.2.exe")).toBe("Equal….exe");
+    expect(shortName("SOUNDPACKBYSOMEONE")).toBe("SOUNDPA…");
+    expect(shortName("somewhatlong")).toBe("somewhatl…");
+  });
+  it("shortens only the long words of a name with spaces", () => {
+    expect(shortName("Documento VeryLongFileNameHere.docx", 11)).toBe("Documento VeryL….docx");
+  });
+  it("never keeps fewer than two characters of the start", () => {
+    expect(shortName("a.verylongextension", 4).startsWith("a.")).toBe(true);
+    expect(shortName("abcdefghijk", 2)).toBe("ab…");
   });
 });
