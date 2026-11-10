@@ -965,19 +965,16 @@ body {
 .tray[data-phase="a"], .control[data-phase="a"], .stack[data-phase="a"] { animation: panel-in-a var(--dur-med) var(--ease-out) both; }
 .tray[data-phase="b"], .control[data-phase="b"], .stack[data-phase="b"] { animation: panel-in-b var(--dur-med) var(--ease-out) both; }
 
-/* ---- App in background: il vassoio compatto come quello di Windows (solo icone; il nome nella riga sotto) ---- */
-.tray { box-sizing: border-box; padding: 12px; }
-.tray .panel-title { margin-bottom: 10px; padding: 0 2px; font-size: 14px; }
-.tray-grid { display: grid; grid-template-columns: repeat(6, 40px); gap: 6px; justify-content: space-between; }
-.tray-app { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: var(--radius-ctl); background: none; cursor: default; transition: background var(--dur-fast) ease-out, transform var(--dur-fast) var(--ease-out); }
+/* ---- App in background: il vassoio come quello di Windows (solo icone da 16 px in celle da 32 px, sei per riga, nessun nome) ---- */
+.tray { box-sizing: border-box; padding: 8px; }
+.tray-grid { display: grid; grid-template-columns: repeat(6, 32px); justify-content: start; }
+.tray-app { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; background: none; cursor: default; transition: background var(--dur-fast) ease-out, transform var(--dur-fast) var(--ease-out); }
 .tray-app:hover { background: var(--surface-hover); }
-.tray-app:active { background: var(--surface-press); transform: scale(0.94); }
+.tray-app:active { background: var(--surface-press); transform: scale(0.92); }
 .tray-app:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; background: var(--surface-hover); }
-.tray-icon { width: 24px; height: 24px; object-fit: contain; border-radius: 22%; pointer-events: none; }
-.tray-icon-fallback { display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #5b6170, #2a2d36); color: #f5f5f7; font-size: 13px; font-weight: 600; }
-.tray-caption { margin-top: 10px; min-height: 18px; padding: 0 2px; overflow: hidden; color: var(--bar-fg-muted); font-size: 12px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; transition: color var(--dur-fast) ease-out; }
-.tray-caption[data-hot="true"] { color: var(--bar-fg); font-weight: 600; }
-.tray-empty { margin: 6px 2px 2px; color: var(--bar-fg-muted); font-size: 12px; }
+.tray-icon { width: 16px; height: 16px; object-fit: contain; border-radius: 22%; pointer-events: none; }
+.tray-icon-fallback { display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, #5b6170, #2a2d36); color: #f5f5f7; font-size: 9px; font-weight: 600; }
+.tray-empty { margin: 4px 6px; color: var(--bar-fg-muted); font-size: 12px; white-space: nowrap; }
 
 /* ---- Pila del Dock (Download, Documenti…) ---- */
 .stack { position: relative; padding: 14px 8px 10px; }

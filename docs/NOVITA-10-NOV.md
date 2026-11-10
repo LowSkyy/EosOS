@@ -28,11 +28,18 @@ Le Impostazioni di Windows non sono un programma da rifare: Bluetooth e disposit
 ## Box ridisegnati con un sistema comune (10 nov, sera)
 Su richiesta: «graficamente e esteticamente sono veramente una schifezza»; rifatti usando la skill `ui-ux-pro-max` (vetro, movimento 150-300 ms con ease-out, stati di focus e pressione sempre visibili, `prefers-reduced-motion`).
 - **Sistema comune** (`styles.css`, variabili `--surface*`, `--radius-card`, `--ease-out`, `--dur-fast` 140 ms, `--dur-med` 220 ms): stesse superfici, stessi raggi (14 px le schede, 10 px i controlli), stessa apertura (dissolvenza con lieve zoom, che riparte a ogni apertura alternando `data-phase` a/b) e stessa pressione per vassoio, Centro di controllo, pile e Launchpad.
-- **App in background = vassoio come quello di Windows:** celle da 40 px con la sola icona da 24 px (sei per riga), il nome sotto il mouse o selezionato da tastiera in una riga fissa sotto la griglia (il pannello non cambia altezza), «N app in background» quando non c'e' niente di evidenziato.
+- **App in background = vassoio come quello di Windows:** solo icone da 16 px in celle da 32 px (sei per riga), **senza titolo né nomi** (il nome resta come etichetta per i lettori di schermo); il pannello e' stretto quanto serve, 208 px (`panelwin::TRAY_WIDTH`, `width_for()`), mentre tutti gli altri restano a 300 px.
 - **Pile (Download…):** icone da 48 px, margini stretti (celle da ~70 px), nomi accorciati da `shortName()` (inizio ed estensione: «CheraxLoader.exe» → «Chera….exe», le parole tutte maiuscole 2 caratteri in meno) e, se senza spazi, su una riga con i puntini; intestazione con «Apri cartella» a pillola, barra di scorrimento sottile, «+N altri» sotto un filetto.
 - **Launchpad:** tessere 140x152 con 18 px di spazio e icone da 88 px (circa 10 colonne, 4 righe su 1080p), ricerca da 420 px con anello di focus blu, nomi con ombra, puntini con area cliccabile da 24 px.
 - **Centro di controllo:** stati di pressione e passaggi allineati agli altri.
 - Prove: `test-stacks`, `test-launchpad`, `test-dock-novita`, `test-control`, `test-panel`, `test-notif-panel`, `test-launcher` TUTTO OK; vitest 203, tsc pulito.
+
+## Pannelli della barra che «si bloccano» con clic frequenti (10 nov, sera)
+Segnalazione: cliccando spesso su un menu in alto a volte il pannello non si apre. **Non sono riuscito a riprodurlo** con clic veri a 30-700 ms su orologio e Centro di controllo, ne' con clic alternati sui menu di un'app di prova a menu «pigri» (identico sul codice vecchio e su quello nuovo). Ho pero' corretto tre competizioni reali trovate leggendo il codice:
+- **Letture sovrapposte dei menu pigri** (`menubar_menu`): una sola alla volta (`LAZY_READ`), saltata se il pannello e' gia' passato ad altro, riusata se un'altra lettura ha riempito il menu mentre si aspettava.
+- **Periodo «occupato» che si accorciava da solo** (`panelwin::busy_begin`/`busy_end`): ora un contatore di letture in corso; i 600 ms di grazia partono solo alla fine dell'ultima.
+- **Chiusura dal thread sbagliato** (controllo del primo piano 500 ms dopo l'apertura): decideva su un thread a parte e la chiusura vera finiva in coda dopo una riapertura gia' avvenuta (finestra nascosta ma stato «aperto» sul menu: il clic seguente sullo stesso titolo era letto come «chiudi»). Ora decisione e chiusura stanno sul thread principale e un controllo di un'apertura vecchia non tocca quella nuova (`SHOW_GEN`).
+Non e' dimostrato che fossero la causa di cio' che si e' visto. Prova di regressione: `scripts/test-stress-clic.ps1` (usa il mouse vero). Se ricapita: annotare su quale pulsante e con quale app in primo piano.
 
 ## Prove
 - Rust 472 test, vitest 199, clippy a 0, tipi ok.

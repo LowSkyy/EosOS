@@ -25,6 +25,8 @@ use crate::dockgeom::{capture_margin, capture_rect, Rect};
 pub const LABEL: &str = "panel";
 /// Larghezza del pannello, in px CSS.
 pub const WIDTH: f64 = 300.0;
+/// Larghezza del vassoio delle app in background (px CSS): sei icone da 32 px per riga piu' i margini, come il vassoio di Windows.
+pub const TRAY_WIDTH: f64 = 208.0;
 pub const MIN_HEIGHT: f64 = 60.0;
 pub const MAX_HEIGHT: f64 = 760.0;
 /// Altezza provvisoria all'apertura: la pagina comunica poi quella vera (`fit`).
@@ -41,18 +43,32 @@ const REOPEN_BLOCK: Duration = Duration::from_millis(400);
 /// Fino a quando (ms dall'avvio) la perdita del focus non chiude il pannello: mentre si legge un menu
 /// "pigro" l'app apre il suo menu e si prende il focus per un istante.
 static BUSY_UNTIL_MS: AtomicU64 = AtomicU64::new(0);
+/// Quante letture di menu «pigri» sono in corso adesso: finche' ce n'e' una la perdita del focus non chiude il pannello, e il periodo di
+/// grazia dopo l'ultima parte solo quando finisce l'ultima (con clic rapidi se ne sovrappongono: la prima a finire non deve accorciare le altre).
+static BUSY_READS: AtomicU64 = AtomicU64::new(0);
+/// Generazione dell'ultima apertura/chiusura: il controllo del primo piano lanciato da un'apertura vecchia non deve chiudere un pannello nuovo.
+static SHOW_GEN: AtomicU64 = AtomicU64::new(0);
 
 fn now_ms() -> u64 {
     START.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(Instant::now).elapsed().as_millis() as u64
 }
 
-/// Per i prossimi `ms` millisecondi non si chiude il pannello se perde il focus.
-pub fn busy_for(ms: u64) {
-    BUSY_UNTIL_MS.store(now_ms() + ms, Ordering::Relaxed);
+fn is_busy() -> bool {
+    BUSY_READS.load(Ordering::Relaxed) > 0 || now_ms() < BUSY_UNTIL_MS.load(Ordering::Relaxed)
 }
 
-fn is_busy() -> bool {
-    now_ms() < BUSY_UNTIL_MS.load(Ordering::Relaxed)
+/// Comincia la lettura di un menu pigro: nessuna perdita di focus chiude il pannello finche' non e' finita (al massimo 6 secondi).
+pub fn busy_begin() {
+    BUSY_READS.fetch_add(1, Ordering::Relaxed);
+    BUSY_UNTIL_MS.store(now_ms() + 6000, Ordering::Relaxed);
+}
+
+/// Finita una lettura: quando finisce l'ultima, ancora 600 ms di grazia (l'app rende il focus con un attimo di ritardo).
+pub fn busy_end() {
+    let last = BUSY_READS.try_update(Ordering::Relaxed, Ordering::Relaxed, |n| Some(n.saturating_sub(1))).is_ok_and(|before| before <= 1);
+    if last {
+        BUSY_UNTIL_MS.store(now_ms() + 600, Ordering::Relaxed);
+    }
 }
 
 /// Riporta il focus sul pannello (dopo che un'app glielo ha tolto per un istante).
@@ -71,6 +87,8 @@ pub fn refocus(app: &AppHandle) {
 static VISIBLE: AtomicBool = AtomicBool::new(false);
 static SCALE_BITS: AtomicU64 = AtomicU64::new(0);
 static HWND_RAW: AtomicIsize = AtomicIsize::new(0);
+/// Larghezza (px CSS) del pannello mostrato ora, come bit di f64; 0 = quella di base.
+static WIDTH_BITS: AtomicU64 = AtomicU64::new(0);
 static EXCLUDED: AtomicBool = AtomicBool::new(false);
 static START: Mutex<Option<Instant>> = Mutex::new(None);
 
@@ -117,13 +135,30 @@ pub fn decide(open: Option<&str>, key: &str, lost: Option<(&str, Duration)>) -> 
     }
 }
 
-/// Posizione e dimensione fisiche del pannello: centrato sotto l'indicatore (`anchor`, px fisici),
+/// La larghezza (px CSS) del pannello per l'indicatore `key`: quella di base, o la piu' stretta del vassoio. Pura, testata.
+pub fn width_for(key: &str) -> f64 {
+    if key == "tray" { TRAY_WIDTH } else { WIDTH }
+}
+
+fn current_width() -> f64 {
+    let bits = WIDTH_BITS.load(Ordering::Relaxed);
+    if bits == 0 { WIDTH } else { f64::from_bits(bits) }
+}
+
+/// Posizione e dimensione fisiche del pannello di larghezza di base. Vedi `place_w`.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn place(anchor: Rect, monitor: Rect, scale: f64, height_css: f64) -> Rect {
+    place_w(anchor, monitor, scale, WIDTH, height_css)
+}
+
+/// Posizione e dimensione fisiche del pannello largo `width_css`: centrato sotto l'indicatore (`anchor`, px fisici),
 /// a `GAP` di distanza, e mai fuori dal monitor (`monitor`, px fisici) di almeno `EDGE`. Se non c'è
 /// spazio sotto l'indicatore sale sopra. Pura, testata.
-pub fn place(anchor: Rect, monitor: Rect, scale: f64, height_css: f64) -> Rect {
+pub fn place_w(anchor: Rect, monitor: Rect, scale: f64, width_css: f64, height_css: f64) -> Rect {
     let scale = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
+    let width_css = if width_css.is_finite() && width_css >= 60.0 { width_css } else { WIDTH };
     let edge = (EDGE * scale).round() as i32;
-    let w = ((WIDTH * scale).round() as i32).min((monitor.w - 2 * edge).max(1)).max(1);
+    let w = ((width_css * scale).round() as i32).min((monitor.w - 2 * edge).max(1)).max(1);
     let h = ((clamp_height(height_css) * scale).round() as i32).min((monitor.h - 2 * edge).max(1)).max(1);
     let center = anchor.x + anchor.w / 2;
     let x = (center - w / 2).clamp(monitor.x + edge, (monitor.x + monitor.w - edge - w).max(monitor.x + edge));
@@ -292,7 +327,9 @@ pub fn toggle(app: &AppHandle, key: &str, anchor: Rect) {
 fn show(app: &AppHandle, key: &str, anchor: Rect) {
     let Some(win) = win_of(app) else { return };
     let Some((monitor, scale)) = monitor_at(app, anchor.x + anchor.w / 2, anchor.y + anchor.h / 2) else { return };
-    let r = place(anchor, monitor, scale, START_HEIGHT);
+    let width = width_for(key);
+    WIDTH_BITS.store(width.to_bits(), Ordering::Relaxed);
+    let r = place_w(anchor, monitor, scale, width, START_HEIGHT);
     SCALE_BITS.store(scale.to_bits(), Ordering::Relaxed);
     let _ = win.set_position(PhysicalPosition::new(r.x, r.y));
     let _ = win.set_size(PhysicalSize::new(r.w as u32, r.h as u32));
@@ -303,6 +340,7 @@ fn show(app: &AppHandle, key: &str, anchor: Rect) {
         st.lost_focus = None;
         st.anchored = Some((anchor, monitor));
     }
+    let generation = SHOW_GEN.fetch_add(1, Ordering::SeqCst) + 1;
     VISIBLE.store(true, Ordering::Relaxed);
     update_affinity();
     crate::webmem::shown(&win);
@@ -313,23 +351,31 @@ fn show(app: &AppHandle, key: &str, anchor: Rect) {
     }
     let _ = win.set_focus();
     let _ = app.emit_to(LABEL, "panel-open", key);
-    // Se il primo piano non arriva, il pannello non serve a nulla (non si chiuderebbe mai).
+    // Se il primo piano non arriva, il pannello non serve a nulla (non si chiuderebbe mai). Il controllo aspetta su un thread a parte, ma la
+    // decisione e la chiusura si fanno sul thread principale, lo stesso che apre il pannello: chiuderlo da un altro thread aggiornava subito lo
+    // stato interno e lasciava la chiusura vera in coda, dietro una riapertura gia' avvenuta (finestra nascosta ma stato «aperto», e il clic
+    // successivo sullo stesso titolo veniva letto come «chiudi»).
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(FOCUS_CHECK);
-        if !is_visible() || is_busy() {
-            return;
-        }
-        if let Some(win) = win_of(&app)
-            && let Ok(hwnd) = win.hwnd()
-            && unsafe { GetForegroundWindow() } != hwnd
-        {
-            hide(&app);
-        }
+        let on_main = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            // Se nel frattempo il pannello e' stato chiuso o riaperto, questo controllo e' di un'apertura vecchia: non tocca quella nuova.
+            if SHOW_GEN.load(Ordering::SeqCst) != generation || !is_visible() || is_busy() {
+                return;
+            }
+            if let Some(win) = win_of(&on_main)
+                && let Ok(hwnd) = win.hwnd()
+                && unsafe { GetForegroundWindow() } != hwnd
+            {
+                hide(&on_main);
+            }
+        });
     });
 }
 
 pub fn hide(app: &AppHandle) {
+    SHOW_GEN.fetch_add(1, Ordering::SeqCst);
     VISIBLE.store(false, Ordering::Relaxed);
     {
         let mut st = lock();
@@ -351,12 +397,12 @@ pub fn fit(app: &AppHandle, height_css: f64) {
     // Con l'ancora nota si ricalcola anche la posizione: se il pannello sta sopra l'icona cresce verso l'alto.
     let anchored = lock().anchored;
     if let Some((anchor, monitor)) = anchored {
-        let r = place(anchor, monitor, scale, height_css);
+        let r = place_w(anchor, monitor, scale, current_width(), height_css);
         let _ = win.set_position(PhysicalPosition::new(r.x, r.y));
         let _ = win.set_size(PhysicalSize::new(r.w as u32, r.h as u32));
         return;
     }
-    let _ = win.set_size(PhysicalSize::new((WIDTH * scale).round() as u32, (clamp_height(height_css) * scale).round() as u32));
+    let _ = win.set_size(PhysicalSize::new((current_width() * scale).round() as u32, (clamp_height(height_css) * scale).round() as u32));
 }
 
 /// Eventi della finestra: perdita di focus → nasconde (e ricorda da chi, per `decide`); Alt+F4 →
@@ -510,5 +556,25 @@ mod tests {
         }
         assert!(anchor_to_physical((0, 0), 0.0, 0.0, 0.0, 10.0, 10.0).is_none());
         assert!(anchor_to_physical((0, 0), f64::NAN, 0.0, 0.0, 10.0, 10.0).is_none());
+    }
+
+    #[test]
+    fn the_tray_panel_is_narrower_and_stays_centered_and_inside_the_screen() {
+        assert_eq!(width_for("tray"), TRAY_WIDTH);
+        for k in ["battery", "network", "volume", "calendar", "eos", "control", "menu:0", "stack:1", "", "Tray"] {
+            assert_eq!(width_for(k), WIDTH, "{k}");
+        }
+        let a = Rect { x: 1000, y: 4, w: 26, h: 22 };
+        let r = place_w(a, MON, 1.0, TRAY_WIDTH, 80.0);
+        assert_eq!(r.w, TRAY_WIDTH as i32);
+        assert_eq!(r.x + r.w / 2, a.x + a.w / 2, "centrato sotto l'icona");
+        // Vicino al bordo destro non esce dallo schermo.
+        let edge = Rect { x: MON.w - 20, y: 4, w: 26, h: 22 };
+        let e = place_w(edge, MON, 1.0, TRAY_WIDTH, 80.0);
+        assert!(e.x + e.w <= MON.w - 8, "{e:?}");
+        // Una larghezza assurda torna a quella di base.
+        assert_eq!(place_w(a, MON, 1.0, f64::NAN, 80.0).w, 300);
+        assert_eq!(place_w(a, MON, 1.0, 5.0, 80.0).w, 300);
+        assert_eq!(place(a, MON, 1.0, 80.0).w, 300);
     }
 }

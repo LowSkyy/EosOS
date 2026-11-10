@@ -105,19 +105,30 @@ fn menubar_hover(window: tauri::Window, app: tauri::AppHandle, index: usize, lef
     }
 }
 
+/// Una sola lettura alla volta dei menu «pigri» dell'app in primo piano: leggerli significa aprirli davvero nell'app, e con clic rapidi piu' letture
+/// insieme si sovrapponevano (menu aperti e richiusi a caso nell'altra app, pannello che si chiudeva o non si apriva).
+static LAZY_READ: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Le voci del menu `index` della riga corrente (se è pigro lo apre un istante nell'app per leggerle).
 #[tauri::command(async)]
 fn menubar_menu(app: tauri::AppHandle, index: usize) -> Option<menumodel::TopMenu> {
-    let lazy = menubar::is_lazy(index);
-    if lazy {
-        // Leggendo le voci l'app apre il suo menu e si prende il focus: la tendina non deve chiudersi per questo.
-        panelwin::busy_for(6000);
+    if !menubar::is_lazy(index) {
+        return menubar::menu(index);
     }
+    let _one_at_a_time = LAZY_READ.lock().unwrap_or_else(|e| e.into_inner());
+    // Mentre si aspettava, un'altra lettura puo' aver gia' riempito questo menu.
+    if !menubar::is_lazy(index) {
+        return menubar::menu(index);
+    }
+    // Se il pannello e' gia' passato a un altro menu (o si e' chiuso) non si apre niente nell'app per un menu che nessuno guarda piu'.
+    if panelwin::open_menu() != Some(index) {
+        return None;
+    }
+    // Leggendo le voci l'app apre il suo menu e si prende il focus: la tendina non deve chiudersi per questo.
+    panelwin::busy_begin();
     let menu = menubar::menu(index);
-    if lazy {
-        panelwin::refocus(&app);
-        panelwin::busy_for(600);
-    }
+    panelwin::refocus(&app);
+    panelwin::busy_end();
     menu
 }
 
