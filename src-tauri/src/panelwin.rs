@@ -204,6 +204,7 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
         .visible(false)
         .inner_size(WIDTH, START_HEIGHT)
         .build()?;
+    crate::chromeguard::protect(&win);
     crate::webmem::hidden(&win);
     if let Ok(hwnd) = win.hwnd() {
         HWND_RAW.store(hwnd.0 as isize, Ordering::Relaxed);

@@ -38,6 +38,7 @@ fn ensure(app: &AppHandle) -> Option<tauri::WebviewWindow> {
         .visible(false)
         .build()
         .ok()?;
+    crate::chromeguard::protect(&win);
     crate::webmem::hidden(&win);
     Some(win)
 }

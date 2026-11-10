@@ -313,6 +313,7 @@ fn create(app: &AppHandle, label: &str, monitor: Option<&tauri::Monitor>) -> tau
         // Dimensione provvisoria: la finestra è nascosta finché il frontend non misura.
         .inner_size(1000.0 / scale, 260.0 / scale)
         .build()?;
+    crate::chromeguard::protect(&win);
     // Il Dock non deve mai rubare il focus né comparire in Alt+Tab.
     if let Ok(hwnd) = win.hwnd() {
         lock(label).hwnd = hwnd.0 as isize;

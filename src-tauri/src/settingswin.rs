@@ -56,6 +56,7 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
         .visible(false)
         .inner_size(WIDTH, HEIGHT)
         .build()?;
+    crate::chromeguard::protect(&win);
     crate::webmem::hidden(&win);
     Ok(())
 }

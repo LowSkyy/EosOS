@@ -367,6 +367,7 @@ fn create_window(app: &AppHandle, label: &str, info: &MonitorInfo) -> tauri::Res
         .position(info.x as f64, info.y as f64)
         .inner_size(info.width as f64 / info.scale, h as f64 / info.scale)
         .build()
+        .inspect(crate::chromeguard::protect)
 }
 
 /// Porta la barra `window` nello stato desiderato per il monitor `info`.

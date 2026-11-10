@@ -152,6 +152,7 @@ fn create_one(app: &AppHandle, i: usize) -> tauri::Result<()> {
         .visible(false)
         .inner_size(800.0, 600.0)
         .build()?;
+    crate::chromeguard::protect(&win);
     crate::webmem::hidden(&win);
     if let Ok(hwnd) = win.hwnd() {
         unsafe { crate::launcherwin::apply_styles(hwnd) };

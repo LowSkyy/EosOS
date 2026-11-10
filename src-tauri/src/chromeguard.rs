@@ -7,11 +7,12 @@
 
 use std::time::Duration;
 
-use windows::Win32::Foundation::{HWND, LPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
 use windows::Win32::System::Threading::GetCurrentProcessId;
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetWindowLongPtrW, GetWindowThreadProcessId, SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, SWP_NOZORDER, WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU,
+    SWP_NOSIZE, SWP_NOZORDER, STYLESTRUCT, WM_NCCALCSIZE, WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU,
 };
 
 /// Gli stili di una finestra con cornice.
@@ -39,6 +40,52 @@ unsafe extern "system" fn strip(h: HWND, _l: LPARAM) -> windows::core::BOOL {
     windows::core::BOOL(1)
 }
 
+/// Messaggio «lo stile della finestra sta per cambiare».
+const WM_STYLECHANGING: u32 = 0x007C;
+/// Identificatore della sottoclasse (uno a caso, fisso).
+const SUBCLASS_ID: usize = 0xE05C;
+
+/// Gli stili che si possono davvero scrivere dopo una richiesta di cambio: senza i bit della cornice. Pura, testata.
+pub fn style_allowed(requested: u32) -> u32 {
+    requested & !(CHROME as u32)
+}
+
+/// La procedura delle finestre protette: **impedisce che lo stile con la cornice venga mai impostato** (così non c'è nemmeno un fotogramma con la
+/// barra del titolo, cosa che il controllo ogni 250 ms non può garantire) e non lascia mai un'area non client.
+unsafe extern "system" fn guard_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM, _id: usize, _data: usize) -> LRESULT {
+    match msg {
+        // wParam = GWL_STYLE (-16): si tolgono i bit della cornice dal nuovo stile prima che Windows lo scriva.
+        WM_STYLECHANGING if wparam.0 as i32 == GWL_STYLE.0 && lparam.0 != 0 => {
+            // SAFETY: per WM_STYLECHANGING lParam punta a una STYLESTRUCT valida per la durata del messaggio.
+            let ss = unsafe { &mut *(lparam.0 as *mut STYLESTRUCT) };
+            ss.styleNew = style_allowed(ss.styleNew);
+        }
+        // Area client = tutta la finestra, comunque.
+        WM_NCCALCSIZE if wparam.0 != 0 => return LRESULT(0),
+        _ => {}
+    }
+    unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+}
+
+/// Protegge una finestra appena creata (da chiamare subito dopo `build()`, prima che si veda).
+pub fn protect_hwnd(h: HWND) {
+    unsafe {
+        let _ = SetWindowSubclass(h, Some(guard_proc), SUBCLASS_ID, 0);
+        // E toglie subito una cornice eventualmente gia' presente.
+        let style = GetWindowLongPtrW(h, GWL_STYLE);
+        if without_chrome(style).is_some() {
+            SetWindowLongPtrW(h, GWL_STYLE, style & !CHROME);
+        }
+    }
+}
+
+/// Come `protect_hwnd`, per una finestra di Tauri.
+pub fn protect(win: &tauri::WebviewWindow) {
+    if let Ok(h) = win.hwnd() {
+        protect_hwnd(h);
+    }
+}
+
 /// Un giro: toglie la cornice a ogni finestra di EosOS che ce l'ha. Pubblica per le prove.
 pub fn sweep() {
     unsafe {
@@ -57,6 +104,14 @@ pub fn start() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_requested_style_never_keeps_the_frame_bits() {
+        assert_eq!(style_allowed(0x14CB_0000), 0x1400_0000);
+        assert_eq!(style_allowed(0x1400_0000), 0x1400_0000);
+        assert_eq!(style_allowed(WS_CAPTION.0), 0);
+        assert_eq!(style_allowed(0x1400_0000 | WS_SYSMENU.0), 0x1400_0000);
+    }
 
     #[test]
     fn only_a_frame_is_removed_and_other_bits_stay() {
