@@ -1,5 +1,5 @@
 # Cornici: nessuna finestra di EosOS deve mai avere, nemmeno per un fotogramma, la barra del titolo di Windows (la barra azzurra «EosOS Dock» sopra il Dock).
-# Si campionano gli stili di TUTTE le finestre del processo ogni ~2 ms per qualche secondo mentre si aprono e si chiudono molte volte le Impostazioni, il
+# Si campionano gli stili di TUTTE le finestre VISIBILI del processo (una finestra nascosta con la cornice non si vede) ogni ~2 ms per qualche secondo mentre si aprono e si chiudono molte volte le Impostazioni, il
 # pannello sotto l'orologio e il Launcher; si conta quante volte compare WS_CAPTION / WS_SYSMENU. Deve essere zero. Non si clicca niente di vero.
 #
 # Uso: powershell -File scripts\test-cornici.ps1 [-Exe percorso\eosos.exe] [-Giri 25]   (serve una build con test-hooks)
@@ -16,7 +16,7 @@ public static class CO {
  [DllImport("user32.dll")] static extern long GetWindowLongPtr(IntPtr h, int i);
  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
  static volatile bool stop; static int samples; static int framed; static string first = ""; static Thread t;
- public static void Start(uint pid){ stop=false; samples=0; framed=0; first=""; t=new Thread(()=>{ while(!stop){ EnumWindows((h,x)=>{ uint p; GetWindowThreadProcessId(h,out p); if(p==pid){ long st=GetWindowLongPtr(h,-16); if((st & 0xCB0000)!=0){ framed++; if(first==""){ var sb=new StringBuilder(100); GetWindowText(h,sb,100); first=sb.ToString()+" stile 0x"+st.ToString("X"); } } } return true; },IntPtr.Zero); samples++; Thread.Sleep(2); } }); t.IsBackground=true; t.Start(); }
+ public static void Start(uint pid){ stop=false; samples=0; framed=0; first=""; t=new Thread(()=>{ while(!stop){ EnumWindows((h,x)=>{ uint p; GetWindowThreadProcessId(h,out p); if(p==pid){ long st=GetWindowLongPtr(h,-16); if((st & 0xCB0000)!=0 && (st & 0x10000000)!=0){ framed++; if(first==""){ var sb=new StringBuilder(100); GetWindowText(h,sb,100); first=sb.ToString()+" stile 0x"+st.ToString("X"); } } } return true; },IntPtr.Zero); samples++; Thread.Sleep(2); } }); t.IsBackground=true; t.Start(); }
  public static string Stop(){ stop=true; t.Join(); return samples+"|"+framed+"|"+first; }
 }
 '@
@@ -28,8 +28,16 @@ $mc = Join-Path $env:LOCALAPPDATA 'EosOS\mission.json'
 $bkMc = if (Test-Path $mc) { [System.IO.File]::ReadAllBytes($mc) } else { $null }
 try {
   Cleanup-Eos; Start-Sleep 1; Remove-Item $mc -ErrorAction SilentlyContinue
-  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'; Start-Process $exe | Out-Null; Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS; Start-Sleep 13
-  $pid0 = [uint32](Get-CimInstance Win32_Process -Filter "Name='eosos.exe'" | Where-Object { $_.CommandLine -notmatch '--keyhook|--watchdog' } | Select-Object -First 1).ProcessId
+  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
+  $proc = Start-Process $exe -PassThru
+  Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+  $pid0 = [uint32]$proc.Id
+  # Si campiona fin dall'avvio: le barre in alto e i Dock si creano li' e non devono avere la cornice nemmeno per un istante.
+  [CO]::Start($pid0)
+  Start-Sleep 14
+  $a = ([CO]::Stop()) -split '\|'
+  Write-Host ("  avvio: campioni " + $a[0] + ", con cornice " + $a[1] + " " + $a[2])
+  Check 'dall avvio: nessuna finestra (barre in alto, Dock, pannelli...) ha avuto la cornice' ([int]$a[1] -eq 0) ("prima: " + $a[2])
   [CO]::Start($pid0)
   Write-Host "campionamento degli stili avviato (processo $pid0): $Giri aperture e chiusure"
   for ($i = 0; $i -lt $Giri; $i++) {

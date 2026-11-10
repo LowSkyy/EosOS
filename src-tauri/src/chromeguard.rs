@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
-use windows::Win32::System::Threading::GetCurrentProcessId;
+use windows::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetWindowLongPtrW, GetWindowThreadProcessId, SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
     SWP_NOSIZE, SWP_NOZORDER, STYLESTRUCT, WM_NCCALCSIZE, WS_CAPTION, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_SYSMENU,
@@ -79,10 +79,26 @@ pub fn protect_hwnd(h: HWND) {
     }
 }
 
-/// Come `protect_hwnd`, per una finestra di Tauri.
+/// Come `protect_hwnd`, per una finestra di Tauri, **completata prima di tornare** (cosi' la finestra non puo' essere mostrata senza protezione).
+/// `SetWindowSubclass` funziona solo dal thread che possiede la finestra (il principale di Tauri): se si e' su un altro thread (le barre in alto
+/// si creano cosi') si passa dal thread principale e si aspetta, al massimo 2 secondi.
 pub fn protect(win: &tauri::WebviewWindow) {
-    if let Ok(h) = win.hwnd() {
+    let Ok(h) = win.hwnd() else { return };
+    let same_thread = unsafe { GetWindowThreadProcessId(h, None) == GetCurrentThreadId() };
+    if same_thread {
         protect_hwnd(h);
+        return;
+    }
+    let raw = h.0 as isize;
+    let (tx, rx) = std::sync::mpsc::channel::<()>();
+    if win
+        .run_on_main_thread(move || {
+            protect_hwnd(HWND(raw as *mut _));
+            let _ = tx.send(());
+        })
+        .is_ok()
+    {
+        let _ = rx.recv_timeout(Duration::from_secs(2));
     }
 }
 

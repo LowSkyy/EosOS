@@ -1311,6 +1311,10 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            // La finestra «main» (la barra del monitor principale) nasce dalla configurazione di Tauri: la si protegge dalla cornice come le altre.
+            if let Some(w) = app.get_webview_window("main") {
+                chromeguard::protect(&w);
+            }
             appbar::start(app.handle());
             dockwin::start(app.handle());
             dockkeys::start();
