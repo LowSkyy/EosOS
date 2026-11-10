@@ -5,8 +5,8 @@ import { invoke } from "@tauri-apps/api/core";
 const COUNT_POLL_MS = 5000;
 
 /**
- * Le app in background (area di notifica: NVIDIA Broadcast, G HUB, AnyDesk…) nella barra in alto: un'icona a forma di freccia su con tre
- * puntini, accanto agli indicatori. Compare solo se ce n'è almeno una (e se la voce è accesa nelle Impostazioni); un clic apre o chiude il
+ * Le app in background (area di notifica: NVIDIA Broadcast, G HUB, AnyDesk…) nella barra in alto: una freccia su (come le icone nascoste di Windows),
+ * accanto agli indicatori. Compare solo se ce n'è almeno una (e se la voce è accesa nelle Impostazioni); un clic apre o chiude il
  * pannello con l'elenco, sotto l'icona.
  */
 export default function TrayButton() {
@@ -38,10 +38,7 @@ export default function TrayButton() {
   return (
     <button ref={btn} type="button" className="tray-btn" aria-label={label} aria-haspopup="dialog" title={label} onClick={open}>
       <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-        <path d="M3.5 9.5 8 5l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="4.5" cy="12.6" r="1" fill="currentColor" />
-        <circle cx="8" cy="12.6" r="1" fill="currentColor" />
-        <circle cx="11.5" cy="12.6" r="1" fill="currentColor" />
+        <path d="M3.5 10 8 5.5 12.5 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </button>
   );
