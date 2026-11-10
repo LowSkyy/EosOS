@@ -115,27 +115,6 @@ function StackIcon({ stack }: { stack: StackItem }) {
   );
 }
 
-/** L'icona delle app in background (area di notifica): un clic apre il pannello con l'elenco, sopra l'icona. */
-function TrayIcon({ count }: { count: number }) {
-  const open = (e: React.MouseEvent<HTMLDivElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    void invoke("panel_toggle", { key: "tray", left: r.left, top: r.top, width: r.width, height: r.height });
-  };
-  return (
-    <div className="dock-item dock-tray" data-label="App in background" role="button" aria-label={`App in background (${count})`} aria-haspopup="dialog" onClick={open}>
-      <div className="dock-icon dock-tray-icon" aria-hidden>
-        <svg viewBox="0 0 24 24" width="62%" height="62%">
-          <path d="M5 14.5 12 7.5l7 7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-          <circle cx="7" cy="19" r="1.6" fill="currentColor" />
-          <circle cx="12" cy="19" r="1.6" fill="currentColor" />
-          <circle cx="17" cy="19" r="1.6" fill="currentColor" />
-        </svg>
-      </div>
-      <span className="dock-dot" />
-    </div>
-  );
-}
-
 /** L'icona del Launchpad (tutte le app) in testa al Dock, come in macOS. */
 function LaunchpadIcon() {
   return (
@@ -151,7 +130,7 @@ function LaunchpadIcon() {
 }
 
 /** Stesso aspetto della capsula a riposo, invisibile: se ne misura la dimensione. */
-function Ghost({ items, stacks, tray, ref }: { items: DockItem[]; stacks: StackItem[]; tray: boolean; ref: React.Ref<HTMLDivElement> }) {
+function Ghost({ items, stacks, ref }: { items: DockItem[]; stacks: StackItem[]; ref: React.Ref<HTMLDivElement> }) {
   const { pinned, others } = splitDock(items);
   const cell = (i: DockItem) => (
     <div className="dock-item" key={i.id}>
@@ -172,12 +151,6 @@ function Ghost({ items, stacks, tray, ref }: { items: DockItem[]; stacks: StackI
           <span className="dock-dot" />
         </div>
       ))}
-      {tray && (
-        <div className="dock-item">
-          <div className="dock-icon" />
-          <span className="dock-dot" />
-        </div>
-      )}
     </div>
   );
 }
@@ -192,7 +165,6 @@ export default function Dock() {
   // Badge delle notifiche per icona (id → testo). Rust risponde vuoto se la lettura delle notifiche è spenta.
   const [badges, setBadges] = useState<Record<string, string>>({});
   // Quante app girano in background (area di notifica): l'icona compare solo se almeno una.
-  const [trayCount, setTrayCount] = useState(0);
   const [stacks, setStacks] = useState<StackItem[]>([]);
   const [bouncing, setBouncing] = useState<Set<string>>(new Set());
   const zone = useRef<HTMLDivElement>(null);
@@ -348,21 +320,6 @@ export default function Dock() {
   useEffect(() => {
     const t = setInterval(() => icons.current.clear(), ICON_REFRESH_MS);
     return () => clearInterval(t);
-  }, []);
-
-  // App in background: si chiede quante sono ogni pochi secondi (Rust riusa l'ultima lettura).
-  useEffect(() => {
-    let gone = false;
-    const ask = () =>
-      invoke<number>("dock_tray_count")
-        .then((n) => !gone && setTrayCount((cur) => (cur === n ? cur : n)))
-        .catch(() => undefined);
-    void ask();
-    const t = setInterval(ask, 5000);
-    return () => {
-      gone = true;
-      clearInterval(t);
-    };
   }, []);
 
   // Badge delle notifiche: la pagina manda le sue icone e riceve solo i conteggi; si rilegge ogni pochi secondi.
@@ -635,9 +592,8 @@ export default function Dock() {
         {stacks.map((s) => (
           <StackIcon key={`stack${s.index}`} stack={s} />
         ))}
-        {trayCount > 0 && <TrayIcon count={trayCount} />}
       </div>
-      <Ghost items={items} stacks={stacks} tray={trayCount > 0} ref={ghost} />
+      <Ghost items={items} stacks={stacks} ref={ghost} />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import Clock from "./components/Clock";
 import EosButton from "./components/EosButton";
 import ControlButton from "./components/ControlButton";
 import Indicators from "./components/Indicators";
+import TrayButton from "./components/TrayButton";
 import { useBackdrop } from "./components/useBackdrop";
 
 /** Contorno (px CSS) di sfondo disegnato oltre la barra: la sfocatura ne ha bisogno ai bordi. */
@@ -78,6 +79,7 @@ export default function App() {
         <AppMenus />
       </div>
       <div className="menubar-right">
+        <TrayButton />
         <Indicators />
         <ControlButton />
         <Clock />

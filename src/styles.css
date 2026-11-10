@@ -943,6 +943,10 @@ body {
 .control-btn { flex: none; display: flex; align-items: center; justify-content: center; width: 26px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--bar-fg); cursor: default; }
 .control-btn:hover { background: rgba(255, 255, 255, 0.14); }
 .control-btn:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 1px; }
+/* Le app in background nella barra: stesso aspetto del pulsante del Centro di controllo. */
+.tray-btn { flex: none; display: flex; align-items: center; justify-content: center; width: 26px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: none; color: var(--bar-fg); cursor: default; }
+.tray-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.tray-btn:focus-visible { outline: 2px solid rgba(10, 132, 255, 0.9); outline-offset: 1px; }
 .control { padding: 10px; min-width: 280px; }
 .control-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
 .control-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border: 0; border-radius: 12px; background: rgba(128, 128, 128, 0.18); color: var(--bar-fg); font: inherit; text-align: left; cursor: default; }
@@ -1016,7 +1020,6 @@ body {
 :root[data-dock-anim="none"] .dock-item[data-bounce="true"] .dock-icon { animation: none; }
 
 /* App in background (area di notifica): l'icona nel Dock e il pannello. */
-.dock-tray-icon { display: flex; align-items: center; justify-content: center; border-radius: 22%; background: linear-gradient(160deg, #5b6170, #2a2d36); color: #f5f5f7; }
 .tray { padding: 10px; min-width: 260px; max-width: 420px; }
 .tray-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 6px; }
 .tray-app { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; border: 0; border-radius: 12px; background: none; color: var(--bar-fg); font: inherit; cursor: default; }

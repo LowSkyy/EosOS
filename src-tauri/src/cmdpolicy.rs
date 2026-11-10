@@ -11,7 +11,7 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         // Il pannello sotto l'orologio può solo accendere/spegnere la lettura delle notifiche e «Non disturbare».
         "settings_set" => label == "settings" || (label == "panel" && matches!(key, Some("notif.read" | "notif.dnd"))),
         // Dock: aprire app e cambiare le app fissate.
-        "dock_activate" | "dock_reorder" | "dock_stacks" | "dock_launchpad" | "dock_badges" | "dock_tray_count" => label == "dock" || label.starts_with("dock-"),
+        "dock_activate" | "dock_reorder" | "dock_stacks" | "dock_launchpad" | "dock_badges" => label == "dock" || label.starts_with("dock-"),
         // Contenuto delle pile: lo chiede solo il pannello.
         c if c.starts_with("stack_") => label == "panel",
         // Pannello degli indicatori: volume vero, apertura delle impostazioni di Windows, scelta di una voce di menu di
@@ -21,7 +21,8 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         "mc_activate" | "mc_close_window" | "mc_switch_desktop" | "mc_new_desktop" | "mc_move_window" | "mc_remove_desktop" | "mc_rename_desktop" => label.starts_with("mc-"),
         // Menu EosOS (il «menu mela» a sinistra della barra): lo gestisce il pannello.
         c if c.starts_with("eosmenu_") => label == "panel",
-        // App in background (area di notifica): l'elenco e l'apertura sono del pannello.
+        // App in background (area di notifica): quante sono lo chiede l'icona nella barra in alto; l'elenco e l'apertura sono del pannello.
+        "tray_count" => label == "main" || label.starts_with("bar-"),
         "tray_apps" | "tray_open" => label == "panel",
         // Cattura dello schermo: l'avvio dal pannello; il rettangolo scelto lo manda solo la finestra di selezione.
         "capture_run" => label == "panel",
@@ -120,16 +121,16 @@ mod tests {
     }
 
     #[test]
-    fn background_apps_are_counted_by_the_dock_and_opened_from_the_panel() {
-        assert!(allowed("dock", "dock_tray_count", None) && allowed("dock-1", "dock_tray_count", None));
+    fn background_apps_are_counted_by_the_bars_and_opened_from_the_panel() {
+        assert!(allowed("main", "tray_count", None) && allowed("bar-0", "tray_count", None) && allowed("bar-1", "tray_count", None));
         for c in ["tray_apps", "tray_open"] {
             assert!(allowed("panel", c, None), "{c}");
             for other in ["dock", "dock-1", "settings", "launcher", "bar-0", "main", "mc-0", "capture"] {
                 assert!(!allowed(other, c, None), "{other} {c}");
             }
         }
-        for other in ["panel", "settings", "launcher", "bar-0", "main", "mc-0", "capture"] {
-            assert!(!allowed(other, "dock_tray_count", None), "{other}");
+        for other in ["panel", "settings", "launcher", "dock", "dock-1", "mc-0", "capture"] {
+            assert!(!allowed(other, "tray_count", None), "{other}");
         }
     }
 

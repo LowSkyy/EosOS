@@ -87,5 +87,5 @@ il punto da guardare è `mckeys::step` in `src-tauri/src/mckeys.rs` (logica pura
 - [ ] Dock: sei dimensioni; animazione all'apertura (rimbalzo / pulsazione / nessuna); ingrandimento al passaggio del mouse acceso/spento.
 - [ ] Launchpad: solo applicazioni (niente cmd, PowerShell, Python, manuali, strumenti); pagine con puntini, rotellina, frecce, PagSu/PagGiù; Esc cancella la ricerca e poi chiude.
 - [ ] Menu in alto a sinistra: una sola voce, «Impostazioni…».
-- [ ] Dock: compare l'icona «App in background» con NVIDIA Broadcast, G HUB, AnyDesk…; un clic su una di esse la porta davanti.
+- [ ] Barra in alto: compare l'icona «App in background» (freccia su con tre puntini, a sinistra degli indicatori) con NVIDIA Broadcast, G HUB, AnyDesk…; un clic apre il pannello sotto l'icona e un clic su un'app la porta davanti. Nel Dock non c'è più. Si spegne in Impostazioni → Barra dei menu.
 - [ ] Impostazioni → Windows: le schede (informazioni, aspetto, alimentazione, app all'avvio, archiviazione, schermi) funzionano; cambia il tema chiaro/scuro (attenzione: cambia davvero Windows) e rimettilo.

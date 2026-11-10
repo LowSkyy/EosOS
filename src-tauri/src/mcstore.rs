@@ -59,7 +59,8 @@ pub struct Settings {
     /// Dimensione del Dock: "small", "medium" (predefinita, anche se vuoto), "large" o "xl".
     #[serde(rename = "dockSize")]
     pub dock_size: String,
-    /// Il Dock non mostra l'icona delle app in background (area di notifica); di base si vede quando ce n'è almeno una.
+    /// La barra in alto non mostra l'icona delle app in background (area di notifica); di base si vede quando ce n'è almeno una. Il nome del
+    /// campo resta «dockTrayOff» (da quando l'icona stava nel Dock) per non perdere la scelta già salvata.
     #[serde(rename = "dockTrayOff")]
     pub dock_tray_off: bool,
     /// Animazione di un'app che si apre: "bounce" (vuoto), "pulse" o "none".
@@ -348,7 +349,7 @@ pub fn set_dock_magnify(on: bool) -> Settings {
 }
 
 /// Accende o spegne l'icona delle app in background nel Dock e salva.
-pub fn set_dock_tray(on: bool) -> Settings {
+pub fn set_bar_tray(on: bool) -> Settings {
     update(|s| s.dock_tray_off = !on)
 }
 
@@ -386,7 +387,7 @@ mod tests {
         assert!(d.dock_keys.is_empty(), "scorciatoie del Dock: quelle di base");
         assert!(!d.dock_badges_off, "i badge del Dock sono accesi di base");
         assert!(d.dock_anim.is_empty() && !d.dock_magnify_off, "Dock: rimbalzo e ingrandimento di base");
-        assert!(!d.dock_tray_off, "app in background nel Dock: acceso di base");
+        assert!(!d.dock_tray_off, "app in background nella barra: acceso di base");
         assert!(d.capture_keys.is_empty(), "scorciatoie della cattura: spente di base");
         assert!(d.snap_keys.is_empty(), "scorciatoie delle finestre: spente di base");
         assert!(!d.dock_primary_only, "di base il Dock c'e' su ogni monitor");

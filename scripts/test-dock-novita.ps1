@@ -1,4 +1,4 @@
-# Novita del Dock (10 nov 2026): niente suggerimenti nativi sulle icone (etichetta propria al posto), sei dimensioni, animazione all'apertura di un'app
+﻿# Novita del Dock (10 nov 2026): niente suggerimenti nativi sulle icone (etichetta propria al posto), sei dimensioni, animazione all'apertura di un'app
 # (rimbalzo / pulsazione / nessuna), ingrandimento acceso o spento, e l'icona delle APP IN BACKGROUND (area di notifica) con il suo pannello. Non si
 # clicca su nessuna app vera: del pannello si guarda l'elenco e si prova un id inventato. mission.json e' salvato e ripristinato.
 #
@@ -89,30 +89,32 @@ try {
   Write-Host 'C2. ingrandimento: con il mouse fermo non cambia niente'
   Check 'le icone non hanno --s a riposo' ((Js 'dock' "Array.from(document.querySelectorAll('.dock:not(.dock-ghost) .dock-item')).every(function(c){return c.style.getPropertyValue('--s')===''})") -eq $true)
 
-  Write-Host 'D. app in background'
-  $cnt = [int](Js 'dock' "window.__TAURI_INTERNALS__.invoke('dock_tray_count')")
+  Write-Host 'D. app in background (nella barra in alto)'
+  $cnt = [int](Js 'bar' "window.__TAURI_INTERNALS__.invoke('tray_count')")
   Write-Host ("  (app in background trovate: " + $cnt + ")")
   if ($cnt -gt 0) {
-    Check 'l icona compare nel Dock' (Wait-Until { (Js 'dock' "document.querySelectorAll('.dock:not(.dock-ghost) .dock-tray').length") -eq 1 } 12)
-    Check 'ha un nome per i lettori di schermo' ((Js 'dock' "document.querySelector('.dock-tray').getAttribute('aria-label')") -like 'App in background*')
+    Check 'l icona compare nella barra in alto' (Wait-Until { (Js 'bar' "document.querySelectorAll('.menubar-right .tray-btn').length") -eq 1 } 12)
+    Check 'nel Dock non c e piu l icona' ((Js 'dock' "document.querySelectorAll('.dock-tray').length") -eq 0)
+    Check 'ha un nome per i lettori di schermo' ((Js 'bar' "document.querySelector('.tray-btn').getAttribute('aria-label')") -like 'App in background*')
     $list = @(Js 'panel' "window.__TAURI_INTERNALS__.invoke('tray_apps')" | ForEach-Object { $_ })
     Check 'l elenco del pannello ha almeno un app con nome e id' (($list.Count -ge 1) -and (-not [string]::IsNullOrEmpty($list[0].name)) -and (-not [string]::IsNullOrEmpty($list[0].id))) ("app: " + (($list | ForEach-Object { $_.name }) -join ', '))
-    Js 'dock' "document.querySelector('.dock-tray').click()" | Out-Null
+    Js 'bar' "document.querySelector('.tray-btn').click()" | Out-Null
     Check 'un clic apre il pannello' (Wait-Until { [DN]::Visible('EosOS Pannello') -and ((Js 'panel' "document.querySelectorAll('.tray-app').length") -ge 1) } 8)
     Check 'il pannello mostra le stesse app' ((Js 'panel' "document.querySelectorAll('.tray-app').length") -eq $list.Count) ("pannello " + (Js 'panel' "document.querySelectorAll('.tray-app').length") + " / elenco " + $list.Count)
     Check 'ogni app ha il nome' ((Js 'panel' "Array.from(document.querySelectorAll('.tray-app')).every(function(b){return (b.getAttribute('aria-label')||'').length>0})") -eq $true)
     Check 'un id inventato non apre niente' ((Js 'panel' "window.__TAURI_INTERNALS__.invoke('tray_open',{id:'c:\\\\non\\\\esiste.exe'})") -eq $false)
     [void](Js 'launcher' "window.__TAURI_INTERNALS__.invoke('panel_hide')"); Start-Sleep 1
-    [void](Set-S 'dock.tray' 'false')
-    Check 'spento dalle Impostazioni l icona sparisce' (Wait-Until { (Js 'dock' "document.querySelectorAll('.dock:not(.dock-ghost) .dock-tray').length") -eq 0 } 12)
-    [void](Set-S 'dock.tray' 'true')
+    [void](Set-S 'bar.tray' 'false')
+    Check 'spento dalle Impostazioni l icona sparisce' (Wait-Until { (Js 'bar' "document.querySelectorAll('.menubar-right .tray-btn').length") -eq 0 } 12)
+    [void](Set-S 'bar.tray' 'true')
   } else { Write-Host '  (nessuna app in background su questo PC adesso: salto le prove dell icona)' }
 
   Write-Host 'E. controllo accessi'
   Cleanup-Eos; Start-Sleep 1
   $env:EOSOS_TEST_STRICT = '1'
   $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'; Start-Process $exe | Out-Null; Remove-Item env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS; Start-Sleep 12
-  Check 'dalla barra dock_tray_count da 0' (([int](Js 'bar' "window.__TAURI_INTERNALS__.invoke('dock_tray_count').then(function(r){return r},function(e){return 0})")) -eq 0)
+  Check 'dal Dock tray_count da 0 (non e suo)' (([int](Js 'dock' "window.__TAURI_INTERNALS__.invoke('tray_count').then(function(r){return r},function(e){return 0})")) -eq 0)
+  if ($cnt -gt 0) { Check 'dalla barra tray_count da il numero vero' (([int](Js 'bar' "window.__TAURI_INTERNALS__.invoke('tray_count').then(function(r){return r},function(e){return 0})")) -ge 1) }
   Check 'dal Dock tray_apps non da niente' ((Js 'dock' "window.__TAURI_INTERNALS__.invoke('tray_apps').then(function(r){return r.length},function(e){return 0})") -eq 0)
   Check 'dal Dock tray_open non apre' ((Js 'dock' "window.__TAURI_INTERNALS__.invoke('tray_open',{id:'x'}).then(function(r){return r},function(e){return false})") -ne $true)
 }

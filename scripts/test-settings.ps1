@@ -1,4 +1,4 @@
-# Verifica S1 delle impostazioni: i comandi settings_all / settings_set / settings_search leggono e scrivono i
+﻿# Verifica S1 delle impostazioni: i comandi settings_all / settings_set / settings_search leggono e scrivono i
 # depositi veri (dock.json, indicators.json, launcher.json, mission.json), rifiutano chiavi e valori non ammessi,
 # e le modifiche hanno effetto dove ne possono avere. I QUATTRO file dell'utente vengono salvati prima e
 # RIPRISTINATI alla fine (compresa l'assenza del file). Nessuna finestra di altri toccata, nessun tasto.
@@ -38,7 +38,7 @@ try {
   Check 'le sezioni escono nell ordine Generale, Aspetto, Dock, Barra dei menu, Launcher, Mission Control, Notifiche e calendario, Impostazioni di Windows' ($order -eq 'general,appearance,dock,menu_bar,launcher,mission_control,notifications,windows') $order
 
   Write-Host 'B. interruttori: si cambiano, si rileggono, tornano come prima'
-  foreach ($k in 'dock.reserve', 'dock.blur', 'bar.battery', 'bar.percent', 'bar.network', 'bar.volume', 'menu.enabled', 'launcher.clipboard', 'mc.corner', 'mc.alttab', 'mc.wintab', 'launcher.winkey', 'dock.badges', 'dock.magnify', 'dock.tray') {
+  foreach ($k in 'dock.reserve', 'dock.blur', 'bar.battery', 'bar.percent', 'bar.network', 'bar.volume', 'menu.enabled', 'launcher.clipboard', 'mc.corner', 'mc.alttab', 'mc.wintab', 'launcher.winkey', 'dock.badges', 'dock.magnify', 'bar.tray') {
     $orig = Val $k
     $new = (-not $orig).ToString().ToLower()
     $r = Set-S $k $new

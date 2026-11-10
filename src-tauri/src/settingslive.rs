@@ -67,7 +67,7 @@ impl Backend for Live {
             "dock.reserve" => b(crate::dockwin::reserve_enabled()),
             "dock.all_screens" => b(!mc().dock_primary_only),
             "dock.badges" => b(!mc().dock_badges_off),
-            "dock.tray" => b(!mc().dock_tray_off),
+            "bar.tray" => b(!mc().dock_tray_off),
             "dock.anim" => Some(Value::Text(crate::dockstore::anim_id(&mc().dock_anim).to_string())),
             "dock.magnify" => b(!mc().dock_magnify_off),
             "dock.keys" => Some(Value::Text(match mc().dock_keys.as_str() { "" => "ctrl_alt".to_string(), s => s.to_string() })),
@@ -185,8 +185,8 @@ impl Backend for Live {
             "dock.badges" => {
                 crate::mcstore::set_dock_badges(want_bool(value)?);
             }
-            "dock.tray" => {
-                crate::mcstore::set_dock_tray(want_bool(value)?);
+            "bar.tray" => {
+                crate::mcstore::set_bar_tray(want_bool(value)?);
             }
             "dock.anim" => {
                 let id = want_text(value)?;
