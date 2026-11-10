@@ -7,6 +7,34 @@ import { useIndicators } from "./useIndicators";
 
 type SettingRow = { key: string; value: unknown };
 
+/** Le icone delle tessere (18 px, tratto): Wi-Fi, Bluetooth, Non disturbare (luna), Mantieni sveglio (sole). */
+const ICONS: Record<string, React.ReactNode> = {
+  wifi: (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.2 7.1a10.5 10.5 0 0 1 13.6 0" />
+      <path d="M4.9 10a6.6 6.6 0 0 1 8.2 0" />
+      <path d="M7.4 12.8a2.8 2.8 0 0 1 3.2 0" />
+      <circle cx="9" cy="15.2" r="0.6" fill="currentColor" />
+    </svg>
+  ),
+  bluetooth: (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4.6 5.4 13 12.6 9 16.2V1.8l4 3.6-8.4 7.2" />
+    </svg>
+  ),
+  dnd: (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.8 10.6A6.4 6.4 0 0 1 7.4 3.2a6.4 6.4 0 1 0 7.4 7.4z" />
+    </svg>
+  ),
+  awake: (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="9" r="3.1" />
+      <path d="M9 1.9v1.6M9 14.5v1.6M1.9 9h1.6M14.5 9h1.6M4 4l1.1 1.1M12.9 12.9 14 14M14 4l-1.1 1.1M5.1 12.9 4 14" />
+    </svg>
+  ),
+};
+
 /**
  * Il Centro di controllo (nella finestra "panel", dal pulsante a destra nella barra): Wi-Fi, Bluetooth, Non disturbare, Mantieni sveglio,
  * il volume e due scorciatoie alle impostazioni. Wi-Fi e Bluetooth compaiono solo se il PC li ha. La pagina manda a Rust solo id fissi e
@@ -74,18 +102,26 @@ const ControlPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cont
   return (
     <div className="control" ref={ref} role="group" aria-label="Centro di controllo" onKeyDown={onKey}>
       <h2 className="panel-title">Centro di controllo</h2>
-      <div ref={list}>
+      <div ref={list} className="control-body">
         <div className="control-tiles">
           {tiles(state, dnd).map((t) => (
             <button key={t.id} type="button" className="control-tile" data-id={t.id} data-on={t.on ? "true" : "false"} aria-pressed={t.on} title={tileTitle(t)} onClick={() => void flip(t)}>
-              <span className="control-tile-label">{t.label}</span>
-              <span className="control-tile-sub">{t.sub}</span>
+              <span className="control-tile-icon" aria-hidden>
+                {ICONS[t.id]}
+              </span>
+              <span className="control-tile-text">
+                <span className="control-tile-label">{t.label}</span>
+                <span className="control-tile-sub">{t.sub}</span>
+              </span>
             </button>
           ))}
         </div>
         {volume && (
           <div className="control-volume">
-            <span className="control-volume-label">Volume</span>
+            <div className="control-volume-head">
+              <span className="control-volume-label">Volume</span>
+              <span className="control-volume-value">{muted ? "Silenzioso" : `${shown}%`}</span>
+            </div>
             <input
               className="panel-slider"
               type="range"
@@ -105,21 +141,28 @@ const ControlPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cont
             />
           </div>
         )}
-        <div className="control-capture" role="group" aria-label="Cattura schermo">
-          <button type="button" className="control-cap" onClick={() => snap("screen")}>
-            Schermo intero
+        <div className="control-group" role="group" aria-label="Cattura schermo">
+          <span className="control-section" aria-hidden>
+            Cattura schermo
+          </span>
+          <div className="control-capture">
+            <button type="button" className="control-cap" onClick={() => snap("screen")}>
+              Schermo intero
+            </button>
+            <button type="button" className="control-cap" onClick={() => snap("region")}>
+              Selezione…
+            </button>
+          </div>
+        </div>
+        <div className="control-links">
+          <div className="eosmenu-sep" role="separator" />
+          <button type="button" className="control-link" onClick={() => open("settings")}>
+            Impostazioni di EosOS…
           </button>
-          <button type="button" className="control-cap" onClick={() => snap("region")}>
-            Selezione…
+          <button type="button" className="control-link" onClick={() => open("winsettings")}>
+            Impostazioni di Windows…
           </button>
         </div>
-        <div className="eosmenu-sep" role="separator" />
-        <button type="button" className="control-link" onClick={() => open("settings")}>
-          Impostazioni di EosOS…
-        </button>
-        <button type="button" className="control-link" onClick={() => open("winsettings")}>
-          Impostazioni di Windows…
-        </button>
       </div>
       {error && (
         <div className="control-error" role="alert">
