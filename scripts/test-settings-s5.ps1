@@ -82,6 +82,8 @@ try {
   $c = 0; Wait-Until { $script:c = [S5]::Find('EosOS-S5-C'); $script:c -ne 0 } 15 | Out-Null
   Check 'finestra di prova creata' ($c -ne 0)
   Start-Eos
+  # Dal 10 nov 2026 il nome dell'app e' nascosto di base (menu.show_name spento): senza il nome non c'e' la tendina con la voce delle impostazioni.
+  [void](Inv "window.__TAURI_INTERNALS__.invoke('settings_set',{key:'menu.show_name',value:true})")
 
   Write-Host 'A. menu del nome quando i menu dell app non si mostrano (menu globale spento)'
   [void](Inv "window.__TAURI_INTERNALS__.invoke('settings_set',{key:'menu.enabled',value:false})")
