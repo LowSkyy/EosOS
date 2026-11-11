@@ -757,19 +757,17 @@ fn nudge(target: HWND) -> bool {
     .unwrap_or(false)
 }
 
-/// Durante il trascinamento (o il ridimensionamento) con il mouse: a ogni immagine del desktop (`DwmFlush`) le finestrine vanno dove
+/// Durante il trascinamento (o il ridimensionamento) con il mouse: di continuo (senza aspettare il disegno del desktop) le finestrine vanno dove
 /// e' la finestra, cosi' i tasti di Windows non fanno in tempo a vedersi. Al massimo 60 secondi.
 fn follow_drag(target: HWND) {
-    use windows::Win32::Graphics::Dwm::DwmFlush;
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
     let start = Instant::now();
     while unsafe { GetAsyncKeyState(VK_LBUTTON.0 as i32) } as u16 & 0x8000 != 0 && start.elapsed() < Duration::from_secs(60) {
         if !nudge(target) {
             sync();
         }
-        unsafe {
-            let _ = DwmFlush();
-        }
+        // Niente attesa dell'immagine del desktop: aggiornando subito dopo la finestra si arriva prima del disegno, non dopo.
+        std::thread::yield_now();
     }
     poke();
 }
