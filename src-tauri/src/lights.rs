@@ -90,7 +90,7 @@ pub fn layout(kinds: &[Kind], scale: f32, right: bool, native_w: i32, h: i32) ->
     let group = n * 2.0 * r + (n - 1.0) * gap;
     let (w, start) = if right {
         let w = native_w.max((group + 2.0 * 4.0 * scale).ceil() as i32);
-        (w, (w as f32 - group) / 2.0)
+        (w, w as f32 - group - 14.0 * scale)
     } else {
         ((group + 2.0 * pad).ceil() as i32, pad)
     };
@@ -569,8 +569,12 @@ fn sync() {
             let top = info.ny.min(info.frame_top);
             let extra = info.ny - top;
             // Le parti: i cerchi e, se stanno a sinistra, una finestrina liscia che copre i tasti di Windows a destra.
-            let mut parts: Vec<Part> =
-                vec![(base, if right { info.nx } else { info.frame_left }, layout(&order, info.scale, right, info.native_w, info.h + extra), kinds, (right, radius))];
+            let mut main = layout(&order, info.scale, right, info.native_w, info.h + extra);
+            if right {
+                // Un po' piu' larga dei tasti di Windows verso il bordo: nessun clic vicino ai cerchi arriva al tasto vero sotto.
+                main.w += (6.0 * info.scale) as i32;
+            }
+            let mut parts: Vec<Part> = vec![(base, if right { info.nx } else { info.frame_left }, main, kinds, (right, radius))];
             if !right {
                 parts.push((base ^ COVER_BIT, info.nx, Layout { w: info.native_w, h: info.h + extra, r: 0.0, centers: Vec::new() }, Vec::new(), (true, radius)));
             }
