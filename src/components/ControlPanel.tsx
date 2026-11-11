@@ -37,7 +37,7 @@ const ICONS: Record<string, React.ReactNode> = {
 
 /**
  * Il Centro di controllo (nella finestra "panel", dal pulsante a destra nella barra): Wi-Fi, Bluetooth, Non disturbare, Mantieni sveglio,
- * il volume e due scorciatoie alle impostazioni. Wi-Fi e Bluetooth compaiono solo se il PC li ha. La pagina manda a Rust solo id fissi e
+ * il volume e la cattura dello schermo. Wi-Fi e Bluetooth compaiono solo se il PC li ha. La pagina manda a Rust solo id fissi e
  * veri/falsi: Rust decide se si può (Windows può rifiutare). Frecce per muoversi fra i controlli, Esc chiude.
  */
 const ControlPanel = forwardRef<HTMLDivElement, { opens: number }>(function ControlPanel({ opens }, ref) {
@@ -97,7 +97,6 @@ const ControlPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cont
   const muted = !!volume?.muted && vol === null;
   // Cattura dello schermo: Rust la fa partire dopo un attimo, così il pannello si chiude e non finisce nell'immagine.
   const snap = (kind: "screen" | "region") => void invoke("capture_run", { kind }).then(() => invoke("panel_hide"));
-  const open = (id: string) => void invoke("eosmenu_run", { id }).then(() => invoke("panel_hide"));
 
   return (
     <div className="control" ref={ref} role="group" aria-label="Centro di controllo" data-phase={opens % 2 ? "a" : "b"} onKeyDown={onKey}>
@@ -153,15 +152,6 @@ const ControlPanel = forwardRef<HTMLDivElement, { opens: number }>(function Cont
               Selezione…
             </button>
           </div>
-        </div>
-        <div className="control-links">
-          <div className="eosmenu-sep" role="separator" />
-          <button type="button" className="control-link" onClick={() => open("settings")}>
-            Impostazioni di EosOS…
-          </button>
-          <button type="button" className="control-link" onClick={() => open("winsettings")}>
-            Impostazioni di Windows…
-          </button>
         </div>
       </div>
       {error && (

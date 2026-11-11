@@ -933,14 +933,10 @@ body {
 .control-capture { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .control-cap { padding: 8px 10px; border: 0; border-radius: 12px; background: rgba(128, 128, 128, 0.16); color: var(--bar-fg); font: inherit; font-size: 12.5px; text-align: center; cursor: default; }
 .control-cap:hover, .control-cap:focus-visible { background: rgba(10, 132, 255, 0.85); color: #fff; outline: none; }
-.control-links { display: flex; flex-direction: column; gap: 2px; }
-.control-links .eosmenu-sep { margin: 0 2px 4px; }
-.control-link { display: block; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: none; color: var(--bar-fg); font: inherit; font-size: 12.5px; text-align: left; cursor: default; }
-.control-link:hover, .control-link:focus-visible { background: rgba(10, 132, 255, 0.85); color: #fff; outline: none; }
 .control-error { margin-top: 8px; padding: 6px 8px; border-radius: 6px; background: rgba(255, 59, 48, 0.2); color: #ff6961; font-size: 12px; }
 
 /* Centro di controllo: stessi passaggi e stessa pressione degli altri box. */
-.control-tile, .control-cap, .control-link { transition: background var(--dur-fast) ease-out, transform var(--dur-fast) var(--ease-out); }
+.control-tile, .control-cap { transition: background var(--dur-fast) ease-out, transform var(--dur-fast) var(--ease-out); }
 .control-tile:active { background: var(--surface-press); transform: scale(0.98); }
 .control-cap:active { transform: scale(0.97); }
 .control-tile-icon { transition: background var(--dur-fast) ease-out, color var(--dur-fast) ease-out; }
@@ -1023,7 +1019,7 @@ body {
 .launchpad-dot[data-active="true"] { background: #fff; background-clip: content-box; transform: scale(1.25); }
 @media (prefers-reduced-motion: reduce) {
   .launchpad { animation: none; }
-  .launchpad-grid, .launchpad-app, .launchpad-dot, .tray-app, .stack-file, .stack-folder, .control-tile, .control-cap, .control-link { transition: none; }
+  .launchpad-grid, .launchpad-app, .launchpad-dot, .tray-app, .stack-file, .stack-folder, .control-tile, .control-cap { transition: none; }
   .tray[data-phase], .control[data-phase], .stack[data-phase], .eosmenu[data-phase] { animation: none; }
 }
 

@@ -37,6 +37,6 @@ Il pannello era sbilanciato: titolo piccolo e addossato alle tessere, tessere la
 - **Titolo** a 14 px con 12 px di aria sotto; tutte le sezioni distano 12 px fra loro e hanno lo stesso raggio (12-14 px) e lo stesso fondo.
 - **Tessere** 2x2 uguali: icona rotonda in alto (Wi-Fi, Bluetooth, luna per Non disturbare, sole per Mantieni sveglio), sotto nome e stato su una riga. L'icona diventa blu quando l'interruttore e' acceso (non piu' tutta la tessera). Con 2 tessere (senza Wi-Fi/Bluetooth) restano due tessere uguali.
 - **Volume** in un blocco con etichetta e valore («100%», «Silenzioso» se muto) sopra il cursore a tutta larghezza.
-- **Cattura schermo** con il suo titolo di sezione e due pulsanti uguali; **link** alle impostazioni sotto un separatore.
+- **Cattura schermo** con il suo titolo di sezione e due pulsanti uguali. I link alle impostazioni di EosOS e di Windows sono stati tolti l'11 nov (stanno nel menu a sinistra, il logo EosOS).
 - Il **focus iniziale** resta sul primo controllo (tastiera), con un contorno blu sottile all'interno della tessera.
 - Prove: `test-control`, `test-panel`, `test-notif-panel`, `test-settings-s6` TUTTO OK. La larghezza (300 px) e' la stessa di tutti i pannelli.
