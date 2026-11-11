@@ -444,6 +444,32 @@ fn sample_bg(x: i32, y: i32) -> [u8; 3] {
     }
 }
 
+thread_local! {
+    static STRIP: std::cell::RefCell<HashMap<isize, (i32, Instant)>> = std::cell::RefCell::new(HashMap::new());
+}
+
+/// Altezza della barra in alto, letta dallo schermo: si scende finche' il colore resta lo stesso. Mai oltre `max`.
+/// Il risultato resta in memoria 2 secondi per finestra.
+fn strip_height(key: isize, x: i32, y: i32, max: i32, left: i32, right: i32) -> i32 {
+    let cached = STRIP.with(|c| c.borrow().get(&key).filter(|(_, t)| t.elapsed() < Duration::from_secs(2)).map(|(h, _)| *h));
+    if let Some(h) = cached {
+        return h;
+    }
+    let x = x.max(left + 1).min(right - 1);
+    let top = sample_bg(x, y + 2);
+    let mut h = 0;
+    for dy in 3..max {
+        let c = sample_bg(x, y + dy);
+        let d = (0..3).map(|i| (c[i] as i32 - top[i] as i32).abs()).max().unwrap_or(0);
+        if d > 10 {
+            break;
+        }
+        h = dy;
+    }
+    STRIP.with(|c| c.borrow_mut().insert(key, (h, Instant::now())));
+    h
+}
+
 /// Disegna e mostra la finestrina (posizione e contenuto).
 fn present(ov: &Ov) {
     unsafe {
@@ -569,11 +595,9 @@ fn sync() {
             let top = info.ny.min(info.frame_top);
             let extra = info.ny - top;
             // Le parti: i cerchi e, se stanno a sinistra, una finestrina liscia che copre i tasti di Windows a destra.
-            let mut main = layout(&order, info.scale, right, info.native_w, info.h + extra);
-            if right {
-                // Un po' piu' larga dei tasti di Windows verso il bordo: nessun clic vicino ai cerchi arriva al tasto vero sotto.
-                main.w += (6.0 * info.scale) as i32;
-            }
+            // Barra piu' alta dei tasti (Chrome: la fila delle schede): i cerchi stanno al centro della barra vera.
+            let strip = strip_height(base, info.nx - 3, info.ny, (info.h as f32 * 1.6) as i32, info.frame_left, info.frame_right);
+            let main = layout(&order, info.scale, right, info.native_w, (info.h + extra).max(strip + extra));
             let mut parts: Vec<Part> = vec![(base, if right { info.nx } else { info.frame_left }, main, kinds, (right, radius))];
             if !right {
                 parts.push((base ^ COVER_BIT, info.nx, Layout { w: info.native_w, h: info.h + extra, r: 0.0, centers: Vec::new() }, Vec::new(), (true, radius)));
