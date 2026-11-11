@@ -719,48 +719,74 @@ pub fn poke() {
     }
 }
 
+/// Sposta le finestrine di `target` di quanto si e' mossa la finestra. `false` se non c'e' nulla da spostare o e' cambiata la dimensione
+/// (serve la passata completa).
+fn nudge(target: HWND) -> bool {
+    let key = target.0 as isize;
+    ST.try_with(|cell| {
+        let Ok(mut st) = cell.try_borrow_mut() else { return false };
+        let mut any = false;
+        for (k, ov) in st.ovs.iter_mut() {
+            if (*k & !COVER_BIT) != key {
+                continue;
+            }
+            any = true;
+            let mut r = RECT::default();
+            unsafe {
+                if GetWindowRect(ov.target, &mut r).is_err() {
+                    return false;
+                }
+            }
+            let t = ov.trect;
+            if r.right - r.left != t.right - t.left || r.bottom - r.top != t.bottom - t.top {
+                return false;
+            }
+            let (dx, dy) = (r.left - t.left, r.top - t.top);
+            if dx == 0 && dy == 0 {
+                continue;
+            }
+            ov.x += dx;
+            ov.y += dy;
+            ov.trect = r;
+            unsafe {
+                let _ = SetWindowPos(ov.hwnd, None, ov.x, ov.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+            }
+        }
+        any
+    })
+    .unwrap_or(false)
+}
+
+/// Durante il trascinamento (o il ridimensionamento) con il mouse: a ogni immagine del desktop (`DwmFlush`) le finestrine vanno dove
+/// e' la finestra, cosi' i tasti di Windows non fanno in tempo a vedersi. Al massimo 60 secondi.
+fn follow_drag(target: HWND) {
+    use windows::Win32::Graphics::Dwm::DwmFlush;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+    let start = Instant::now();
+    while unsafe { GetAsyncKeyState(VK_LBUTTON.0 as i32) } as u16 & 0x8000 != 0 && start.elapsed() < Duration::from_secs(60) {
+        if !nudge(target) {
+            sync();
+        }
+        unsafe {
+            let _ = DwmFlush();
+        }
+    }
+    poke();
+}
+
 unsafe extern "system" fn on_event(_h: HWINEVENTHOOK, event: u32, _hwnd: HWND, id_object: i32, id_child: i32, _t: u32, _time: u32) {
     // Solo gli eventi delle finestre (non del cursore o dei figli): quello del cursore arriva a ogni movimento del mouse.
     if event == 0x800B && (id_object != 0 || id_child != 0) {
         return;
     }
-    // Spostamento puro di una finestra con i semafori: si spostano subito le sue finestrine, senza la passata completa (trascinando
-    // arrivano decine di eventi al secondo e la passata completa e' lenta: i cerchi resterebbero indietro).
-    if event == 0x800B {
-        let key = _hwnd.0 as isize;
-        let done = ST
-            .try_with(|cell| {
-                let Ok(mut st) = cell.try_borrow_mut() else { return false };
-                let mut any = false;
-                for (k, ov) in st.ovs.iter_mut() {
-                    if (*k & !COVER_BIT) != key {
-                        continue;
-                    }
-                    any = true;
-                    let mut r = RECT::default();
-                    unsafe {
-                        if GetWindowRect(ov.target, &mut r).is_err() {
-                            return false;
-                        }
-                    }
-                    let t = ov.trect;
-                    if r.right - r.left != t.right - t.left || r.bottom - r.top != t.bottom - t.top {
-                        return false; // ridimensionata: serve la passata completa
-                    }
-                    let (dx, dy) = (r.left - t.left, r.top - t.top);
-                    ov.x += dx;
-                    ov.y += dy;
-                    ov.trect = r;
-                    unsafe {
-                        let _ = SetWindowPos(ov.hwnd, None, ov.x, ov.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
-                    }
-                }
-                any
-            })
-            .unwrap_or(false);
-        if done {
-            return;
-        }
+    // Inizio del trascinamento: si segue la finestra a ogni immagine del desktop finche' il tasto del mouse e' premuto.
+    if event == 0x000A {
+        follow_drag(_hwnd);
+        return;
+    }
+    // Spostamento puro di una finestra con i semafori: si spostano subito le sue finestrine, senza la passata completa.
+    if event == 0x800B && nudge(_hwnd) {
+        return;
     }
     poke();
 }
@@ -865,7 +891,7 @@ pub fn start() {
         SetTimer(Some(host), 1, TICK_MS, None);
         SetTimer(Some(host), 2, FAST_MS, None);
         let flags = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
-        let hooks: Vec<HWINEVENTHOOK> = [(0x0003u32, 0x0003u32), (0x0016, 0x0017), (0x800B, 0x800B), (0x8002, 0x8004)]
+        let hooks: Vec<HWINEVENTHOOK> = [(0x0003u32, 0x0003u32), (0x000A, 0x000A), (0x0016, 0x0017), (0x800B, 0x800B), (0x8002, 0x8004)]
             .iter()
             .map(|(a, b)| SetWinEventHook(*a, *b, None, Some(on_event), 0, 0, flags))
             .collect();
