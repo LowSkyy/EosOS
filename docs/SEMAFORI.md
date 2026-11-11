@@ -9,11 +9,12 @@ Se EosOS si chiude o si blocca, le finestrine spariscono e **i tasti di Windows 
 
 ## Impostazioni (Aspetto)
 - «Semafori al posto dei tasti di Windows» (acceso di base).
-- «Lato dei semafori»: a sinistra come macOS (di base) o a destra come Windows (ordine: riduci, schermo intero, chiudi).
+- «Lato dei semafori»: **a destra** (di base, ordine riduci, schermo intero, chiudi: copre solo i tasti di Windows) o a sinistra come macOS (capsula con i cerchi, che però nasconde icona, menu o prime schede dell'app: in VS Code copre «File», in Chrome l'inizio della prima scheda).
 - «Stile Finder per Esplora file»: toglie il bordo sottile alle finestre di Esplora file (restano arrotondate); si ripristina spegnendo l'opzione.
 
 ## Limiti dichiarati
-- **A sinistra i cerchi coprono l'icona e l'inizio del titolo** (o la prima scheda in Esplora file/Blocco note): EosOS non può spostare il contenuto delle altre app. A destra non copre nulla di più dei tasti di Windows.
+- **A sinistra i cerchi coprono quello che c'è all'inizio della barra** (icona, menu, prima scheda): EosOS non può spostare il contenuto delle altre app, per questo di base stanno a destra.
+- **App con la barra del titolo disegnata da sé** (VS Code, Discord, Spotify, app Electron): Windows non dice dove sono i loro tasti, quindi EosOS li copre alla posizione standard di Windows 11 (3 tasti da 46×30 pixel in alto a destra). Se un'app li mette altrove, o è più alta/bassa, la copertura può essere sbagliata: segnalamelo con uno screenshot.
 - «Schermo intero» (verde) = ingrandisci/ripristina la finestra, come il tasto di Windows: lo schermo intero vero lo gestiscono le singole app (F11).
 - Il colore della barra si legge dallo schermo: con barre sfumate o con immagini la finestrina può differire di poco.
 - Niente semafori su finestre senza barra del titolo di sistema (app «senza cornice»), finestre strumento, finestre a schermo intero (video, giochi) e mentre è attiva la schermata di blocco.

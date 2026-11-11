@@ -36,7 +36,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     TranslateMessage, UpdateLayeredWindow, GWL_EXSTYLE, GWL_STYLE, GW_HWNDNEXT, GW_HWNDPREV, HWND_MESSAGE, HWND_TOP, HWND_TOPMOST, MSG, SC_CLOSE,
     SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SW_SHOWNOACTIVATE, ULW_ALPHA, WINDOW_EX_STYLE,
     WM_APP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_SYSCOMMAND, WM_TIMER, WNDCLASSW, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUP, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUP, WS_THICKFRAME, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
 };
 
 const WM_MOUSELEAVE: u32 = 0x02A3;
@@ -85,7 +85,7 @@ pub fn layout(kinds: &[Kind], scale: f32, right: bool, native_w: i32, h: i32) ->
     let n = kinds.len().max(1) as f32;
     let r = 6.5 * scale;
     let gap = 8.0 * scale;
-    let pad = 12.0 * scale;
+    let pad = 10.0 * scale;
     let group = n * 2.0 * r + (n - 1.0) * gap;
     let (w, start) = if right {
         let w = native_w.max((group + 2.0 * 4.0 * scale).ceil() as i32);
@@ -203,18 +203,38 @@ pub struct Paint<'a> {
     pub down: Option<usize>,
     /// Angolo arrotondato della finestra: (a destra?, raggio in pixel); 0 = senza.
     pub corner: (bool, f32),
+    /// Forma a capsula (cerchi a sinistra) invece del rettangolo pieno.
+    pub capsule: bool,
 }
 
 /// Disegna la finestrina: `w*h` pixel BGRA premoltiplicati.
+///
+/// Due forme: a destra (e per la copertura dei tasti di Windows) un rettangolo pieno del colore della barra; a sinistra una
+/// «capsula» scura o chiara (secondo la barra) con i cerchi, che non copre altro che se stessa.
 pub fn render(p: &Paint) -> Vec<u32> {
     let (w, h) = (p.layout.w.max(1) as usize, p.layout.h.max(1) as usize);
     let mut out = vec![0u32; w * h];
-    let bg = [f32::from(p.bg[0]), f32::from(p.bg[1]), f32::from(p.bg[2])];
+    let dark = lum(p.bg) < 128.0;
+    let bg = if p.capsule {
+        if dark { [30.0, 30.0, 33.0] } else { [244.0, 244.0, 247.0] }
+    } else {
+        [f32::from(p.bg[0]), f32::from(p.bg[1]), f32::from(p.bg[2])]
+    };
     let (right_corner, cr) = p.corner;
+    // Capsula: alta quanto i cerchi piu' un po' di margine, centrata nella barra.
+    let ph = 2.0 * p.layout.r + 9.0 * p.scale;
+    let (pcy, prad) = (h as f32 / 2.0, ph / 2.0);
     for y in 0..h {
         for x in 0..w {
             let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
             let mut col = bg;
+            let mut alpha = 1.0f32;
+            if p.capsule {
+                // distanza con segno da una capsula (un segmento orizzontale ingrossato)
+                let hx = (w as f32 / 2.0 - prad).max(0.0);
+                let d = ((fx - w as f32 / 2.0).abs() - hx).max(0.0).hypot(fy - pcy) - prad;
+                alpha = clamp01(0.5 - d) * 0.92;
+            }
             for (i, (k, cx, cy)) in p.layout.centers.iter().enumerate() {
                 let c = circle_cov(fx, fy, *cx, *cy, p.layout.r);
                 if c <= 0.0 {
@@ -226,17 +246,17 @@ pub fn render(p: &Paint) -> Vec<u32> {
                     base = mix(base, [0.0, 0.0, 0.0], 0.2);
                 }
                 col = mix(col, base, c);
+                alpha = alpha.max(c);
                 if p.hover && usable && p.active {
                     let gc = glyph_cov(*k, p.zoomed, fx - cx, fy - cy, p.layout.r, p.scale);
                     col = mix(col, mix(base, [0.0, 0.0, 0.0], 0.62), gc * c);
                 }
             }
             // Angolo arrotondato della finestra: fuori dal raggio la finestrina e' trasparente.
-            let mut alpha = 1.0f32;
-            if cr > 0.0 {
+            if cr > 0.0 && !p.capsule {
                 let (ex, ey) = if right_corner { (w as f32 - fx, fy) } else { (fx, fy) };
                 if ex < cr && ey < cr {
-                    alpha = clamp01(cr + 0.5 - (cr - ex).hypot(cr - ey));
+                    alpha *= clamp01(cr + 0.5 - (cr - ex).hypot(cr - ey));
                 }
             }
             let a = (alpha * 255.0).round() as u32;
@@ -326,7 +346,8 @@ fn inspect(h: HWND) -> Option<Info> {
         }
         let style = GetWindowLongPtrW(h, GWL_STYLE) as u32;
         let ex = GetWindowLongPtrW(h, GWL_EXSTYLE) as u32;
-        if style & WS_CAPTION.0 != WS_CAPTION.0 || ex & (WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0) != 0 {
+        let has_caption = style & WS_CAPTION.0 == WS_CAPTION.0;
+        if ex & (WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0) != 0 {
             return None;
         }
         let mut pid = 0u32;
@@ -345,7 +366,22 @@ fn inspect(h: HWND) -> Option<Info> {
         let mut wr = RECT::default();
         GetWindowRect(h, &mut wr).ok()?;
         let fr = dwm_rect(h, DWMWA_EXTENDED_FRAME_BOUNDS).unwrap_or(wr);
-        let cb = dwm_rect(h, DWMWA_CAPTION_BUTTON_BOUNDS)?;
+        let scale = (GetDpiForWindow(h).max(96) as f32) / 96.0;
+        // Con la barra di sistema Windows dice dove sono i tasti; se non lo dice (barra disegnata dall'app: restituisce una larghezza nulla)
+        // o la barra non c'e', si usa la posizione di Windows 11.
+        let from_dwm = if has_caption { dwm_rect(h, DWMWA_CAPTION_BUTTON_BOUNDS).filter(|r| r.right - r.left >= 20 && r.bottom - r.top >= 10) } else { None };
+        let cb = if let Some(r) = from_dwm {
+            r
+        } else {
+            // Finestre senza barra di sistema (VS Code, Discord, Spotify, app Electron...): i tasti li disegna l'app in alto a destra, di
+            // solito come Windows 11 (3 tasti da 46 x 30). Solo se la finestra si puo' ridimensionare e ridurre/ingrandire e non e' piccola.
+            let sizable = style & WS_THICKFRAME.0 != 0 && style & (WS_MINIMIZEBOX.0 | WS_MAXIMIZEBOX.0) != 0;
+            if !sizable || (fr.right - fr.left) < (320.0 * scale) as i32 || (fr.bottom - fr.top) < (200.0 * scale) as i32 {
+                return None;
+            }
+            let w = (3.0 * 46.0 * scale) as i32;
+            RECT { left: fr.right - wr.left - w, top: fr.top - wr.top, right: fr.right - wr.left, bottom: fr.top - wr.top + (30.0 * scale) as i32 }
+        };
         if cb.right - cb.left < 20 || cb.bottom - cb.top < 10 {
             return None;
         }
@@ -361,7 +397,6 @@ fn inspect(h: HWND) -> Option<Info> {
                 return None;
             }
         }
-        let scale = (GetDpiForWindow(h).max(96) as f32) / 96.0;
         let native_w = cb.right - cb.left;
         let three = native_w as f32 >= 100.0 * scale;
         let kinds = vec![(Kind::Close, true), (Kind::Min, three && style & WS_MINIMIZEBOX.0 != 0), (Kind::Zoom, three && style & WS_MAXIMIZEBOX.0 != 0)];
@@ -420,6 +455,7 @@ fn present(ov: &Ov) {
             hover: ov.hover,
             down: ov.down,
             corner: ov.corner,
+            capsule: !ov.kinds.is_empty() && !ov.corner.0,
         });
         let bmi = BITMAPINFO { bmiHeader: BITMAPINFOHEADER { biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32, biWidth: w, biHeight: -h, biPlanes: 1, biBitCount: 32, biCompression: BI_RGB.0, ..Default::default() }, ..Default::default() };
         let mut bits: *mut core::ffi::c_void = std::ptr::null_mut();
@@ -515,7 +551,7 @@ fn sync() {
             let _ = EnumWindows(Some(collect), LPARAM(&mut infos as *mut _ as isize));
         }
         let fg = unsafe { GetForegroundWindow() };
-        let right = cfg.lights_right;
+        let right = !cfg.lights_left;
         let mut seen: HashSet<isize> = HashSet::new();
         for info in &infos {
             let base = info.hwnd.0 as isize;
@@ -791,7 +827,7 @@ mod tests {
     }
 
     fn paint(l: &Layout, kinds: &[(Kind, bool)], active: bool, hover: bool, corner: (bool, f32)) -> Vec<u32> {
-        render(&Paint { layout: l, kinds, scale: 1.0, bg: [30, 30, 30], active, zoomed: false, hover, down: None, corner })
+        render(&Paint { layout: l, kinds, scale: 1.0, bg: [30, 30, 30], active, zoomed: false, hover, down: None, corner, capsule: false })
     }
 
     #[test]
@@ -843,6 +879,20 @@ mod tests {
         let px = paint(&l, &kinds, true, false, (true, 8.0));
         assert_eq!(px[l.w as usize - 1] >> 24, 0, "l'angolo in alto a destra e' fuori dalla finestra");
         assert_eq!(px[(l.w / 2) as usize] >> 24, 255);
+    }
+
+    #[test]
+    fn capsule_has_transparent_corners_and_keeps_the_circle_colours() {
+        let k = kinds_order(false, true);
+        let l = layout(&k, 1.0, false, 138, 32);
+        let kinds: Vec<(Kind, bool)> = k.iter().map(|x| (*x, true)).collect();
+        let px = render(&Paint { layout: &l, kinds: &kinds, scale: 1.0, bg: [30, 30, 30], active: true, zoomed: false, hover: false, down: None, corner: (false, 8.0), capsule: true });
+        assert_eq!(px[0] >> 24, 0, "fuori dalla capsula si vede l'app");
+        let c = l.centers[0];
+        assert_eq!(px[(c.2 as usize) * l.w as usize + c.1 as usize], 0xFFFF5F57);
+        // fra due cerchi: il fondo della capsula (scuro, quasi opaco)
+        let mid = ((l.centers[0].1 + l.centers[1].1) / 2.0) as usize;
+        assert!(px[(c.2 as usize) * l.w as usize + mid] >> 24 > 200);
     }
 
     #[test]

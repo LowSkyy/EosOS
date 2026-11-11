@@ -73,7 +73,7 @@ impl Backend for Live {
             "dock.keys" => Some(Value::Text(match mc().dock_keys.as_str() { "" => "ctrl_alt".to_string(), s => s.to_string() })),
             "dock.size" => Some(Value::Text(match mc().dock_size.as_str() { "" => "medium".to_string(), s => s.to_string() })),
             "lights.on" => b(!mc().lights_off),
-            "lights.side" => Some(Value::Text(if mc().lights_right { "right" } else { "left" }.to_string())),
+            "lights.side" => Some(Value::Text(if mc().lights_left { "left" } else { "right" }.to_string())),
             "lights.finder" => b(!mc().finder_off),
             "lock.eos" => b(!mc().lock_off),
             "lock.idle" => Some(Value::Text(mc().lock_idle.to_string())),
@@ -244,7 +244,7 @@ impl Backend for Live {
                 if id != "left" && id != "right" {
                     return Err(SettingsError("Scelta non ammessa.".into()));
                 }
-                crate::mcstore::set_lights_right(id == "right");
+                crate::mcstore::set_lights_left(id == "left");
                 crate::lights::poke();
             }
             "lights.finder" => {

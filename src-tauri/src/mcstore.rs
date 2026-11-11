@@ -109,9 +109,9 @@ pub struct Settings {
     /// I «semafori» macOS al posto dei tasti di Windows sono spenti (di base sono accesi).
     #[serde(rename = "lightsOff")]
     pub lights_off: bool,
-    /// I semafori stanno a destra, come i tasti di Windows (di base a sinistra, come su macOS).
-    #[serde(rename = "lightsRight")]
-    pub lights_right: bool,
+    /// I semafori stanno a sinistra, come su macOS (di base stanno a destra, dove non coprono nulla: a sinistra nascondono menu e schede).
+    #[serde(rename = "lightsLeft")]
+    pub lights_left: bool,
     /// Le finestre di Esplora file NON prendono lo stile «Finder» (bordo tolto; di base lo prendono).
     #[serde(rename = "finderOff")]
     pub finder_off: bool,
@@ -361,8 +361,8 @@ pub fn set_lights(on: bool) -> Settings {
     update(|s| s.lights_off = !on)
 }
 
-pub fn set_lights_right(right: bool) -> Settings {
-    update(|s| s.lights_right = right)
+pub fn set_lights_left(left: bool) -> Settings {
+    update(|s| s.lights_left = left)
 }
 
 pub fn set_remote_blur_off(on: bool) -> Settings {
@@ -471,7 +471,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), dock_tray_off: true, dock_anim: "none".into(), dock_magnify_off: true, capture_keys: "ctrl_shift".into(), dock_badges_off: true, snap_keys: "alt_shift".into(), win_key_off: true, menu_show_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into(), lock_off: true, lock_idle: 10, lock_windows: Some(15), lights_off: true, lights_right: true, finder_off: true, remote_keep_blur: true }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), dock_tray_off: true, dock_anim: "none".into(), dock_magnify_off: true, capture_keys: "ctrl_shift".into(), dock_badges_off: true, snap_keys: "alt_shift".into(), win_key_off: true, menu_show_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into(), lock_off: true, lock_idle: 10, lock_windows: Some(15), lights_off: true, lights_left: true, finder_off: true, remote_keep_blur: true }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }
