@@ -89,3 +89,15 @@ il punto da guardare è `mckeys::step` in `src-tauri/src/mckeys.rs` (logica pura
 - [ ] Menu in alto a sinistra (il logo EosOS): le otto voci (Informazioni su EosOS, Impostazioni di EosOS…, Impostazioni di Windows…, Blocca lo schermo, Sospendi, Riavvia…, Spegni…, Esci da EosOS); il Centro di controllo non ha piu' i link alle impostazioni. Riavvia e Spegni chiedono conferma: rispondi «No».
 - [ ] Barra in alto: compare l'icona «App in background» (una freccia su, a sinistra degli indicatori) con NVIDIA Broadcast, G HUB, AnyDesk…; un clic apre il pannello sotto l'icona e un clic su un'app la porta davanti. Nel Dock non c'è più. Si spegne in Impostazioni → Barra dei menu.
 - [ ] Impostazioni → Windows: le schede (informazioni, aspetto, alimentazione, app all'avvio, archiviazione, schermi) funzionano; cambia il tema chiaro/scuro (attenzione: cambia davvero Windows) e rimettilo.
+
+## 12. Schermata di blocco (nuova, 11 nov)
+Prima di provarla: la via d'uscita di emergenza e' `Ctrl+Alt+Maiusc+Esc` (chiude EosOS e rimette la barra di Windows). Se qualcosa va storto, usala.
+- [ ] Menu EosOS → «Blocca lo schermo» (o `Ctrl+Alt+L`): compare la schermata su **entrambi i monitor** (sfondo sfocato, data, orologio grande). Il mouse o un tasto fanno comparire avatar, nome e campo password.
+- [ ] **Sblocco con la tua password VERA di Windows** (la prova che io non posso fare): scrivila e premi Invio: lo schermo si sblocca. Una password sbagliata fa «Password errata» e scuote il campo; dopo 5 errori dice «Riprova tra 5 secondi» e anche la password giusta aspetta.
+- [ ] Mentre e' bloccato: il tasto Windows, `Alt+Tab`, `Alt+F4`, `Ctrl+Esc` e `Ctrl+Maiusc+Esc` non fanno niente; non si apre il Launcher (`Alt+Spazio`), ne' Mission Control, ne' le Impostazioni.
+- [ ] `Ctrl+Alt+Canc` apre comunque la schermata di Windows (e' cosi' per tutti i programmi): lo sblocco di EosOS non protegge da quello. Con il Task Manager chiuso EosOS lo schermo si sblocca: e' il limite dichiarato in `docs/BLOCCO-SCHERMO.md`.
+- [ ] Impostazioni → Generali: «Poi blocca anche Windows dopo» a 1 minuto: bloccando e aspettando, dopo un minuto la schermata EosOS sparisce e compare quella di Windows (accedi con la tua password).
+- [ ] Impostazioni → Generali: «Blocca dopo l'inattivita'» a 5 minuti: senza toccare niente il blocco parte da solo.
+- [ ] Se spegni «Schermata di blocco EosOS», «Blocca lo schermo» mostra la schermata di Windows.
+- [ ] Windows Hello / PIN (solo su un PC che li ha): compare «Usa PIN o Windows Hello» e funziona. *Mai provato dal vivo.*
+

@@ -1,4 +1,4 @@
-# Verifica S2 delle impostazioni: la finestra "Impostazioni di EosOS". Si apre dal Launcher (azione), sta al centro
+﻿# Verifica S2 delle impostazioni: la finestra "Impostazioni di EosOS". Si apre dal Launcher (azione), sta al centro
 # del monitor, mostra le sezioni, gli interruttori e le liste agiscono sui depositi veri, si aggiorna quando
 # la stessa cosa cambia da altrove, la ricerca funziona, si chiude con Esc e con il pulsante. I quattro file
 # delle impostazioni dell'utente vengono salvati e RIPRISTINATI alla fine. I clic sono solo dentro la finestra
@@ -86,7 +86,7 @@ try {
 
   Write-Host 'D. si aggiorna quando la stessa cosa cambia da altrove'
   Click-Nav 'Dock'; Start-Sleep -Milliseconds 400
-  Check 'la sezione Dock ha nascondi, riserva spazio e app fissate' ((Labels) -join '|' -eq 'Dimensione del Dock|Dock su tutti gli schermi|App in background|Animazione all''apertura di un''app|Ingrandisci le icone al passaggio del mouse|Badge delle notifiche sulle icone|Scorciatoie per le app del Dock|Nascondi automaticamente|Riserva spazio alle finestre|App fissate|Pile') ((Labels) -join '|')
+  Check 'la sezione Dock ha nascondi, riserva spazio e app fissate' ((Labels) -join '|' -eq 'Dimensione del Dock|Dock su tutti gli schermi|Animazione all''apertura di un''app|Ingrandisci le icone al passaggio del mouse|Badge delle notifiche sulle icone|Scorciatoie per le app del Dock|Nascondi automaticamente|Riserva spazio alle finestre|App fissate|Pile') ((Labels) -join '|')
   [void](Js 'launcher' "window.__TAURI_INTERNALS__.invoke('settings_set',{key:'dock.reserve',value:false})")
   Check 'un cambio fatto fuori dalla finestra compare nell interruttore' (Wait-Until { (Switch-On 'Riserva spazio alle finestre') -eq 'false' } 4)
   [void](Js 'launcher' "window.__TAURI_INTERNALS__.invoke('settings_set',{key:'dock.reserve',value:true})")
@@ -95,7 +95,7 @@ try {
   Write-Host 'E. altre sezioni e lista delle app escluse'
   Click-Nav 'Barra dei menu'; Start-Sleep -Milliseconds 400
   Check 'la sezione cambia' ((Heading) -eq 'Barra dei menu')
-  Check 'ci sono indicatori, menu globale e app escluse' (((Labels) -join '|') -like 'Batteria|Percentuale della batteria|Rete|Volume|Menu globale|Mostra il nome dell*app|Mostra il menu Finestra|App escluse dal menu globale') ((Labels) -join '|')
+  Check 'ci sono indicatori, menu globale e app escluse' (((Labels) -join '|') -like 'Batteria|Percentuale della batteria|Rete|Volume|App in background|Menu globale|Mostra il nome dell*app|Mostra il menu Finestra|App escluse dal menu globale') ((Labels) -join '|')
   Type-In '.names-add input' 'AppDiProva'
   Win "document.querySelector('.names-add button').click()" | Out-Null
   Check 'aggiungendo un nome entra nell elenco vero' (Wait-Until { @(Val 'menu.excluded') -contains 'AppDiProva' } 4)

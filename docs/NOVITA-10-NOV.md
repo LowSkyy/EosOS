@@ -41,6 +41,9 @@ Segnalazione: cliccando spesso su un menu in alto a volte il pannello non si apr
 - **Chiusura dal thread sbagliato** (controllo del primo piano 500 ms dopo l'apertura): decideva su un thread a parte e la chiusura vera finiva in coda dopo una riapertura gia' avvenuta (finestra nascosta ma stato «aperto» sul menu: il clic seguente sullo stesso titolo era letto come «chiudi»). Ora decisione e chiusura stanno sul thread principale e un controllo di un'apertura vecchia non tocca quella nuova (`SHOW_GEN`).
 Non e' dimostrato che fossero la causa di cio' che si e' visto. Prova di regressione: `scripts/test-stress-clic.ps1` (usa il mouse vero). Se ricapita: annotare su quale pulsante e con quale app in primo piano.
 
+## Schermata di blocco in stile macOS (11 nov)
+Nuova schermata di blocco EosOS su tutti i monitor (sfondo sfocato, orologio, nome, password verificata da Windows, attesa dopo 5 errori, hook dei tasti, blocco di Windows dopo un tempo scelto, `Ctrl+Alt+L`). **Non sostituisce** quella di Windows (accesso, `Win+L`, risveglio): un programma normale non puo'. Tutti i dettagli, i limiti e le prove in `docs/BLOCCO-SCHERMO.md`.
+
 ## Prove
 - Rust 472 test, vitest 199, clippy a 0, tipi ok.
 - Da eseguire con il PC libero: `test-dock-novita.ps1` (etichette senza `title`, sei dimensioni, animazione, ingrandimento, icona e pannello delle app in background, accessi), `test-winsys.ps1` (le schede; scrive solo riscrivendo il valore già presente e su una voce di prova `EosOS-Prova-Winsys`), `test-launchpad.ps1` (aggiornato: niente prompt/PowerShell/Python/manuali, pagine e puntini), `test-eosmenu.ps1` (una sola voce), `test-menu-view.ps1`, `test-menubar.ps1`, `test-menudrop.ps1`, `test-menusettings.ps1`, `test-menuinvoke.ps1`, `test-menu-dpi.ps1`, `test-settings.ps1` (42 impostazioni), `test-settingswin.ps1`.

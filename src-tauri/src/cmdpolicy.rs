@@ -21,6 +21,8 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         "mc_activate" | "mc_close_window" | "mc_switch_desktop" | "mc_new_desktop" | "mc_move_window" | "mc_remove_desktop" | "mc_rename_desktop" => label.starts_with("mc-"),
         // Menu EosOS (il «menu mela» a sinistra della barra): lo gestisce il pannello.
         c if c.starts_with("eosmenu_") => label == "panel",
+        // Schermata di blocco: solo le sue finestre (lock-0, lock-1...).
+        "lock_info" | "lock_wallpaper" | "lock_try_password" | "lock_try_blank" | "lock_try_hello" => crate::lockscreen::is_lock_label(label),
         // App in background (area di notifica): quante sono lo chiede l'icona nella barra in alto; l'elenco e l'apertura sono del pannello.
         "tray_count" => label == "main" || label.starts_with("bar-"),
         "tray_apps" | "tray_open" => label == "panel",
@@ -215,5 +217,16 @@ mod tests {
     #[test]
     fn read_only_and_opening_commands_are_not_restricted_here() {
         assert!(allowed("bar-0", "panel_toggle", None) && allowed("dock", "dock_items", None) && allowed("bar-0", "indicators_get", None));
+    }
+    #[test]
+    fn the_lock_commands_belong_to_the_lock_windows_only() {
+        for c in ["lock_info", "lock_wallpaper", "lock_try_password", "lock_try_blank", "lock_try_hello"] {
+            for ok in ["lock-0", "lock-1", "lock-12"] {
+                assert!(allowed(ok, c, None), "{ok} {c}");
+            }
+            for other in ["main", "bar-0", "dock", "dock-1", "panel", "launcher", "settings", "mc-0", "capture", "lock", "lock-", "lock-x", ""] {
+                assert!(!allowed(other, c, None), "{other:?} {c}");
+            }
+        }
     }
 }

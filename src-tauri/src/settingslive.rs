@@ -72,6 +72,9 @@ impl Backend for Live {
             "dock.magnify" => b(!mc().dock_magnify_off),
             "dock.keys" => Some(Value::Text(match mc().dock_keys.as_str() { "" => "ctrl_alt".to_string(), s => s.to_string() })),
             "dock.size" => Some(Value::Text(match mc().dock_size.as_str() { "" => "medium".to_string(), s => s.to_string() })),
+            "lock.eos" => b(!mc().lock_off),
+            "lock.idle" => Some(Value::Text(mc().lock_idle.to_string())),
+            "lock.windows" => Some(Value::Text(mc().lock_windows_minutes().to_string())),
             "dock.blur" => b(crate::dockwin::blur_enabled()),
             "dock.stacks" => Some(Value::List(crate::stacks::folders())),
             "dock.pinned" => Some(Value::List(crate::dockstore::load().into_iter().map(|p| p.name).collect())),
@@ -223,6 +226,22 @@ impl Backend for Live {
                 }
                 crate::mcstore::set_snap_keys(id);
                 crate::winsnap::reload();
+            }
+            "lock.eos" => {
+                crate::mcstore::set_lock_eos(want_bool(value)?);
+            }
+            "lock.idle" | "lock.windows" => {
+                let id = want_text(value)?;
+                let minutes: u32 = id.parse().map_err(|_| SettingsError("Minuti non ammessi.".into()))?;
+                let allowed: &[u32] = if key == "lock.idle" { &[0, 5, 10, 15, 30] } else { &[0, 1, 5, 15, 30] };
+                if !allowed.contains(&minutes) {
+                    return Err(SettingsError("Minuti non ammessi.".into()));
+                }
+                if key == "lock.idle" {
+                    crate::mcstore::set_lock_idle(minutes);
+                } else {
+                    crate::mcstore::set_lock_windows(minutes);
+                }
             }
             "dock.size" => {
                 let id = want_text(value)?;

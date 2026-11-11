@@ -85,6 +85,9 @@ fn cursor_monitor(app: &AppHandle) -> Option<(Rect, f64)> {
 
 /// Apre la finestra (o la porta davanti) e, se indicata, passa alla sezione `section`.
 pub fn open(app: &AppHandle, section: Option<&str>) {
+    if crate::lockscreen::is_locked() {
+        return;
+    }
     let Some(win) = win_of(app) else { return };
     if !VISIBLE.load(Ordering::Relaxed)
         && let Some((monitor, scale)) = cursor_monitor(app)

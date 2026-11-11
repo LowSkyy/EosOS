@@ -78,3 +78,4 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 - Pile nel Dock (cartelle con i file recenti in griglia sopra l'icona): fatte, vedi `docs/PILE.md`
 - Aggiornamenti automatici: lato programma fatti (plugin ufficiale, firma obbligatoria, https, ricerca all'avvio spenta di default); mancano un posto pubblico dove pubblicare le versioni e la prova di un'installazione riuscita, vedi `docs/AGGIORNAMENTI.md`
 - Widget «Oggi» (data, meteo con Open-Meteo a scelta, promemoria): fatto, vedi `docs/OGGI.md`
+- Schermata di blocco in stile macOS (11 nov 2026): fatta, vedi `docs/BLOCCO-SCHERMO.md` (blocco «da scrivania» su tutti i monitor; non sostituisce quella di Windows; lo sblocco con la password vera va provato a mano)

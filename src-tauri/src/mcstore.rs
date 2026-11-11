@@ -97,6 +97,22 @@ pub struct Settings {
     /// Scorciatoie per aprire le app del Dock: "off", "ctrl_win", "ctrl_alt", "ctrl_shift" (vuoto = quella di base).
     #[serde(rename = "dockKeys")]
     pub dock_keys: String,
+    /// La schermata di blocco di EosOS e' spenta: «Blocca lo schermo» usa quella di Windows (di base si usa quella di EosOS).
+    #[serde(rename = "lockOff")]
+    pub lock_off: bool,
+    /// Blocca da solo dopo tanti minuti di inattivita' (0 = mai, di base).
+    #[serde(rename = "lockIdle")]
+    pub lock_idle: u32,
+    /// Dopo tanti minuti di blocco EosOS passa il testimone al blocco di Windows (0 = mai); `None` = di base, 5 minuti.
+    #[serde(rename = "lockWindows")]
+    pub lock_windows: Option<u32>,
+}
+
+impl Settings {
+    /// Minuti di blocco EosOS dopo i quali scatta anche quello di Windows (0 = mai).
+    pub fn lock_windows_minutes(&self) -> u32 {
+        self.lock_windows.unwrap_or(5)
+    }
 }
 
 fn store_path() -> Option<PathBuf> {
@@ -324,6 +340,18 @@ pub fn set_win_key_launcher(on: bool) -> Settings {
 }
 
 /// Sceglie il modificatore delle scorciatoie per le finestre (vuoto o "off" = spente) e salva.
+pub fn set_lock_eos(on: bool) -> Settings {
+    update(|s| s.lock_off = !on)
+}
+
+pub fn set_lock_idle(minutes: u32) -> Settings {
+    update(|s| s.lock_idle = minutes)
+}
+
+pub fn set_lock_windows(minutes: u32) -> Settings {
+    update(|s| s.lock_windows = Some(minutes))
+}
+
 pub fn set_snap_keys(id: &str) -> Settings {
     update(|s| s.snap_keys = if id == "off" { String::new() } else { id.to_string() })
 }
@@ -414,7 +442,7 @@ mod tests {
 
     #[test]
     fn serialize_roundtrips() {
-        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), dock_tray_off: true, dock_anim: "none".into(), dock_magnify_off: true, capture_keys: "ctrl_shift".into(), dock_badges_off: true, snap_keys: "alt_shift".into(), win_key_off: true, menu_show_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into() }] {
+        for s in [Settings::default(), Settings { hot_corner: true, hotkey: Some("Ctrl+Alt+Up".into()), windows_alt_tab: true, windows_win_tab: false, menu_off: true, menu_excluded: vec!["Chrome".into()], notif_read: true, calendar_sunday: true, notif_dnd: true, dock_stacks: Some(vec!["D:\\Dati".into()]), update_auto: true, reminders: vec![crate::reminders::Reminder { id: 1, text: "x".into(), time: Some("09:30".into()), done: true }], weather_on: true, weather_city: Some("Roma".into()), dock_size: "large".into(), dock_tray_off: true, dock_anim: "none".into(), dock_magnify_off: true, capture_keys: "ctrl_shift".into(), dock_badges_off: true, snap_keys: "alt_shift".into(), win_key_off: true, menu_show_name: true, menu_show_window: true, keep_taskbar: true, dock_primary_only: true, dock_keys: "ctrl_alt".into(), lock_off: true, lock_idle: 10, lock_windows: Some(15) }] {
             assert_eq!(parse(&serialize(&s)), Some(s));
         }
     }

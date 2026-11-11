@@ -57,6 +57,7 @@ mod vdint;
 mod vdprofile;
 mod vdreport;
 mod panelwin;
+mod lockscreen;
 mod taskbar;
 mod util;
 mod watchdog;
@@ -237,7 +238,10 @@ fn eosmenu_run(window: tauri::Window, app: tauri::AppHandle, id: String) -> bool
             true
         }
         "mission" => act("action:mission-control"),
-        "lock" => act("action:lock"),
+        "lock" => {
+            lockscreen::request_lock(&app);
+            true
+        }
         "sleep" => act("action:sleep"),
         "restart" => act("action:restart"),
         "shutdown" => act("action:shutdown"),
@@ -247,6 +251,41 @@ fn eosmenu_run(window: tauri::Window, app: tauri::AppHandle, id: String) -> bool
         }
         _ => false,
     }
+}
+
+/// La schermata di blocco: nome, avatar, modo di accesso e attesa residua (solo per le sue finestre).
+#[tauri::command]
+fn lock_info(window: tauri::Window) -> Option<lockscreen::Info> {
+    guard!(window, "lock_info", None);
+    Some(lockscreen::info())
+}
+
+/// I byte dello sfondo del desktop per la schermata di blocco (vuoti se non si trova).
+#[tauri::command(async)]
+fn lock_wallpaper(window: tauri::Window) -> tauri::ipc::Response {
+    guard!(window, "lock_wallpaper", tauri::ipc::Response::new(Vec::<u8>::new()));
+    tauri::ipc::Response::new(lockscreen::wallpaper())
+}
+
+/// Prova una password: la verifica Windows (`LogonUser`); dopo troppi errori impone un'attesa.
+#[tauri::command(async)]
+fn lock_try_password(window: tauri::Window, app: tauri::AppHandle, password: String) -> lockscreen::Attempt {
+    guard!(window, "lock_try_password", lockscreen::Attempt { ok: false, wait_secs: 0 });
+    lockscreen::try_password(&app, &password)
+}
+
+/// Account senza password: un clic sblocca.
+#[tauri::command]
+fn lock_try_blank(window: tauri::Window, app: tauri::AppHandle) -> bool {
+    guard!(window, "lock_try_blank", false);
+    lockscreen::try_blank(&app)
+}
+
+/// Windows Hello / PIN: la verifica la fa Windows con la sua finestra.
+#[tauri::command(async)]
+fn lock_try_hello(window: tauri::Window, app: tauri::AppHandle) -> bool {
+    guard!(window, "lock_try_hello", false);
+    lockscreen::try_hello(&app)
 }
 
 /// Le informazioni per «Informazioni su EosOS» nel menu.
@@ -1044,8 +1083,13 @@ fn menu_probe_all(app: tauri::AppHandle) -> Vec<MenuProbeRow> {
 /// prima richiesta ed eseguono alla seconda (stessa azione, entro 10 secondi): la conferma è di
 /// Rust, non della pagina. Risposte: "done", "confirm", "unknown", "failed".
 #[tauri::command(async)]
-fn launcher_action(window: tauri::Window, id: String) -> &'static str {
+fn launcher_action(window: tauri::Window, app: tauri::AppHandle, id: String) -> &'static str {
     guard!(window, "launcher_action", "unknown");
+    // «Blocca» dal Launcher e' lo stesso blocco del menu: quello di EosOS (o di Windows, se la schermata EosOS e' spenta nelle Impostazioni).
+    if id == "action:lock" {
+        lockscreen::request_lock(&app);
+        return "done";
+    }
     match launcheract::run(&id) {
         launcheract::Outcome::Done => "done",
         launcheract::Outcome::Confirm => "confirm",
@@ -1309,7 +1353,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, launcher_grid, dock_launchpad, dock_badges, tray_count, tray_apps, tray_open, winsys_info, winsys_drives, winsys_displays, winsys_theme, winsys_theme_set, winsys_power, winsys_power_set, winsys_startup, winsys_startup_set, eosmenu_run, eosmenu_about, dockkeys_fire, dockkeys_registered, winsnap_fire, winsnap_registered, capture_run, capture_region, capture_cancel, capture_fire, capture_registered, control_state, control_set, winsettings_list, winsettings_open, winsettings_last_open, bar_backdrop, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![lock_info, lock_wallpaper, lock_try_password, lock_try_blank, lock_try_hello, get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, launcher_grid, dock_launchpad, dock_badges, tray_count, tray_apps, tray_open, winsys_info, winsys_drives, winsys_displays, winsys_theme, winsys_theme_set, winsys_power, winsys_power_set, winsys_startup, winsys_startup_set, eosmenu_run, eosmenu_about, dockkeys_fire, dockkeys_registered, winsnap_fire, winsnap_registered, capture_run, capture_region, capture_cancel, capture_fire, capture_registered, control_state, control_set, winsettings_list, winsettings_open, winsettings_last_open, bar_backdrop, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
@@ -1368,6 +1412,7 @@ pub fn run() {
             launcherclip::start();
             indicators::start(app.handle().clone());
             launcherwin::start(app.handle());
+            lockscreen::start(app.handle());
             panelwin::start(app.handle());
             mcwin::start(app.handle());
             settingswin::remember(app.handle());

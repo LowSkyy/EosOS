@@ -345,6 +345,9 @@ fn run_anim(epoch: u64, reverse: bool, total: u64) -> u32 {
 /// Apre la panoramica su tutti i monitor. Se è ancora in chiusura (l'animazione dura 180 ms) aspetta che
 /// finisca, al massimo 600 ms, invece di ignorare la richiesta; se è già aperta o in apertura non fa nulla.
 pub fn open(app: &AppHandle) {
+    if crate::lockscreen::is_locked() {
+        return;
+    }
     for _ in 0..40 {
         if st().phase != Phase::Closing {
             break;

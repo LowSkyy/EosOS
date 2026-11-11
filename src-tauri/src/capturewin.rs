@@ -45,6 +45,9 @@ fn ensure(app: &AppHandle) -> Option<tauri::WebviewWindow> {
 
 /// Apre il velo sul monitor del cursore.
 pub fn begin(app: &AppHandle) {
+    if crate::lockscreen::is_locked() {
+        return;
+    }
     let Some(win) = ensure(app) else { return };
     let monitor = crate::capture::cursor_monitor();
     *MONITOR.lock().unwrap_or_else(|e| e.into_inner()) = Some(monitor);

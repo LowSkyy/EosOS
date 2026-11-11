@@ -121,6 +121,42 @@ pub fn parse_config_line(line: &str) -> Option<Config> {
     Some(Config { alt_tab, win_tab, win_tap })
 }
 
+/// La riga con cui il genitore dice al figlio che lo schermo e' bloccato (1) o sbloccato (0).
+pub fn lock_line(locked: bool) -> String {
+    format!("lock {}
+", u8::from(locked))
+}
+
+/// Legge la riga del blocco. Pura, testata.
+pub fn parse_lock_line(line: &str) -> Option<bool> {
+    let mut it = line.split_whitespace();
+    if it.next()? != "lock" {
+        return None;
+    }
+    let v = match it.next()? {
+        "0" => false,
+        "1" => true,
+        _ => return None,
+    };
+    it.next().is_none().then_some(v)
+}
+
+/// Con lo schermo bloccato questi tasti non devono arrivare a nessuno: i tasti Windows e Applicazioni, Alt+Tab, Alt+Esc, Ctrl+Esc, Alt+F4, Alt+Spazio e
+/// Ctrl+Maiusc+Esc (Gestione attivita'). **Mai** Ctrl+Alt+Maiusc+Esc: e' la via d'uscita di emergenza di EosOS (il watchdog) e deve restare libera. Pura, testata.
+pub fn lock_blocks(vk: u32, alt: bool, ctrl: bool, shift: bool) -> bool {
+    const VK_TAB: u32 = 0x09;
+    const VK_ESCAPE: u32 = 0x1B;
+    const VK_SPACE: u32 = 0x20;
+    const VK_F4: u32 = 0x73;
+    match vk {
+        0x5B..=0x5D => true,
+        VK_TAB => alt,
+        VK_F4 | VK_SPACE => alt,
+        VK_ESCAPE => !(ctrl && shift && alt) && (alt || ctrl),
+        _ => false,
+    }
+}
+
 /// Si può rilanciare il figlio? Al massimo 3 avvii negli ultimi 5 minuti. Pura, testata.
 pub fn may_restart(recent_starts: &[Duration], now: Duration) -> bool {
     recent_starts.iter().filter(|t| now.saturating_sub(**t) < Duration::from_secs(300)).count() < 3
@@ -133,6 +169,8 @@ static INSTALLED: AtomicBool = AtomicBool::new(false);
 static SESSION: AtomicBool = AtomicBool::new(false);
 static SWALLOWED: AtomicU32 = AtomicU32::new(0);
 static CHILD_IN: Mutex<Option<ChildStdin>> = Mutex::new(None);
+/// Lo schermo e' bloccato: il figlio deve scartare i tasti di `lock_blocks`.
+static LOCKED: AtomicBool = AtomicBool::new(false);
 
 fn cfg() -> Config {
     let b = CFG.load(Ordering::Relaxed);
@@ -142,8 +180,15 @@ fn cfg() -> Config {
 fn send_cfg() {
     if let Some(stdin) = CHILD_IN.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
         let _ = stdin.write_all(config_line(cfg()).as_bytes());
+        let _ = stdin.write_all(lock_line(LOCKED.load(Ordering::Relaxed)).as_bytes());
         let _ = stdin.flush();
     }
+}
+
+/// Lo schermo e' bloccato (o sbloccato): vale subito anche nel figlio. Se il figlio non c'e' i tasti di Windows restano quelli di Windows.
+pub fn set_locked(locked: bool) {
+    LOCKED.store(locked, Ordering::Relaxed);
+    send_cfg();
 }
 
 /// Cambia quali scorciatoie sostituiscono quelle di Windows (vale subito, anche nel figlio).
@@ -164,6 +209,8 @@ pub struct Diag {
     pub session: bool,
     /// Tasti mangiati finora.
     pub swallowed: u32,
+    /// Lo schermo e' bloccato: il figlio scarta Win, Alt+Tab, Alt+F4...
+    pub locked: bool,
 }
 
 pub fn diag() -> Diag {
@@ -174,6 +221,7 @@ pub fn diag() -> Diag {
         win_tab: c.win_tab,
         session: SESSION.load(Ordering::Relaxed),
         swallowed: SWALLOWED.load(Ordering::Relaxed),
+        locked: LOCKED.load(Ordering::Relaxed),
     }
 }
 
@@ -242,6 +290,7 @@ static C_CFG: AtomicU8 = AtomicU8::new(0b111);
 static C_STATE: Mutex<State> = Mutex::new(State::DEFAULT);
 static C_TX: OnceLock<Mutex<Sender<Msg>>> = OnceLock::new();
 static C_SWALLOWED: AtomicU32 = AtomicU32::new(0);
+static C_LOCKED: AtomicBool = AtomicBool::new(false);
 
 /// Messaggi per il thread che esegue: un comando, oppure "rilascia questo tasto dopo il tasto neutro".
 enum Msg {
@@ -302,6 +351,13 @@ fn handle(code: i32, w: WPARAM, l: LPARAM) -> bool {
         return false;
     }
     let vk = info.vkCode;
+    // Schermo bloccato: i tasti che portano altrove (Windows, Alt+Tab...) si scartano, giu' e su; gli altri passano alla schermata di blocco.
+    if C_LOCKED.load(Ordering::Relaxed) {
+        let alt = info.flags.0 & 0x20 != 0; // LLKHF_ALTDOWN
+        if lock_blocks(vk, alt, down(0x11), down(0x10)) {
+            return true;
+        }
+    }
     let is_down = matches!(w.0 as u32, WM_KEYDOWN | WM_SYSKEYDOWN);
     // I modificatori si leggono solo quando servono (il Tab): costa poco, ma questo è il percorso di ogni tasto.
     let (mut alt, mut win, mut ctrl, mut shift) = (false, false, false, false);
@@ -368,6 +424,14 @@ pub fn run_child() -> ! {
     // Configurazione dal genitore; fine dello stdin = genitore morto = si esce.
     std::thread::spawn(|| {
         for line in std::io::stdin().lock().lines().map_while(Result::ok) {
+            if let Some(locked) = parse_lock_line(&line) {
+                C_LOCKED.store(locked, Ordering::Relaxed);
+                if locked {
+                    // Niente sessioni di Alt+Tab o di Win rimaste a meta' quando si blocca.
+                    *C_STATE.lock().unwrap_or_else(|e| e.into_inner()) = State::DEFAULT;
+                }
+                continue;
+            }
             if let Some(c) = parse_config_line(&line) {
                 C_CFG.store(u8::from(c.alt_tab) | (u8::from(c.win_tab) << 1) | (u8::from(c.win_tap) << 2), Ordering::Relaxed);
                 if !c.alt_tab {
@@ -442,6 +506,36 @@ mod tests {
         }
         for bad in ["", "cfg", "cfg 1", "cfg 1 2", "cfg 1 1", "cfg 1 1 2", "cfg 1 1 1 1", "conf 1 1 1", "cfg a b c"] {
             assert_eq!(parse_config_line(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn lock_lines_round_trip_and_garbage_is_ignored() {
+        assert_eq!(parse_lock_line(&lock_line(true)), Some(true));
+        assert_eq!(parse_lock_line(&lock_line(false)), Some(false));
+        for bad in ["", "lock", "lock 2", "lock x", "lock 1 1", "cfg 1 1 1", "unlock 1"] {
+            assert_eq!(parse_lock_line(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn the_lock_swallows_the_ways_out_but_never_the_emergency_chord_or_plain_typing() {
+        let (none, alt, ctrl, shift) = ((false, false, false), (true, false, false), (false, true, false), (false, false, true));
+        let b = |vk: u32, m: (bool, bool, bool)| lock_blocks(vk, m.0, m.1, m.2);
+        // I tasti Windows e Applicazioni, da soli.
+        for vk in [0x5B, 0x5C, 0x5D] {
+            assert!(b(vk, none), "{vk:#x}");
+        }
+        assert!(b(0x09, alt) && !b(0x09, none), "Alt+Tab si', Tab da solo no (serve alla schermata)");
+        assert!(b(0x73, alt) && !b(0x73, none), "Alt+F4");
+        assert!(b(0x20, alt) && !b(0x20, none), "Alt+Spazio si', la barra spaziatrice da sola no");
+        assert!(b(0x1B, alt) && b(0x1B, ctrl), "Alt+Esc e Ctrl+Esc");
+        assert!(!b(0x1B, none), "Esc da solo serve alla schermata (cancella la password)");
+        assert!(b(0x1B, (false, true, true)), "Ctrl+Maiusc+Esc (Gestione attivita')");
+        assert!(!lock_blocks(0x1B, true, true, true), "Ctrl+Alt+Maiusc+Esc e' la via d'uscita di emergenza: mai bloccata");
+        // Scrivere una password: lettere, numeri, invio, backspace non si toccano.
+        for vk in [0x41, 0x5A, 0x30, 0x39, 0x0D, 0x08, 0x10, 0x11, 0x12, 0xA0, 0xA2, 0xA4] {
+            assert!(!b(vk, none) && !b(vk, shift), "{vk:#x}");
         }
     }
 

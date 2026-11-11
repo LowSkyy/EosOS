@@ -6,6 +6,7 @@ import App from "./App";
 import Capture from "./components/Capture";
 import Dock from "./components/Dock";
 import Launcher from "./components/Launcher";
+import Lock from "./components/Lock";
 import Mc from "./components/Mc";
 import Panel from "./components/Panel";
 import Settings from "./components/Settings";
@@ -20,6 +21,6 @@ const view = new URLSearchParams(window.location.search).get("view");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {view === "dock" ? <Dock /> : view === "launcher" ? <Launcher /> : view === "panel" ? <Panel /> : view === "mc" ? <Mc /> : view === "settings" ? <Settings /> : view === "capture" ? <Capture /> : <App />}
+    {view === "dock" ? <Dock /> : view === "launcher" ? <Launcher /> : view === "panel" ? <Panel /> : view === "mc" ? <Mc /> : view === "settings" ? <Settings /> : view === "capture" ? <Capture /> : view === "lock" ? <Lock /> : <App />}
   </React.StrictMode>,
 );

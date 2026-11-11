@@ -308,7 +308,7 @@ fn monitor_at(app: &AppHandle, x: i32, y: i32) -> Option<(Rect, f64)> {
 /// Clic su un indicatore: apre, cambia contenuto o chiude il pannello (vedi `decide`). `anchor`: il
 /// rettangolo dell'indicatore in px fisici dello schermo.
 pub fn toggle(app: &AppHandle, key: &str, anchor: Rect) {
-    if !is_panel_key(key) {
+    if !is_panel_key(key) || crate::lockscreen::is_locked() {
         return;
     }
     let (open, lost) = {

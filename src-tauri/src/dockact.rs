@@ -178,6 +178,9 @@ pub fn window_to_minimize(
 /// Clic sull'icona: avvia se chiusa; se aperta la porta in primo piano, e se è
 /// già quella davanti la minimizza.
 pub fn activate(item: &DockItem, windows: &[(HWND, PathBuf)]) {
+    if crate::lockscreen::is_locked() {
+        return;
+    }
     let wins = windows_of(item, windows);
     let Some(&top) = wins.first() else {
         launch(item);

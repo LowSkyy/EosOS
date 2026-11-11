@@ -213,6 +213,9 @@ pub fn show_grid(app: &AppHandle) {
 }
 
 fn show_inner(app: &AppHandle, grid: bool) {
+    if crate::lockscreen::is_locked() {
+        return;
+    }
     let Some(win) = win_of(app) else { return };
     let Some((area, scale)) = target_monitor(app, &win) else { return };
     GRID.store(grid, Ordering::Relaxed);
