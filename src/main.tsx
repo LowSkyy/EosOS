@@ -21,6 +21,6 @@ const view = new URLSearchParams(window.location.search).get("view");
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {view === "dock" ? <Dock /> : view === "launcher" ? <Launcher /> : view === "panel" ? <Panel /> : view === "mc" ? <Mc /> : view === "settings" ? <Settings /> : view === "capture" ? <Capture /> : view === "lock" ? <Lock /> : <App />}
+    {view === "dock" ? <Dock /> : view === "launcher" ? <Launcher /> : view === "panel" ? <Panel /> : view === "mc" ? <Mc /> : view === "settings" ? <Settings /> : view === "capture" ? <Capture /> : view === "lock" ? <Lock /> : view === "lockoff" ? <div style={{ position: "fixed", inset: 0, background: "#000", cursor: "none" }} /> : <App />}
   </React.StrictMode>,
 );

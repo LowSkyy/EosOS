@@ -1,6 +1,6 @@
 # Schermata di blocco di EosOS (11 nov 2026)
 
-Una schermata di blocco in stile macOS: sfondo del desktop sfocato, data e orologio grandi, avatar con la lettera del nome, campo password a pillola. Compare su **tutti i monitor**.
+Una schermata di blocco in stile macOS: sfondo del desktop sfocato, data e orologio grandi, avatar con la lettera del nome, campo password a pillola. Come su Windows, l'accesso compare **solo sul monitor principale**; gli altri monitor restano neri (in standby, senza contenuto) fino allo sblocco.
 
 ## Cosa NON è (da dire chiaro)
 Non sostituisce la schermata di accesso di Windows. Quella (all'accensione, con `Win+L`, al risveglio) gira su un desktop protetto (`LogonUI`) a cui un programma normale non ha accesso: sostituirla vorrebbe dire modificare file di sistema o installare un credential provider, con il rischio di restare fuori dal PC, e comunque PIN e Windows Hello non si potrebbero conservare (li verifica solo Windows). EosOS parte dopo l'accesso, quindi non può comparire prima.
@@ -19,7 +19,7 @@ Non sostituisce la schermata di accesso di Windows. Quella (all'accensione, con 
 - **Dopo 5 errori** si aspetta: 5 s, poi il doppio fino a 5 minuti. L'attesa la impone Rust (`lockscreen::backoff`): durante l'attesa anche la password giusta viene rifiutata, e la pagina non può aggirarla.
 
 ## Come resta bloccato
-- Una finestra per monitor (`lock-0`, `lock-1`…, titolo «EosOS Blocco N»), sopra a tutto, copre anche barra e Dock. Un thread la rimette in primo piano ogni 250 ms.
+- Una finestra per monitor (`lock-0` = principale, con la pagina di accesso; `lock-1`… = nere; titolo «EosOS Blocco N»), sopra a tutto, copre anche barra e Dock. Un thread la rimette in primo piano ogni 250 ms.
 - L'**hook di tastiera** (processo separato `--keyhook`, riga `lock 0|1`) scarta Win, Applicazioni, `Alt+Tab`, `Alt+Esc`, `Ctrl+Esc`, `Alt+F4`, `Alt+Spazio`, `Ctrl+Maiusc+Esc`. **Mai** `Ctrl+Alt+Maiusc+Esc`: è la via d'uscita di emergenza (chiude EosOS e ripristina la barra di Windows) e resta sempre libera.
 - Launcher/Launchpad, Mission Control, Impostazioni, cattura dello schermo, i pannelli della barra e le icone del Dock non si aprono mentre è bloccato (`lockscreen::is_locked()`).
 - Dopo il tempo scelto («Poi blocca anche Windows dopo»: Mai, 1, 5 di base, 15, 30 minuti) la schermata EosOS si toglie e parte il blocco di Windows: dopo l'accesso di Windows non ne trovi un'altra.

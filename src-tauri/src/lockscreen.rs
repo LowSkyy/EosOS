@@ -343,15 +343,21 @@ fn close_windows(app: &AppHandle) {
 }
 
 fn create_windows(app: &AppHandle) {
-    let monitors = app.available_monitors().unwrap_or_default();
-    let cursor = crate::capture::cursor_monitor();
+    // Come su Windows: l'accesso solo sul monitor principale (sempre «lock-0»); gli altri restano neri, senza contenuto, fino allo sblocco.
+    let mut monitors = app.available_monitors().unwrap_or_default();
+    if let Ok(Some(primary)) = app.primary_monitor()
+        && let Some(p) = monitors.iter().position(|m| m.position() == primary.position() && m.size() == primary.size())
+    {
+        monitors.swap(0, p);
+    }
     for (i, m) in monitors.iter().enumerate() {
         let label = label_for(i);
         if let Some(old) = app.get_webview_window(&label) {
             let _ = old.destroy();
         }
         let (pos, size) = (m.position(), m.size());
-        let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(format!("index.html?view=lock&i={i}").into()))
+        let view = if i == 0 { "lock" } else { "lockoff" };
+        let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(format!("index.html?view={view}&i={i}").into()))
             .title(format!("EosOS Blocco {i}"))
             .decorations(false)
             .always_on_top(true)
@@ -374,8 +380,7 @@ fn create_windows(app: &AppHandle) {
             unsafe {
                 let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             }
-            let under_cursor = cursor.x >= pos.x && cursor.x < pos.x + size.width as i32 && cursor.y >= pos.y && cursor.y < pos.y + size.height as i32;
-            if under_cursor || i == 0 && monitors.len() == 1 {
+            if i == 0 {
                 crate::dockact::focus(hwnd);
             }
         }
