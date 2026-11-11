@@ -34,7 +34,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, LoadCursorW, IDC_ARROW, DestroyWindow, DispatchMessageW, EnumWindows, GetClassNameW, GetForegroundWindow, GetMessageW, GetWindow, GetWindowLongPtrW,
     GetWindowRect, GetWindowThreadProcessId, IsIconic, IsWindowVisible, IsZoomed, PostMessageW, RegisterClassW, SetTimer, SetWindowPos, ShowWindow,
     TranslateMessage, UpdateLayeredWindow, GWL_EXSTYLE, GWL_STYLE, GW_HWNDNEXT, GW_HWNDPREV, HWND_MESSAGE, HWND_TOP, HWND_TOPMOST, MSG, SC_CLOSE,
-    SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SW_SHOWNOACTIVATE, ULW_ALPHA, WINDOW_EX_STYLE,
+    SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOOWNERZORDER, SWP_NOSIZE, SW_SHOWNOACTIVATE, ULW_ALPHA, WINDOW_EX_STYLE,
     WM_APP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_SYSCOMMAND, WM_TIMER, WNDCLASSW, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE,
     WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUP, WS_THICKFRAME, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
 };
@@ -618,7 +618,8 @@ fn sync() {
                 let Some(ov) = ovs.get_mut(&key) else { continue };
                 // Il colore della barra: a ogni cambio di aspetto o ogni tanto.
                 let mut changed = !existing;
-                if ov.x != x || ov.y != y || ov.layout != lay || ov.kinds != kinds || ov.active != active || ov.zoomed != info.zoomed || ov.corner != corner || ov.scale != info.scale {
+                let moved = ov.x != x || ov.y != y;
+                if ov.layout != lay || ov.kinds != kinds || ov.active != active || ov.zoomed != info.zoomed || ov.corner != corner || ov.scale != info.scale {
                     changed = true;
                 }
                 if changed || ov.sampled.elapsed() >= RESAMPLE {
@@ -631,6 +632,12 @@ fn sync() {
                 }
                 ov.x = x;
                 ov.y = y;
+                if moved && !changed {
+                    // Solo spostata: basta spostare la finestrina, senza ridisegnarla.
+                    unsafe {
+                        let _ = SetWindowPos(ov.hwnd, None, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                    }
+                }
                 ov.layout = lay;
                 ov.kinds = kinds;
                 ov.active = active;
@@ -716,6 +723,44 @@ unsafe extern "system" fn on_event(_h: HWINEVENTHOOK, event: u32, _hwnd: HWND, i
     // Solo gli eventi delle finestre (non del cursore o dei figli): quello del cursore arriva a ogni movimento del mouse.
     if event == 0x800B && (id_object != 0 || id_child != 0) {
         return;
+    }
+    // Spostamento puro di una finestra con i semafori: si spostano subito le sue finestrine, senza la passata completa (trascinando
+    // arrivano decine di eventi al secondo e la passata completa e' lenta: i cerchi resterebbero indietro).
+    if event == 0x800B {
+        let key = _hwnd.0 as isize;
+        let done = ST
+            .try_with(|cell| {
+                let Ok(mut st) = cell.try_borrow_mut() else { return false };
+                let mut any = false;
+                for (k, ov) in st.ovs.iter_mut() {
+                    if (*k & !COVER_BIT) != key {
+                        continue;
+                    }
+                    any = true;
+                    let mut r = RECT::default();
+                    unsafe {
+                        if GetWindowRect(ov.target, &mut r).is_err() {
+                            return false;
+                        }
+                    }
+                    let t = ov.trect;
+                    if r.right - r.left != t.right - t.left || r.bottom - r.top != t.bottom - t.top {
+                        return false; // ridimensionata: serve la passata completa
+                    }
+                    let (dx, dy) = (r.left - t.left, r.top - t.top);
+                    ov.x += dx;
+                    ov.y += dy;
+                    ov.trect = r;
+                    unsafe {
+                        let _ = SetWindowPos(ov.hwnd, None, ov.x, ov.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                    }
+                }
+                any
+            })
+            .unwrap_or(false);
+        if done {
+            return;
+        }
     }
     poke();
 }
