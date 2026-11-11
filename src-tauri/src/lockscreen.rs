@@ -145,7 +145,7 @@ fn password_ok(password: &str) -> bool {
 fn hello_available() -> bool {
     #[cfg(feature = "test-hooks")]
     {
-        return std::env::var("EOSOS_TEST_LOCK_HELLO").is_ok_and(|v| v == "1");
+        std::env::var("EOSOS_TEST_LOCK_HELLO").is_ok_and(|v| v == "1")
     }
     #[cfg(not(feature = "test-hooks"))]
     {
@@ -158,7 +158,7 @@ fn hello_available() -> bool {
 fn hello_verified() -> bool {
     #[cfg(feature = "test-hooks")]
     {
-        return std::env::var("EOSOS_TEST_LOCK_HELLO").is_ok_and(|v| v == "1");
+        std::env::var("EOSOS_TEST_LOCK_HELLO").is_ok_and(|v| v == "1")
     }
     #[cfg(not(feature = "test-hooks"))]
     {

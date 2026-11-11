@@ -57,6 +57,7 @@ mod vdint;
 mod vdprofile;
 mod vdreport;
 mod panelwin;
+mod lights;
 mod lockscreen;
 mod taskbar;
 mod util;
@@ -1261,6 +1262,7 @@ fn hide_requested() -> bool {
 fn cleanup() {
     appbar::remove_if_registered();
     taskbar::restore_if_hidden();
+    lights::restore_all();
 }
 
 unsafe extern "system" fn on_ctrl(_event: u32) -> BOOL {
@@ -1413,6 +1415,7 @@ pub fn run() {
             indicators::start(app.handle().clone());
             launcherwin::start(app.handle());
             lockscreen::start(app.handle());
+            lights::start();
             panelwin::start(app.handle());
             mcwin::start(app.handle());
             settingswin::remember(app.handle());

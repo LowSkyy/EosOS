@@ -101,3 +101,12 @@ Prima di provarla: la via d'uscita di emergenza e' `Ctrl+Alt+Maiusc+Esc` (chiude
 - [ ] Se spegni «Schermata di blocco EosOS», «Blocca lo schermo» mostra la schermata di Windows.
 - [ ] Windows Hello / PIN (solo su un PC che li ha): compare «Usa PIN o Windows Hello» e funziona. *Mai provato dal vivo.*
 
+## 13. Semafori sulle finestre (nuovo, 11 nov)
+- [ ] Apri Esplora file, il browser, un'app Office/VS Code: in alto compaiono i tre cerchi al posto dei tasti di Windows (a sinistra, di base). Nessun tasto di Windows resta visibile a destra.
+- [ ] Rosso chiude, giallo riduce a icona, verde ingrandisce e (di nuovo) ripristina. Passando il mouse compaiono i simboli.
+- [ ] Trascina la finestra, ridimensionala, ingrandiscila, mettine un'altra sopra: i cerchi la seguono e non restano sopra alle altre finestre.
+- [ ] Impostazioni → Aspetto → «Lato dei semafori» = destra: stessi cerchi a destra, nell'ordine riduci, schermo intero, chiudi.
+- [ ] Spegni «Semafori…»: tornano i tasti di Windows. Chiudendo EosOS (o con `Ctrl+Alt+Maiusc+Esc`) i tasti di Windows tornano da soli.
+- [ ] Video a schermo intero (F11 nel browser): nessun cerchio sopra al contenuto.
+- [ ] App con barra del titolo propria (Chrome, VS Code, Office, Impostazioni di Windows): guarda se il colore del riquadro sotto i cerchi si confonde con la barra. *Mai provato su queste app, solo su una finestra di prova.*
+

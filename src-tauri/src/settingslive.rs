@@ -72,6 +72,9 @@ impl Backend for Live {
             "dock.magnify" => b(!mc().dock_magnify_off),
             "dock.keys" => Some(Value::Text(match mc().dock_keys.as_str() { "" => "ctrl_alt".to_string(), s => s.to_string() })),
             "dock.size" => Some(Value::Text(match mc().dock_size.as_str() { "" => "medium".to_string(), s => s.to_string() })),
+            "lights.on" => b(!mc().lights_off),
+            "lights.side" => Some(Value::Text(if mc().lights_right { "right" } else { "left" }.to_string())),
+            "lights.finder" => b(!mc().finder_off),
             "lock.eos" => b(!mc().lock_off),
             "lock.idle" => Some(Value::Text(mc().lock_idle.to_string())),
             "lock.windows" => Some(Value::Text(mc().lock_windows_minutes().to_string())),
@@ -226,6 +229,22 @@ impl Backend for Live {
                 }
                 crate::mcstore::set_snap_keys(id);
                 crate::winsnap::reload();
+            }
+            "lights.on" => {
+                crate::mcstore::set_lights(want_bool(value)?);
+                crate::lights::poke();
+            }
+            "lights.side" => {
+                let id = want_text(value)?;
+                if id != "left" && id != "right" {
+                    return Err(SettingsError("Scelta non ammessa.".into()));
+                }
+                crate::mcstore::set_lights_right(id == "right");
+                crate::lights::poke();
+            }
+            "lights.finder" => {
+                crate::mcstore::set_finder(want_bool(value)?);
+                crate::lights::poke();
             }
             "lock.eos" => {
                 crate::mcstore::set_lock_eos(want_bool(value)?);

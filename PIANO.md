@@ -79,3 +79,5 @@ P1–P9 completati. Il traguardo è raggiunto e verificato dal vivo su questa ma
 - Aggiornamenti automatici: lato programma fatti (plugin ufficiale, firma obbligatoria, https, ricerca all'avvio spenta di default); mancano un posto pubblico dove pubblicare le versioni e la prova di un'installazione riuscita, vedi `docs/AGGIORNAMENTI.md`
 - Widget «Oggi» (data, meteo con Open-Meteo a scelta, promemoria): fatto, vedi `docs/OGGI.md`
 - Schermata di blocco in stile macOS (11 nov 2026): fatta, vedi `docs/BLOCCO-SCHERMO.md` (blocco «da scrivania» su tutti i monitor; non sostituisce quella di Windows; lo sblocco con la password vera va provato a mano)
+- Semafori macOS al posto dei tasti di Windows, lato a scelta, e stile Finder (bordo) per Esplora file (11 nov 2026): fatti, vedi `docs/SEMAFORI.md` (finestrine sopra i tasti, non tocca le altre app; provato solo su una finestra di prova)
+
