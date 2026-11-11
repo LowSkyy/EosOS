@@ -45,7 +45,7 @@ const FAST_MS: u32 = 16;
 /// Bit che distingue la finestrina di copertura dei tasti di Windows da quella dei cerchi della stessa finestra.
 const COVER_BIT: isize = 1 << 60;
 /// Ogni quanto si rilegge il colore della barra (cambia con lo sfondo e con l'attivazione).
-const RESAMPLE: Duration = Duration::from_millis(700);
+const RESAMPLE: Duration = Duration::from_millis(150);
 
 static HOST: AtomicIsize = AtomicIsize::new(0);
 static PENDING: AtomicBool = AtomicBool::new(false);
