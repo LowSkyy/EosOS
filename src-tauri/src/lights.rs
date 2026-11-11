@@ -456,9 +456,9 @@ fn strip_height(key: isize, x: i32, y: i32, max: i32, left: i32, right: i32) -> 
         return h;
     }
     let x = x.max(left + 1).min(right - 1);
-    let top = sample_bg(x, y + 2);
+    let top = sample_bg(x, y + 8);
     let mut h = 0;
-    for dy in 3..max {
+    for dy in 9..max {
         let c = sample_bg(x, y + dy);
         let d = (0..3).map(|i| (c[i] as i32 - top[i] as i32).abs()).max().unwrap_or(0);
         if d > 10 {
@@ -623,7 +623,7 @@ fn sync() {
                     changed = true;
                 }
                 if changed || ov.sampled.elapsed() >= RESAMPLE {
-                    let bg = sample_bg((info.nx - 3).max(info.frame_left + 1).min(info.frame_right - 1), info.ny + 2);
+                    let bg = sample_bg((info.nx - 3).max(info.frame_left + 1).min(info.frame_right - 1), info.ny + (info.h / 2).max(4));
                     if bg != ov.bg {
                         changed = true;
                     }
