@@ -58,6 +58,7 @@ mod vdprofile;
 mod vdreport;
 mod panelwin;
 mod lights;
+mod remote;
 mod lockscreen;
 mod taskbar;
 mod util;
@@ -1193,7 +1194,7 @@ fn dock_settings_menu(app: tauri::AppHandle, window: tauri::Window) -> tauri::Re
         menu_id(MenuAction::ToggleBlur, "-"),
         "Sfocatura dello sfondo",
         true,
-        dockwin::blur_enabled(),
+        dockwin::blur_setting(),
         None::<&str>,
     )?;
     let reserve = CheckMenuItem::with_id(
@@ -1416,6 +1417,7 @@ pub fn run() {
             launcherwin::start(app.handle());
             lockscreen::start(app.handle());
             lights::start();
+            remote::start(app.handle().clone());
             panelwin::start(app.handle());
             mcwin::start(app.handle());
             settingswin::remember(app.handle());

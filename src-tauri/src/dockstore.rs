@@ -93,7 +93,7 @@ pub struct Ui {
 /// Le impostazioni complete per la pagina del Dock.
 pub fn ui() -> Ui {
     let mc = crate::mcstore::load();
-    Ui { base: settings(), size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off }
+    Ui { base: Settings { blur: settings().blur && !crate::remote::blur_suspended(), ..settings() }, size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off }
 }
 
 /// Valore di un livello di vetro dall'id. Pura, testata.

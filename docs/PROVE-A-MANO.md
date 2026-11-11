@@ -110,3 +110,8 @@ Prima di provarla: la via d'uscita di emergenza e' `Ctrl+Alt+Maiusc+Esc` (chiude
 - [ ] Video a schermo intero (F11 nel browser): nessun cerchio sopra al contenuto.
 - [ ] App con barra del titolo propria (Chrome, VS Code, Office, Impostazioni di Windows): guarda se il colore del riquadro sotto i cerchi si confonde con la barra. *Mai provato su queste app, solo su una finestra di prova.*
 
+## 14. Controllo remoto (nuovo, 11 nov)
+- [ ] Da remoto (AnyDesk): Dock, barra e pannelli di EosOS si vedono. Finita la sessione, in locale la sfocatura torna entro pochi secondi.
+- [ ] Impostazioni → Aspetto → «Niente sfocatura durante il controllo remoto» spento: da remoto Dock e barra tornano invisibili (comportamento di prima).
+- [ ] Altri programmi (TeamViewer, Desktop remoto di Windows): vedi `docs/CONTROLLO-REMOTO.md` per l'elenco; *mai provati dal vivo, solo AnyDesk.*
+

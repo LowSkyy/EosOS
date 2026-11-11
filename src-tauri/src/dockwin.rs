@@ -101,13 +101,19 @@ fn reserve_allowed() -> bool {
     *ALLOWED.get_or_init(|| std::env::var("EOSOS_DOCK_RESERVE").map_or(true, |v| v != "0"))
 }
 
-pub fn blur_enabled() -> bool {
+/// La sfocatura scelta dall'utente (salvata), anche se in questo momento e' sospesa.
+pub fn blur_setting() -> bool {
     BLUR.load(Ordering::Relaxed)
+}
+
+/// La sfocatura e' in uso adesso: scelta dall'utente e non sospesa da un controllo remoto (che altrimenti non vedrebbe Dock e barra).
+pub fn blur_enabled() -> bool {
+    blur_setting() && !crate::remote::blur_suspended()
 }
 
 /// Inverte la sfocatura dello sfondo e la salva.
 pub fn toggle_blur() {
-    let on = !blur_enabled();
+    let on = !blur_setting();
     BLUR.store(on, Ordering::Relaxed);
     crate::dockstore::set_blur(on);
 }

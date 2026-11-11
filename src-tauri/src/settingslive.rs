@@ -78,7 +78,8 @@ impl Backend for Live {
             "lock.eos" => b(!mc().lock_off),
             "lock.idle" => Some(Value::Text(mc().lock_idle.to_string())),
             "lock.windows" => Some(Value::Text(mc().lock_windows_minutes().to_string())),
-            "dock.blur" => b(crate::dockwin::blur_enabled()),
+            "dock.blur" => b(crate::dockwin::blur_setting()),
+            "dock.remote_blur" => b(!mc().remote_keep_blur),
             "dock.stacks" => Some(Value::List(crate::stacks::folders())),
             "dock.pinned" => Some(Value::List(crate::dockstore::load().into_iter().map(|p| p.name).collect())),
             "dock.glass" => Some(Value::Text(crate::dockstore::nearest_glass_id(crate::dockstore::settings().glass).to_string())),
@@ -180,9 +181,13 @@ impl Backend for Live {
                 self.dock_changed();
             }
             "dock.blur" => {
-                if crate::dockwin::blur_enabled() != want_bool(value)? {
+                if crate::dockwin::blur_setting() != want_bool(value)? {
                     crate::dockwin::toggle_blur();
                 }
+                self.dock_changed();
+            }
+            "dock.remote_blur" => {
+                crate::mcstore::set_remote_blur_off(want_bool(value)?);
                 self.dock_changed();
             }
             "dock.all_screens" => {

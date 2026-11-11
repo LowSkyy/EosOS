@@ -285,6 +285,9 @@ thread_local! {
     static ST: RefCell<State> = RefCell::new(State::default());
 }
 
+/// Una finestrina da mostrare: chiave, x, disposizione, cerchi, angolo.
+type Part = (isize, i32, Layout, Vec<(Kind, bool)>, (bool, f32));
+
 struct Info {
     hwnd: HWND,
     /// Posizione e altezza dell'area dei tasti di Windows (schermo).
@@ -527,7 +530,7 @@ fn sync() {
             let top = info.ny.min(info.frame_top);
             let extra = info.ny - top;
             // Le parti: i cerchi e, se stanno a sinistra, una finestrina liscia che copre i tasti di Windows a destra.
-            let mut parts: Vec<(isize, i32, Layout, Vec<(Kind, bool)>, (bool, f32))> =
+            let mut parts: Vec<Part> =
                 vec![(base, if right { info.nx } else { info.frame_left }, layout(&order, info.scale, right, info.native_w, info.h + extra), kinds, (right, radius))];
             if !right {
                 parts.push((base ^ COVER_BIT, info.nx, Layout { w: info.native_w, h: info.h + extra, r: 0.0, centers: Vec::new() }, Vec::new(), (true, radius)));
