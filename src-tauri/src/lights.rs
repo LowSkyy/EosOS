@@ -31,7 +31,7 @@ use windows::Win32::UI::Accessibility::{SetWinEventHook, UnhookWinEvent, HWINEVE
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Input::KeyboardAndMouse::{ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE, TRACKMOUSEEVENT};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, EnumWindows, GetClassNameW, GetForegroundWindow, GetMessageW, GetWindow, GetWindowLongPtrW,
+    CreateWindowExW, DefWindowProcW, LoadCursorW, IDC_ARROW, DestroyWindow, DispatchMessageW, EnumWindows, GetClassNameW, GetForegroundWindow, GetMessageW, GetWindow, GetWindowLongPtrW,
     GetWindowRect, GetWindowThreadProcessId, IsIconic, IsWindowVisible, IsZoomed, PostMessageW, RegisterClassW, SetTimer, SetWindowPos, ShowWindow,
     TranslateMessage, UpdateLayeredWindow, GWL_EXSTYLE, GWL_STYLE, GW_HWNDNEXT, GW_HWNDPREV, HWND_MESSAGE, HWND_TOP, HWND_TOPMOST, MSG, SC_CLOSE,
     SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SW_SHOWNOACTIVATE, ULW_ALPHA, WINDOW_EX_STYLE,
@@ -41,6 +41,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 const WM_MOUSELEAVE: u32 = 0x02A3;
 const TICK_MS: u32 = 100;
+const FAST_MS: u32 = 16;
 /// Bit che distingue la finestrina di copertura dei tasti di Windows da quella dei cerchi della stessa finestra.
 const COVER_BIT: isize = 1 << 60;
 /// Ogni quanto si rilegge il colore della barra (cambia con lo sfondo e con l'attivazione).
@@ -292,6 +293,8 @@ struct Ov {
     down: Option<usize>,
     sampled: Instant,
     tracking: bool,
+    /// Rettangolo della finestra vera all'ultima passata: serve a accorgersi subito se si e' mossa.
+    trect: RECT,
 }
 
 #[derive(Default)]
@@ -374,13 +377,13 @@ fn inspect(h: HWND) -> Option<Info> {
             r
         } else {
             // Finestre senza barra di sistema (VS Code, Discord, Spotify, app Electron...): i tasti li disegna l'app in alto a destra, di
-            // solito come Windows 11 (3 tasti da 46 x 30). Solo se la finestra si puo' ridimensionare e ridurre/ingrandire e non e' piccola.
+            // solito come Windows 11 (3 tasti da 46 x 33). Solo se la finestra si puo' ridimensionare e ridurre/ingrandire e non e' piccola.
             let sizable = style & WS_THICKFRAME.0 != 0 && style & (WS_MINIMIZEBOX.0 | WS_MAXIMIZEBOX.0) != 0;
             if !sizable || (fr.right - fr.left) < (320.0 * scale) as i32 || (fr.bottom - fr.top) < (200.0 * scale) as i32 {
                 return None;
             }
             let w = (3.0 * 46.0 * scale) as i32;
-            RECT { left: fr.right - wr.left - w, top: fr.top - wr.top, right: fr.right - wr.left, bottom: fr.top - wr.top + (30.0 * scale) as i32 }
+            RECT { left: fr.right - wr.left - w, top: fr.top - wr.top, right: fr.right - wr.left, bottom: fr.top - wr.top + (33.0 * scale) as i32 }
         };
         if cb.right - cb.left < 20 || cb.bottom - cb.top < 10 {
             return None;
@@ -580,7 +583,7 @@ fn sync() {
                     st.by_overlay.insert(hwnd.0 as isize, key);
                     st.ovs.insert(
                         key,
-                        Ov { hwnd, target: info.hwnd, x, y, layout: lay.clone(), kinds: kinds.clone(), scale: info.scale, bg: [32, 32, 32], active, zoomed: info.zoomed, corner, hover: false, down: None, sampled: Instant::now() - RESAMPLE, tracking: false },
+                        Ov { hwnd, target: info.hwnd, x, y, layout: lay.clone(), kinds: kinds.clone(), scale: info.scale, bg: [32, 32, 32], active, zoomed: info.zoomed, corner, hover: false, down: None, sampled: Instant::now() - RESAMPLE, tracking: false, trect: RECT::default() },
                     );
                 }
                 let State { ovs, by_overlay, .. } = &mut *st;
@@ -606,6 +609,9 @@ fn sync() {
                 ov.zoomed = info.zoomed;
                 ov.corner = corner;
                 ov.scale = info.scale;
+                unsafe {
+                    let _ = GetWindowRect(info.hwnd, &mut ov.trect);
+                }
                 if changed {
                     present(ov);
                 }
@@ -648,6 +654,26 @@ fn sync() {
     });
 }
 
+/// Controllo leggero (ogni pochi millisecondi): la finestra vera si e' mossa o e' finita sopra la sua finestrina? Se si', passata completa.
+fn needs_sync() -> bool {
+    ST.try_with(|cell| {
+        let Ok(st) = cell.try_borrow() else { return false };
+        st.ovs.values().any(|ov| unsafe {
+            let mut r = RECT::default();
+            if GetWindowRect(ov.target, &mut r).is_err() {
+                return true; // la finestra non c'e' piu'
+            }
+            if r != ov.trect {
+                return true;
+            }
+            let next = GetWindow(ov.hwnd, GW_HWNDNEXT).ok();
+            let base = ov.target.0 as isize;
+            !(next == Some(ov.target) || next.is_some_and(|n| st.by_overlay.get(&(n.0 as isize)).is_some_and(|k| (*k & !COVER_BIT) == base)))
+        })
+    })
+    .unwrap_or(false)
+}
+
 /// Chiede una passata subito (cambio di impostazione, evento delle finestre).
 pub fn poke() {
     let h = HOST.load(Ordering::SeqCst);
@@ -669,7 +695,14 @@ unsafe extern "system" fn on_event(_h: HWINEVENTHOOK, event: u32, _hwnd: HWND, i
 unsafe extern "system" fn host_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     match msg {
         WM_TIMER => {
-            sync();
+            // 1 = passata completa ogni TICK_MS; 2 = controllo leggero molto piu' frequente.
+            if wp.0 == 2 {
+                if needs_sync() {
+                    sync();
+                }
+            } else {
+                sync();
+            }
             LRESULT(0)
         }
         WM_APP => {
@@ -747,7 +780,8 @@ unsafe extern "system" fn ov_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
 pub fn start() {
     std::thread::spawn(|| unsafe {
         let Ok(hi) = GetModuleHandleW(None) else { return };
-        let ov_class = WNDCLASSW { lpfnWndProc: Some(ov_proc), hInstance: hi.into(), lpszClassName: w!("EosOSLights"), ..Default::default() };
+        let arrow = LoadCursorW(None, IDC_ARROW).unwrap_or_default();
+        let ov_class = WNDCLASSW { lpfnWndProc: Some(ov_proc), hInstance: hi.into(), lpszClassName: w!("EosOSLights"), hCursor: arrow, ..Default::default() };
         let host_class = WNDCLASSW { lpfnWndProc: Some(host_proc), hInstance: hi.into(), lpszClassName: w!("EosOSLightsHost"), ..Default::default() };
         RegisterClassW(&ov_class);
         RegisterClassW(&host_class);
@@ -756,8 +790,9 @@ pub fn start() {
         };
         HOST.store(host.0 as isize, Ordering::SeqCst);
         SetTimer(Some(host), 1, TICK_MS, None);
+        SetTimer(Some(host), 2, FAST_MS, None);
         let flags = WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS;
-        let hooks: Vec<HWINEVENTHOOK> = [(0x0003u32, 0x0003u32), (0x0016, 0x0017), (0x800B, 0x800B), (0x8002, 0x8003)]
+        let hooks: Vec<HWINEVENTHOOK> = [(0x0003u32, 0x0003u32), (0x0016, 0x0017), (0x800B, 0x800B), (0x8002, 0x8004)]
             .iter()
             .map(|(a, b)| SetWinEventHook(*a, *b, None, Some(on_event), 0, 0, flags))
             .collect();
