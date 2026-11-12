@@ -40,7 +40,7 @@ const BADGE_MS = 4000;
 /** Un rimbalzo non dura più di così, anche se l'app non compare mai. */
 const BOUNCE_MAX_MS = 8000;
 /** Ogni quanto si scartano le icone già ricevute per ricaricarle. */
-const ICON_REFRESH_MS = 10 * 60 * 1000;
+const ICON_REFRESH_MS = 60 * 60 * 1000;
 
 function Icon({
   item,
@@ -264,9 +264,12 @@ export default function Dock() {
     const el = pill.current;
     if (!f || !src || !dst || !el) return;
     const r = el.getBoundingClientRect();
+    // La tela ha sempre la misura della capsula a riposo (la copia invisibile): con l'ingrandimento la capsula cambia misura a ogni
+    // movimento del mouse e ricreare la tela ogni volta (e svuotarla) pesava. Lo sfondo e' sfocato: stirarlo di poco non si nota.
+    const rest = ghost.current?.getBoundingClientRect() ?? r;
     const k = window.devicePixelRatio / f.factor;
-    const w = Math.max(1, Math.round((r.width + 2 * BLUR_MARGIN) * k));
-    const h = Math.max(1, Math.round((r.height + 2 * BLUR_MARGIN) * k));
+    const w = Math.max(1, Math.round((rest.width + 2 * BLUR_MARGIN) * k));
+    const h = Math.max(1, Math.round((rest.height + 2 * BLUR_MARGIN) * k));
     if (dst.width !== w) dst.width = w;
     if (dst.height !== h) dst.height = h;
     const s = sourceRect(r, BLUR_MARGIN, window.devicePixelRatio, f);
@@ -297,8 +300,9 @@ export default function Dock() {
           if (!f || !source.current) return;
           seq = f.seq;
           const s = source.current;
-          s.width = f.w;
-          s.height = f.h;
+          // Solo se cambia misura: assegnare width/height ricrea la tela a ogni fotogramma.
+          if (s.width !== f.w) s.width = f.w;
+          if (s.height !== f.h) s.height = f.h;
           s.getContext("2d")?.putImageData(new ImageData(f.data, f.w, f.h), 0, 0);
           frame.current = f;
           root.setAttribute("data-blur", "on");

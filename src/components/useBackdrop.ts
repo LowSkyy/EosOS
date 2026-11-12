@@ -72,8 +72,8 @@ export function useBackdrop(
           if (!f || !source.current) return;
           seq = f.seq;
           const s = source.current;
-          s.width = f.w;
-          s.height = f.h;
+          if (s.width !== f.w) s.width = f.w;
+          if (s.height !== f.h) s.height = f.h;
           s.getContext("2d")?.putImageData(new ImageData(f.data, f.w, f.h), 0, 0);
           frame.current = f;
           root.setAttribute("data-blur", "on");

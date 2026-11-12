@@ -53,7 +53,9 @@ static PENDING: AtomicBool = AtomicBool::new(false);
 static TOUCHED: Mutex<Vec<isize>> = Mutex::new(Vec::new());
 /// Finestre a cui si sono tolti i tasti di Windows (stile `WS_SYSMENU`) e dove stavano: (larghezza, altezza, distanza dall'alto e dal
 /// bordo destro della cornice, in pixel). Si rimettono allo spegnimento, alla chiusura di EosOS e al blocco dello schermo.
-static BARE: Mutex<Vec<(isize, i32, i32, i32, i32)>> = Mutex::new(Vec::new());
+static BARE: Mutex<Vec<BareEntry>> = Mutex::new(Vec::new());
+/// (finestra, larghezza, altezza, distanza dall'alto, distanza dal bordo destro).
+type BareEntry = (isize, i32, i32, i32, i32);
 
 /// Classi con la barra del titolo disegnata dall'app: lì i tasti non si possono togliere e resta la finestrina sopra.
 fn keeps_native_buttons(class: &str) -> bool {
@@ -78,7 +80,7 @@ fn strip_buttons(h: HWND, geom: (i32, i32, i32, i32)) {
 
 /// Rimette i tasti di Windows a tutte le finestre a cui sono stati tolti.
 pub fn restore_buttons() {
-    let list: Vec<(isize, i32, i32, i32, i32)> = BARE.lock().map(|mut b| std::mem::take(&mut *b)).unwrap_or_default();
+    let list: Vec<BareEntry> = BARE.lock().map(|mut b| std::mem::take(&mut *b)).unwrap_or_default();
     for (k, ..) in list {
         let h = HWND(k as *mut _);
         unsafe {
@@ -747,6 +749,11 @@ fn sync() {
             }
         }
         st.styled.retain(|k| seen.contains(k));
+        // Memoria: niente voci per le finestre che non ci sono piu' (altrimenti crescono per tutta la sessione).
+        STRIP.with(|c| c.borrow_mut().retain(|k, _| seen.contains(k)));
+        if let Ok(mut b) = BARE.lock() {
+            b.retain(|e| unsafe { windows::Win32::UI::WindowsAndMessaging::IsWindow(Some(HWND(e.0 as *mut _))).as_bool() });
+        }
     });
 }
 

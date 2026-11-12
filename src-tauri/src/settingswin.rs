@@ -61,11 +61,9 @@ fn create(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-pub fn start(app: &AppHandle) {
-    if let Err(e) = create(app) {
-        eprintln!("impostazioni: finestra non creata: {e}");
-    }
-}
+/// La finestra delle Impostazioni non si crea piu' all'avvio: costa un processo di rendering da 70-100 MB che si userebbe di rado.
+/// Si crea alla prima apertura e, dopo la chiusura, si distrugge (vedi `hide`).
+pub fn start(_app: &AppHandle) {}
 
 /// Il monitor (px fisici, scala) che contiene il cursore, o il primo.
 fn cursor_monitor(app: &AppHandle) -> Option<(Rect, f64)> {
@@ -88,6 +86,22 @@ pub fn open(app: &AppHandle, section: Option<&str>) {
     if crate::lockscreen::is_locked() {
         return;
     }
+    if win_of(app).is_none() {
+        // Creare una finestra WebView2 dal thread principale (comando sincrono, menu) puo' bloccare tutto: si fa da un altro thread.
+        let (app, section) = (app.clone(), section.map(str::to_string));
+        std::thread::spawn(move || {
+            if let Err(e) = create(&app) {
+                eprintln!("impostazioni: finestra non creata: {e}");
+                return;
+            }
+            open_created(&app, section.as_deref(), true);
+        });
+        return;
+    }
+    open_created(app, section, false);
+}
+
+fn open_created(app: &AppHandle, section: Option<&str>, created: bool) {
     let Some(win) = win_of(app) else { return };
     if !VISIBLE.load(Ordering::Relaxed)
         && let Some((monitor, scale)) = cursor_monitor(app)
@@ -104,6 +118,19 @@ pub fn open(app: &AppHandle, section: Option<&str>) {
     }
     let _ = win.set_focus();
     let _ = app.emit_to(LABEL, "settings-open", section);
+    if created {
+        // La pagina appena creata non ascolta ancora: si rimanda l'evento finche' non e' pronta.
+        let (app, section) = (app.clone(), section.map(str::to_string));
+        std::thread::spawn(move || {
+            for ms in [500u64, 700, 1000, 1500] {
+                std::thread::sleep(Duration::from_millis(ms));
+                if !VISIBLE.load(Ordering::Relaxed) {
+                    return;
+                }
+                let _ = app.emit_to(LABEL, "settings-open", section.clone());
+            }
+        });
+    }
 }
 
 /// Come `open`, ma dopo un attimo: il Launcher da cui parte l'azione deve prima finire di chiudersi.
@@ -127,6 +154,16 @@ pub fn hide(app: &AppHandle) {
     if let Some(win) = win_of(app) {
         let _ = win.hide();
         crate::webmem::hidden(&win);
+        // Dopo un po' la finestra si distrugge (e con lei il suo processo di rendering): riaprendola entro quel tempo e' istantanea.
+        let app = app.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(20));
+            if !VISIBLE.load(Ordering::Relaxed)
+                && let Some(w) = win_of(&app)
+            {
+                let _ = w.destroy();
+            }
+        });
     }
 }
 

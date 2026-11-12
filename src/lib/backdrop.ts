@@ -34,7 +34,7 @@ export function parseFrame(buf: ArrayBuffer): Frame | null {
     w,
     h,
     factor,
-    data: new Uint8ClampedArray(buf.slice(FRAME_HEADER)),
+    data: new Uint8ClampedArray(buf, FRAME_HEADER, w * h * 4),
   };
 }
 
