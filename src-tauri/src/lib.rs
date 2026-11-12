@@ -58,6 +58,7 @@ mod vdprofile;
 mod vdreport;
 mod panelwin;
 mod lights;
+mod gamemode;
 mod remote;
 mod lockscreen;
 mod taskbar;
@@ -1389,7 +1390,7 @@ pub fn run() {
             winsnap::start();
             chromeguard::start();
             capture::start(app.handle());
-            backdrop::start();
+            backdrop::start(app.handle().clone());
             // Aggiornamenti: solo se l'utente ha acceso la ricerca all'avvio; cerca soltanto, non installa mai.
             if mcstore::load().update_auto {
                 let handle = app.handle().clone();

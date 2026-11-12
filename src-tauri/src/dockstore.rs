@@ -90,12 +90,14 @@ pub struct Ui {
     pub magnify: bool,
     /// Icone nello stile di macOS (tessera arrotondata); falso = icone originali di Windows.
     pub icons: bool,
+    /// Un'app a tutto schermo e' in primo piano: niente sfocatura ne' animazioni (vedi `gamemode`).
+    pub game: bool,
 }
 
 /// Le impostazioni complete per la pagina del Dock.
 pub fn ui() -> Ui {
     let mc = crate::mcstore::load();
-    Ui { base: Settings { blur: settings().blur && !crate::remote::blur_suspended(), ..settings() }, size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off, icons: !mc.dock_icons_off }
+    Ui { base: Settings { blur: settings().blur && !crate::remote::blur_suspended() && !crate::gamemode::active(), ..settings() }, size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off, icons: !mc.dock_icons_off, game: crate::gamemode::active() }
 }
 
 /// Valore di un livello di vetro dall'id. Pura, testata.

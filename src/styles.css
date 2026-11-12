@@ -1174,3 +1174,8 @@ html:has(.lock), html:has(.lock) body { background: #000; }
 @supports (corner-shape: squircle) {
   .dock-launchpad-icon[data-mac="true"] { corner-shape: squircle; border-radius: 34%; }
 }
+
+/* Modalita' gioco (app a tutto schermo in primo piano): nessuna transizione ne' ombra costosa sul Dock. */
+:root[data-game="on"] .dock-item { transition: none; }
+:root[data-game="on"] .mac-tile { box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.28); }
+:root[data-game="on"] .mac-tile::after { display: none; }

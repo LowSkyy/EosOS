@@ -218,13 +218,20 @@ pub fn capture_bytes(r: Rect) -> Option<Vec<u8>> {
 }
 
 /// Avvia il thread di cattura (un giro per canale, solo se ha qualcosa da catturare).
-pub fn start() {
-    std::thread::spawn(|| {
+pub fn start(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
         let mut last: [Vec<u8>; 10] = std::array::from_fn(|_| Vec::new());
         let mut changed_at = std::time::Instant::now();
         let mut bar_at: Option<std::time::Instant> = None;
         loop {
             std::thread::sleep(next_interval(changed_at.elapsed()));
+            // Gioco o video a tutto schermo: niente catture del Dock e delle barre (la GPU serve al gioco) e la pagina del Dock passa
+            // alla modalita' semplice (vedi `gamemode`).
+            if crate::gamemode::refresh() {
+                use tauri::Emitter;
+                let _ = app.emit("dock-settings-changed", crate::dockstore::ui());
+            }
+            let game = crate::gamemode::active();
             // Le barre cambiano poco (sfondo fermo, finestre che passano sotto di rado): si catturano al massimo ogni
             // `BAR_INTERVAL`, così non pesano a riposo e non rallentano il Dock e i pannelli.
             let bars_due = bar_at.is_none_or(|t| t.elapsed() >= bar_interval(changed_at.elapsed()));
@@ -233,6 +240,9 @@ pub fn start() {
             }
             for ch in CHANNELS {
                 if is_bar(ch) && !bars_due {
+                    continue;
+                }
+                if game && (is_bar(ch) || matches!(ch, Channel::Dock | Channel::Dock1 | Channel::Dock2 | Channel::Dock3)) {
                     continue;
                 }
                 // Un panic nella cattura non deve fermare né il Dock né il Launcher.

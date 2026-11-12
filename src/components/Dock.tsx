@@ -231,7 +231,9 @@ export default function Dock() {
       setBlur(st.blur === true);
       setMac(st.icons !== false);
       document.documentElement.setAttribute("data-dock-anim", st.anim ?? "bounce");
-      magnifyOn.current = st.magnify !== false;
+      // Gioco a tutto schermo in primo piano: niente ingrandimento ne' transizioni (la GPU serve al gioco, il Dock non deve andare a scatti).
+      document.documentElement.setAttribute("data-game", st.game ? "on" : "off");
+      magnifyOn.current = st.magnify !== false && !st.game;
       if (!magnifyOn.current) rest();
     };
     let unlisten: (() => void) | undefined;
