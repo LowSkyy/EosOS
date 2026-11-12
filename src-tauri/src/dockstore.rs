@@ -88,12 +88,14 @@ pub struct Ui {
     pub anim: &'static str,
     /// L'ingrandimento delle icone al passaggio del mouse è acceso.
     pub magnify: bool,
+    /// Icone nello stile di macOS (tessera arrotondata); falso = icone originali di Windows.
+    pub icons: bool,
 }
 
 /// Le impostazioni complete per la pagina del Dock.
 pub fn ui() -> Ui {
     let mc = crate::mcstore::load();
-    Ui { base: Settings { blur: settings().blur && !crate::remote::blur_suspended(), ..settings() }, size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off }
+    Ui { base: Settings { blur: settings().blur && !crate::remote::blur_suspended(), ..settings() }, size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off, icons: !mc.dock_icons_off }
 }
 
 /// Valore di un livello di vetro dall'id. Pura, testata.

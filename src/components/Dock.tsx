@@ -24,6 +24,8 @@ import {
   type DockSettings,
 } from "../lib/dock";
 import { parseFrame, sourceRect, type Frame } from "../lib/backdrop";
+import { MacTile } from "./MacIcon";
+import { packFor } from "../lib/iconpack";
 import { sameStacks, type StackItem } from "../lib/stacks";
 
 /** Contorno (px CSS) di sfondo disegnato oltre la capsula: la sfocatura ne ha bisogno ai bordi. */
@@ -46,6 +48,7 @@ function Icon({
   bouncing,
   offset,
   dragging,
+  mac,
   onClick,
   onPointerDown,
 }: {
@@ -56,6 +59,8 @@ function Icon({
   /** Spostamento orizzontale durante un trascinamento (px). */
   offset: number;
   dragging: boolean;
+  /** Icone nello stile di macOS. */
+  mac: boolean;
   onClick: (item: DockItem) => void;
   onPointerDown: (e: React.PointerEvent, item: DockItem) => void;
 }) {
@@ -78,7 +83,9 @@ function Icon({
       onPointerDown={(e) => onPointerDown(e, item)}
       onContextMenu={menu}
     >
-      {item.icon ? (
+      {mac ? (
+        <MacTile pack={packFor(item)} src={item.icon} alt={item.name} />
+      ) : item.icon ? (
         <img className="dock-icon" src={item.icon} alt={item.name} draggable={false} />
       ) : (
         <div className="dock-icon dock-icon-fallback" aria-label={item.name}>
@@ -115,13 +122,15 @@ function StackIcon({ stack }: { stack: StackItem }) {
   );
 }
 
+const LAUNCH_COLORS = ["#ff453a", "#ff9f0a", "#ffd60a", "#30d158", "#64d2ff", "#0a84ff", "#bf5af2", "#ff375f", "#e5e5ea"];
+
 /** L'icona del Launchpad (tutte le app) in testa al Dock, come in macOS. */
-function LaunchpadIcon() {
+function LaunchpadIcon({ mac }: { mac: boolean }) {
   return (
     <div className="dock-item dock-launchpad" data-label="Launchpad" role="button" aria-label="Launchpad" onClick={() => void invoke("dock_launchpad")}>
-      <div className="dock-icon dock-launchpad-icon" aria-hidden>
+      <div className="dock-icon dock-launchpad-icon" data-mac={mac} aria-hidden>
         <svg viewBox="0 0 24 24" width="62%" height="62%">
-          {[0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={3 + c * 7} y={3 + r * 7} width="4.6" height="4.6" rx="1.2" fill="currentColor" />))}
+          {[0, 1, 2].flatMap((r) => [0, 1, 2].map((c) => <rect key={`${r}${c}`} x={3 + c * 7} y={3 + r * 7} width="4.6" height="4.6" rx="1.2" fill={mac ? LAUNCH_COLORS[r * 3 + c] : "currentColor"} />))}
         </svg>
       </div>
       <span className="dock-dot" />
@@ -175,6 +184,7 @@ export default function Dock() {
   const source = useRef<HTMLCanvasElement | null>(null);
   const frame = useRef<Frame | null>(null);
   const [blur, setBlur] = useState(false);
+  const [mac, setMac] = useState(true);
 
   // Generazione dell'elenco: sale a ogni modifica fatta qui (riordino). Un sondaggio partito
   // prima non deve poter sovrascrivere con dati vecchi il risultato appena mostrato.
@@ -219,6 +229,7 @@ export default function Dock() {
       document.documentElement.style.setProperty("--glass", String(clampGlass(st.glass)));
       for (const [k, v] of Object.entries(dockVars(st.size ?? 1))) document.documentElement.style.setProperty(k, v);
       setBlur(st.blur === true);
+      setMac(st.icons !== false);
       document.documentElement.setAttribute("data-dock-anim", st.anim ?? "bounce");
       magnifyOn.current = st.magnify !== false;
       if (!magnifyOn.current) rest();
@@ -563,6 +574,7 @@ export default function Dock() {
       bouncing={bouncing.has(i.id)}
       offset={drag?.id === i.id ? drag.dx : (offsets[i.id] ?? 0)}
       dragging={drag?.id === i.id}
+      mac={mac}
       onClick={onIconClick}
       onPointerDown={pointerDown}
     />
@@ -584,7 +596,7 @@ export default function Dock() {
     >
       <div className="dock" ref={pill}>
         <canvas className="dock-blur" ref={blurCanvas} aria-hidden />
-        <LaunchpadIcon />
+        <LaunchpadIcon mac={mac} />
         {pinned.map(icon)}
         {pinned.length > 0 && others.length > 0 && <div className="dock-separator" />}
         {others.map(icon)}

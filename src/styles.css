@@ -1142,3 +1142,35 @@ html:has(.lock), html:has(.lock) body { background: #000; }
   .lock-login, .lock-shade, .lock-field, .lock-go, .lock-enter, .lock-alt { transition: none; }
   .lock-form[data-shake="true"], .lock-hint { animation: none; }
 }
+
+/* ---- Icone in stile macOS (pacchetto: src/components/MacIcon.tsx) ----
+   Tessera arrotondata («squircle» dove il motore lo sa fare), riflesso in alto, bordo sottile e ombra, come le icone di macOS. */
+.mac-tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 23%;
+  background: linear-gradient(180deg, var(--t1, #fdfdff), var(--t2, #dfe1e8));
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.28), 0 1.5px 3px rgba(0, 0, 0, 0.35), inset 0 0.5px 0 rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+@supports (corner-shape: squircle) {
+  .mac-tile { corner-shape: squircle; border-radius: 34%; }
+}
+/* Riflesso morbido nella metà alta. */
+.mac-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 52%);
+  pointer-events: none;
+}
+.mac-tile[data-pack="app"] { background: linear-gradient(180deg, #ffffff, #dcdde4); }
+/* App senza disegno proprio: la loro icona sta dentro la tessera, con un margine come in macOS. */
+.mac-tile-img { width: 78%; height: 78%; object-fit: contain; border-radius: 0; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.25)); }
+.mac-tile-letter { font-size: 26px; font-weight: 600; color: #3a3a40; }
+.dock-launchpad-icon[data-mac="true"] { background: linear-gradient(180deg, #e9ebf2, #aeb2c0); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.28), 0 1.5px 3px rgba(0, 0, 0, 0.35), inset 0 0.5px 0 rgba(255, 255, 255, 0.7); }
+@supports (corner-shape: squircle) {
+  .dock-launchpad-icon[data-mac="true"] { corner-shape: squircle; border-radius: 34%; }
+}

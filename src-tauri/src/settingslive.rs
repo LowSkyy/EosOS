@@ -70,6 +70,7 @@ impl Backend for Live {
             "bar.tray" => b(!mc().dock_tray_off),
             "dock.anim" => Some(Value::Text(crate::dockstore::anim_id(&mc().dock_anim).to_string())),
             "dock.magnify" => b(!mc().dock_magnify_off),
+            "dock.icons" => b(!mc().dock_icons_off),
             "dock.keys" => Some(Value::Text(match mc().dock_keys.as_str() { "" => "ctrl_alt".to_string(), s => s.to_string() })),
             "dock.size" => Some(Value::Text(match mc().dock_size.as_str() { "" => "medium".to_string(), s => s.to_string() })),
             "lights.on" => b(!mc().lights_off),
@@ -205,6 +206,10 @@ impl Backend for Live {
                     return Err(SettingsError("Scelta non ammessa.".into()));
                 }
                 crate::mcstore::set_dock_anim(id);
+                self.dock_changed();
+            }
+            "dock.icons" => {
+                crate::mcstore::set_dock_icons(want_bool(value)?);
                 self.dock_changed();
             }
             "dock.magnify" => {
