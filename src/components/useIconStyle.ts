@@ -14,7 +14,8 @@ export function resolveTheme(choice: string | undefined, systemDark: boolean): T
 
 /** Lo stile delle icone (macOS o originali, chiaro o scuro): lo legge da Rust e lo segue quando cambia nelle Impostazioni. */
 export function useIconStyle(): IconStyle {
-  const [st, setSt] = useState<IconStyle>({ mac: true, theme: "light" });
+  // Si parte dal tema del sistema (non dal chiaro): cosi' una finestra scura non lampeggia di bianco all'apertura.
+  const [st, setSt] = useState<IconStyle>(() => ({ mac: true, theme: resolveTheme(undefined, typeof window !== "undefined" && !!window.matchMedia?.("(prefers-color-scheme: dark)").matches) }));
   useEffect(() => {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     let choice: string | undefined;

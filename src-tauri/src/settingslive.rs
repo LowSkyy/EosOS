@@ -78,6 +78,7 @@ impl Backend for Live {
             "lights.on" => b(!mc().lights_off),
             "lights.side" => Some(Value::Text(if mc().lights_left { "left" } else { "right" }.to_string())),
             "lights.finder" => b(!mc().finder_off),
+            "finder.app" => b(!mc().finder_app_off),
             "lock.eos" => b(!mc().lock_off),
             "lock.idle" => Some(Value::Text(mc().lock_idle.to_string())),
             "lock.windows" => Some(Value::Text(mc().lock_windows_minutes().to_string())),
@@ -278,6 +279,9 @@ impl Backend for Live {
                 }
                 crate::mcstore::set_lights_left(id == "left");
                 crate::lights::poke();
+            }
+            "finder.app" => {
+                crate::mcstore::set_finder_app(want_bool(value)?);
             }
             "lights.finder" => {
                 crate::mcstore::set_finder(want_bool(value)?);

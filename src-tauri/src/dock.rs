@@ -662,14 +662,18 @@ static ICON_LOCK: Mutex<()> = Mutex::new(());
 
 /// Icona dell'eseguibile come data URL PNG.
 pub fn icon_data_url(path: &Path) -> Option<String> {
+    shell_image_data_url(path, ICON_SIZE, false)
+}
+
+/// Immagine della shell per un elemento, come data URL PNG: l'icona, o con `thumb` l'anteprima (immagini, video) se c'e'.
+pub(crate) fn shell_image_data_url(path: &Path, size: i32, thumb: bool) -> Option<String> {
     let _serial = ICON_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let _com = ComScope::new();
     unsafe {
         let factory: IShellItemImageFactory =
             SHCreateItemFromParsingName(&HSTRING::from(path.to_string_lossy().as_ref()), None).ok()?;
-        let hbm = factory
-            .GetImage(SIZE { cx: ICON_SIZE, cy: ICON_SIZE }, SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK)
-            .ok()?;
+        let flags = if thumb { SIIGBF_BIGGERSIZEOK } else { SIIGBF_ICONONLY | SIIGBF_BIGGERSIZEOK };
+        let hbm = factory.GetImage(SIZE { cx: size, cy: size }, flags).ok()?;
         let rgba = bitmap_to_rgba(hbm);
         let _ = DeleteObject(HGDIOBJ(hbm.0));
         let (w, h, px) = rgba?;

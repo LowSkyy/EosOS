@@ -450,6 +450,8 @@ struct Info {
     pm_aware: bool,
     /// App dove un riquadro figlio si vede davvero sopra la barra (provato dal vivo).
     inside_ok: bool,
+    /// La zona dei tasti l'ha detta l'app (misura esatta): non serve leggere l'altezza della barra dallo schermo.
+    probed: bool,
 }
 
 fn class_of(h: HWND) -> String {
@@ -462,6 +464,54 @@ fn dwm_rect(h: HWND, attr: DWMWINDOWATTRIBUTE) -> Option<RECT> {
     let mut r = RECT::default();
     unsafe { DwmGetWindowAttribute(h, attr, &mut r as *mut _ as *mut _, std::mem::size_of::<RECT>() as u32) }.ok()?;
     Some(r)
+}
+
+type ProbeEntry = ((i32, i32, bool), Option<(i32, i32)>, Instant);
+thread_local! {
+    /// Misure dei tasti delle app, per finestra: (larghezza, altezza, ingrandita) -> (larghezza e altezza della zona dei tasti).
+    static PROBES: RefCell<HashMap<isize, ProbeEntry>> = RefCell::new(HashMap::new());
+}
+
+/// Chiede alla finestra che cosa c'e' in un punto dello schermo (`WM_NCHITTEST`), senza restare bloccati se non risponde.
+fn hit_code(h: HWND, x: i32, y: i32) -> isize {
+    use windows::Win32::UI::WindowsAndMessaging::{SendMessageTimeoutW, SMTO_ABORTIFHUNG, WM_NCHITTEST};
+    let lp = (((y as u16 as u32) << 16) | (x as u16 as u32)) as isize;
+    let mut out = 0usize;
+    let ok = unsafe { SendMessageTimeoutW(h, WM_NCHITTEST, WPARAM(0), LPARAM(lp), SMTO_ABORTIFHUNG, 40, Some(&mut out)) };
+    if ok.0 == 0 { 0 } else { out as isize }
+}
+
+/// La zona dei tasti riduci/ingrandisci/chiudi disegnati dall'app, in coordinate dello schermo: si chiede alla finestra punto per
+/// punto dove risponde «tasto». `None` se l'app non lo dice (allora si usa la posizione di Windows 11). La misura resta in memoria
+/// finche' la finestra non cambia dimensione, e si rinfresca ogni 5 secondi.
+fn probe_buttons(h: HWND, fr: RECT, scale: f32, zoomed: bool) -> Option<RECT> {
+    let key = h.0 as isize;
+    let shape = (fr.right - fr.left, fr.bottom - fr.top, zoomed);
+    let cached = PROBES.with(|c| c.borrow().get(&key).filter(|(s, _, t)| *s == shape && t.elapsed() < Duration::from_secs(5)).map(|(_, size, _)| *size));
+    let size = match cached {
+        Some(size) => size,
+        None => {
+            let is_button = |c: isize| matches!(c, 8 | 9 | 20); // HTMINBUTTON, HTMAXBUTTON, HTCLOSE
+            let px = |v: f32| (v * scale) as i32;
+            let (x0, y0) = (fr.right - px(22.0), fr.top + px(14.0));
+            let size = if is_button(hit_code(h, x0, y0)) {
+                let mut bottom = y0;
+                while bottom - fr.top < px(72.0) && is_button(hit_code(h, x0, bottom + 2)) {
+                    bottom += 2;
+                }
+                let mut left = x0;
+                while fr.right - left < px(240.0) && is_button(hit_code(h, left - 3, y0)) {
+                    left -= 3;
+                }
+                Some((fr.right - left, bottom + 1 - fr.top))
+            } else {
+                None
+            };
+            PROBES.with(|c| c.borrow_mut().insert(key, (shape, size, Instant::now())));
+            size
+        }
+    };
+    size.map(|(w, hgt)| RECT { left: fr.right - w, top: fr.top, right: fr.right, bottom: fr.top + hgt })
 }
 
 /// Se la finestra merita i semafori, dice dove sono i suoi tasti.
@@ -531,10 +581,20 @@ fn inspect(h: HWND) -> Option<Info> {
             let w = (3.0 * 46.0 * scale) as i32;
             RECT { left: fr.right - wr.left - w, top: fr.top - wr.top, right: fr.right - wr.left, bottom: fr.top - wr.top + (33.0 * scale) as i32 }
         };
+        let zoomed = IsZoomed(h).as_bool();
+        // Barra disegnata dall'app: dove sono davvero i suoi tasti lo dice l'app stessa. Cosi' la copertura e' esatta (in Chrome i
+        // tasti sono piu' alti di quelli di Windows: sotto i cerchi restava una striscia dove il tasto vero rispondeva ancora).
+        let mut probed = false;
+        let cb = match if bare { None } else { probe_buttons(h, fr, scale, zoomed) } {
+            Some(p) => {
+                probed = true;
+                RECT { left: p.left - wr.left, top: p.top - wr.top, right: p.right - wr.left, bottom: p.bottom - wr.top }
+            }
+            None => cb,
+        };
         if cb.right - cb.left < 20 || cb.bottom - cb.top < 10 {
             return None;
         }
-        let zoomed = IsZoomed(h).as_bool();
         // A schermo intero vero (video, giochi, F11) niente semafori: coprirebbero il contenuto.
         let mon = MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST);
         let mut mi = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
@@ -574,6 +634,7 @@ fn inspect(h: HWND) -> Option<Info> {
             client,
             pm_aware,
             inside_ok: draws_inside(&class),
+            probed,
         })
     }
 }
@@ -887,7 +948,7 @@ fn sync() {
             let extra = info.ny - top;
             // Le parti: i cerchi e, se stanno a sinistra, una finestrina liscia che copre i tasti di Windows a destra.
             // Barra piu' alta dei tasti (Chrome: la fila delle schede): i cerchi stanno al centro della barra vera.
-            let strip = if info.bare { 0 } else { strip_height(base, info.nx - 3, info.ny, (info.h as f32 * 1.6) as i32, info.frame_left, info.frame_right) };
+            let strip = if info.bare || info.probed { 0 } else { strip_height(base, info.nx - 3, info.ny, (info.h as f32 * 1.6) as i32, info.frame_left, info.frame_right) };
             let main = layout(&order, info.scale, right, info.native_w, (info.h + extra).max(strip + extra));
             let mut parts: Vec<Part> = vec![(base, if right { info.nx } else { info.frame_left }, main, kinds, (right, radius))];
             if !right && !info.bare {
@@ -1022,6 +1083,7 @@ fn sync() {
         }
         // Memoria: niente voci per le finestre che non ci sono piu' (altrimenti crescono per tutta la sessione).
         STRIP.with(|c| c.borrow_mut().retain(|k, _| seen.contains(k)));
+        PROBES.with(|c| c.borrow_mut().retain(|k, _| seen.contains(k)));
         if let Ok(mut b) = BARE.lock() {
             b.retain(|e| unsafe { windows::Win32::UI::WindowsAndMessaging::IsWindow(Some(HWND(e.0 as *mut _))).as_bool() });
         }

@@ -58,6 +58,7 @@ mod vdprofile;
 mod vdreport;
 mod panelwin;
 mod lights;
+mod finder;
 mod gamemode;
 mod iconpack;
 mod remote;
@@ -144,6 +145,109 @@ fn menubar_choose(window: tauri::Window, app: tauri::AppHandle, index: usize, pa
     // Prima si chiude la tendina (il primo piano deve passare all'app), poi si esegue la voce.
     panelwin::hide(&app);
     menubar::choose(index, &path)
+}
+
+/// Finder di EosOS: il contenuto di una cartella.
+#[tauri::command(async)]
+fn finder_list(window: tauri::Window, path: String) -> Option<finder::Listing> {
+    guard!(window, "finder_list", None);
+    Some(finder::list(&path))
+}
+
+/// Finder di EosOS: la barra laterale (cartelle dell'utente e unita').
+#[tauri::command(async)]
+fn finder_places(window: tauri::Window) -> Vec<finder::Place> {
+    guard!(window, "finder_places", Vec::new());
+    finder::places()
+}
+
+/// Finder di EosOS: apre un file con l'app predefinita.
+#[tauri::command(async)]
+fn finder_open(window: tauri::Window, path: String) {
+    guard!(window, "finder_open");
+    finder::open_file(&path);
+}
+
+/// Finder di EosOS: una nuova finestra sulla cartella indicata.
+#[tauri::command]
+fn finder_window(window: tauri::Window, app: tauri::AppHandle, path: Option<String>) {
+    guard!(window, "finder_window");
+    finder::open(&app, path);
+}
+
+/// Finder di EosOS: mostra l'elemento in Esplora file.
+#[tauri::command(async)]
+fn finder_reveal(window: tauri::Window, path: String) {
+    guard!(window, "finder_reveal");
+    finder::reveal(&path);
+}
+
+/// Finder di EosOS: rinomina. Risponde con il nuovo percorso o con l'errore.
+#[tauri::command(async)]
+fn finder_rename(window: tauri::Window, path: String, name: String) -> Result<String, String> {
+    cmdpolicy::guard(window.label(), "finder_rename", None)?;
+    finder::rename(&path, &name)
+}
+
+/// Finder di EosOS: nuova cartella. Risponde con il suo percorso o con l'errore.
+#[tauri::command(async)]
+fn finder_new_folder(window: tauri::Window, dir: String) -> Result<String, String> {
+    cmdpolicy::guard(window.label(), "finder_new_folder", None)?;
+    finder::new_folder(&dir)
+}
+
+/// Finder di EosOS: sposta nel Cestino.
+#[tauri::command(async)]
+fn finder_trash(window: tauri::Window, paths: Vec<String>) -> Result<(), String> {
+    cmdpolicy::guard(window.label(), "finder_trash", None)?;
+    finder::trash(&paths)
+}
+
+/// Finder di EosOS: copia (o taglia) i file scelti. Risponde con quanti sono.
+#[tauri::command]
+fn finder_clip(window: tauri::Window, paths: Vec<String>, cut: bool) -> usize {
+    guard!(window, "finder_clip", 0);
+    finder::clip_set(paths, cut);
+    finder::clip_count()
+}
+
+/// Finder di EosOS: quanti file ci sono da incollare.
+#[tauri::command]
+fn finder_clip_count(window: tauri::Window) -> usize {
+    guard!(window, "finder_clip_count", 0);
+    finder::clip_count()
+}
+
+/// Finder di EosOS: incolla nella cartella.
+#[tauri::command(async)]
+fn finder_paste(window: tauri::Window, dest: String) -> Result<(), String> {
+    cmdpolicy::guard(window.label(), "finder_paste", None)?;
+    finder::paste(&dest)
+}
+
+/// Finder di EosOS: icona o anteprima di un elemento (data URL PNG).
+#[tauri::command(async)]
+fn finder_image(window: tauri::Window, path: String, size: i32, thumb: bool) -> Option<String> {
+    guard!(window, "finder_image", None);
+    finder::image(&path, size, thumb)
+}
+
+/// Finder di EosOS: i tre semafori della finestra (chiudi, riduci, ingrandisci/ripristina).
+#[tauri::command]
+fn finder_win(window: tauri::Window, action: String) {
+    guard!(window, "finder_win");
+    match action.as_str() {
+        "close" => {
+            let _ = window.close();
+        }
+        "min" => {
+            let _ = window.minimize();
+        }
+        "zoom" => {
+            let _ = if window.is_maximized().unwrap_or(false) { window.unmaximize() } else { window.maximize() };
+        }
+        _ => {}
+    }
 }
 
 /// Apre la finestra delle impostazioni (alla sezione indicata, se c'è).
@@ -788,8 +892,15 @@ fn dock_items(have: Option<Vec<String>>) -> Vec<dock::DockItem> {
 /// Clic su un'icona del Dock. Il frontend manda solo l'`id` di una voce che il
 /// Dock sta mostrando: il percorso da eseguire lo ricava Rust.
 #[tauri::command(async)]
-fn dock_activate(window: tauri::Window, id: String) {
+fn dock_activate(window: tauri::Window, app: tauri::AppHandle, id: String) {
     guard!(window, "dock_activate");
+    // L'icona di Esplora file apre il Finder di EosOS (o porta davanti quello gia' aperto), se l'impostazione e' accesa.
+    if !mcstore::load().finder_app_off && id.to_lowercase().ends_with("\\explorer.exe") {
+        if !finder::focus_existing(&app) {
+            finder::open(&app, None);
+        }
+        return;
+    }
     if let Some((item, windows)) = dock::find_with_windows(&id) {
         dockact::activate(&item, &windows);
     }
@@ -1368,12 +1479,12 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![lock_info, lock_wallpaper, lock_try_password, lock_try_blank, lock_try_hello, get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, launcher_grid, dock_launchpad, dock_badges, tray_count, tray_apps, tray_open, winsys_info, winsys_drives, winsys_displays, winsys_theme, winsys_theme_set, winsys_power, winsys_power_set, winsys_startup, winsys_startup_set, eosmenu_run, eosmenu_about, dockkeys_fire, dockkeys_registered, winsnap_fire, winsnap_registered, capture_run, capture_region, capture_cancel, capture_fire, capture_registered, control_state, control_set, winsettings_list, winsettings_open, winsettings_last_open, bar_backdrop, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop])
+        .invoke_handler(tauri::generate_handler![lock_info, lock_wallpaper, lock_try_password, lock_try_blank, lock_try_hello, get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, launcher_grid, dock_launchpad, dock_badges, tray_count, tray_apps, tray_open, winsys_info, winsys_drives, winsys_displays, winsys_theme, winsys_theme_set, winsys_power, winsys_power_set, winsys_startup, winsys_startup_set, eosmenu_run, eosmenu_about, dockkeys_fire, dockkeys_registered, winsnap_fire, winsnap_registered, capture_run, capture_region, capture_cancel, capture_fire, capture_registered, control_state, control_set, winsettings_list, winsettings_open, winsettings_last_open, bar_backdrop, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop, finder_list, finder_places, finder_open, finder_window, finder_reveal, finder_rename, finder_new_folder, finder_trash, finder_clip, finder_clip_count, finder_paste, finder_image, finder_win])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.
         .on_window_event(|window, event| {
-            if launcherwin::on_window_event(window, event) || panelwin::on_window_event(window, event) || mcwin::on_window_event(window, event) || settingswin::on_window_event(window, event) {
+            if finder::on_window_event(window, event) || launcherwin::on_window_event(window, event) || panelwin::on_window_event(window, event) || mcwin::on_window_event(window, event) || settingswin::on_window_event(window, event) {
                 return;
             }
             if let tauri::WindowEvent::CloseRequested { .. } = event {

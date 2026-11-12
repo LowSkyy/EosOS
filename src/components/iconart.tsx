@@ -191,24 +191,90 @@ export const ART: Record<PackId, Art> = {
 };
 
 /** Icone di cartelle e file (Esplora file): forme intere, senza tessera. */
-export const FILE_ART: Record<FileId, (t: Theme) => React.ReactNode> = {
-  folder: (t) => (
+/** Le cartelle speciali hanno un simbolo impresso sul davanti, come in macOS. */
+export type FolderBadge = "home" | "desktop" | "documents" | "downloads" | "pictures" | "music" | "videos" | "drive";
+
+export const FOLDER_GLYPHS: Record<Exclude<FolderBadge, "drive">, React.ReactNode> = {
+  home: <path d="M50 46l-13 11v13h9v-9h8v9h9V57z" />,
+  desktop: (
+    <g>
+      <rect x="35" y="47" width="30" height="18" rx="2.5" />
+      <rect x="44" y="67" width="12" height="2.6" rx="1.3" />
+    </g>
+  ),
+  documents: <path d="M40 45h13l7 7v19a2 2 0 0 1-2 2H40a2 2 0 0 1-2-2V47a2 2 0 0 1 2-2zm12 1.5V53h6.5z" fillRule="evenodd" />,
+  downloads: (
+    <g>
+      <path d="M50 45v15m-7-6 7 7 7-7" fill="none" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="38" y="69" width="24" height="3.2" rx="1.6" />
+    </g>
+  ),
+  pictures: (
+    <g>
+      <rect x="35" y="46" width="30" height="24" rx="3" fill="none" strokeWidth="3" />
+      <circle cx="43" cy="54" r="2.6" />
+      <path d="M37 68l9-9 6 6 4-4 7 7z" />
+    </g>
+  ),
+  music: <path d="M45 67.5a4.5 4.5 0 1 1-3-4.2V48l17-3.5v19.7a4.5 4.5 0 1 1-3-4.2V51l-11 2.3z" />,
+  videos: (
+    <g>
+      <rect x="35" y="47" width="30" height="22" rx="3" fill="none" strokeWidth="3" />
+      <path d="M46.5 52.5v11l9-5.5z" />
+    </g>
+  ),
+};
+
+/** La cartella di macOS: dietro piu' scuro con la linguetta a sinistra, davanti piu' chiaro con il bordo luminoso. */
+export function folderArt(t: Theme, badge?: FolderBadge): React.ReactNode {
+  const dark = t === "dark";
+  const ink = dark ? "#0f3f86" : "#1672d6";
+  return (
     <g>
       <defs>
         <linearGradient id={`fb-${t}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={t === "dark" ? "#2f78c8" : "#79cbff"} />
-          <stop offset="1" stopColor={t === "dark" ? "#1b4f98" : "#3a9bf2"} />
+          <stop offset="0" stopColor={dark ? "#2a7fe0" : "#4fb4fb"} />
+          <stop offset="1" stopColor={dark ? "#1859b8" : "#2590ee"} />
         </linearGradient>
         <linearGradient id={`ff-${t}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={t === "dark" ? "#4aa0ec" : "#a6e0ff"} />
-          <stop offset="1" stopColor={t === "dark" ? "#2a6fc9" : "#4aa8f8"} />
+          <stop offset="0" stopColor={dark ? "#52a8f6" : "#93d8ff"} />
+          <stop offset="0.5" stopColor={dark ? "#3a8eea" : "#62bdfc"} />
+          <stop offset="1" stopColor={dark ? "#2a74d8" : "#3ea2f6"} />
         </linearGradient>
       </defs>
-      <path d="M6 24a8 8 0 0 1 8-8h22a8 8 0 0 1 6 2.8l4.6 5.2H86a8 8 0 0 1 8 8v46a8 8 0 0 1-8 8H14a8 8 0 0 1-8-8z" fill={`url(#fb-${t})`} />
-      <path d="M6 38a8 8 0 0 1 8-8h72a8 8 0 0 1 8 8v40a8 8 0 0 1-8 8H14a8 8 0 0 1-8-8z" fill={`url(#ff-${t})`} />
-      <path d="M8 38.5a6 6 0 0 1 6-6h72a6 6 0 0 1 6 6" fill="none" stroke="#fff" strokeOpacity="0.55" strokeWidth="1.2" />
+      <path d="M6 27q0-8 8-8h19q4.2 0 6.8 3.2l2.4 2.9q2.3 2.9 6 2.9H86q8 0 8 8v40q0 8-8 8H14q-8 0-8-8z" fill={`url(#fb-${t})`} />
+      <path d="M6 42q0-8 8-8h72q8 0 8 8v34q0 8-8 8H14q-8 0-8-8z" fill={`url(#ff-${t})`} />
+      <path d="M7 42q0-7 7-7h72q7 0 7 7" fill="none" stroke="#fff" strokeOpacity={dark ? 0.35 : 0.7} strokeWidth="1.3" />
+      <path d="M7 76q0 7 7 7h72q7 0 7-7" fill="none" stroke={dark ? "#0b2f6b" : "#1667c4"} strokeOpacity="0.35" strokeWidth="1.3" />
+      {badge && badge !== "drive" && (
+        <g fill={ink} stroke={ink} strokeWidth="0" opacity={dark ? 0.75 : 0.5}>
+          {FOLDER_GLYPHS[badge]}
+        </g>
+      )}
     </g>
-  ),
+  );
+}
+
+/** Un disco (unita'): scatola metallica con la spia, come i dischi di macOS. */
+export function driveArt(t: Theme): React.ReactNode {
+  const dark = t === "dark";
+  return (
+    <g>
+      <defs>
+        <linearGradient id={`dv-${t}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={dark ? "#8a8d96" : "#f4f5f8"} />
+          <stop offset="1" stopColor={dark ? "#55585f" : "#b9bcc6"} />
+        </linearGradient>
+      </defs>
+      <path d="M22 24h56l12 38v10a8 8 0 0 1-8 8H18a8 8 0 0 1-8-8V62z" fill={`url(#dv-${t})`} stroke={dark ? "#3c3e44" : "#9a9da8"} strokeWidth="1.5" />
+      <path d="M10.5 62h79" stroke={dark ? "#3c3e44" : "#9a9da8"} strokeWidth="1.5" />
+      <circle cx="78" cy="71" r="2.6" fill="#30d158" />
+    </g>
+  );
+}
+
+export const FILE_ART: Record<FileId, (t: Theme) => React.ReactNode> = {
+  folder: (t) => folderArt(t),
   file: (t) => page(t, null),
   text: (t) =>
     page(

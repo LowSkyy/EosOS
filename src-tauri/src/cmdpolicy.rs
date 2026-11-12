@@ -41,6 +41,8 @@ pub fn allowed(label: &str, cmd: &str, key: Option<&str>) -> bool {
         c if c.starts_with("oggi_") => label == "panel",
         c if c.starts_with("notif_") => label == "panel",
         c if c.starts_with("launcher_") => label == "launcher",
+        // Finder di EosOS: elenco, apertura e modifica dei file solo dalle sue finestre.
+        c if c.starts_with("finder_") => crate::finder::is_label(label),
         _ => true,
     }
 }

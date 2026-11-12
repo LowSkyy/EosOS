@@ -20,7 +20,7 @@ use windows::Win32::System::Registry::{
 use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::Registry::HKEY_LOCAL_MACHINE;
 use windows::Win32::System::Threading::{WaitForSingleObject, INFINITE};
-use windows::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_IDLIST};
+use windows::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOASYNC, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_IDLIST};
 use windows::Win32::UI::WindowsAndMessaging::SW_HIDE;
 
 macro_rules! ico {
@@ -73,6 +73,16 @@ const SHELL_ICONS: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\S
 /// Cartella chiusa e aperta.
 const SHELL_FOLDER_IDS: [&str; 2] = ["3", "4"];
 
+/// Una riga nel registro delle icone (`%LOCALAPPDATA%\EosOS\logs\iconpack.log`): serve a capire perche' un passaggio non e' riuscito.
+fn note(msg: &str) {
+    use std::io::Write;
+    let Some(dir) = data_dir().map(|d| d.join("logs")) else { return };
+    let _ = std::fs::create_dir_all(&dir);
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("iconpack.log")) {
+        let _ = writeln!(f, "{msg}");
+    }
+}
+
 /// Esegue `cmd /c <args>` con i permessi di amministratore (richiesta UAC) e aspetta la fine. `false` se rifiutata o fallita.
 fn run_elevated(args: &str) -> bool {
     let verb = wide("runas");
@@ -80,7 +90,8 @@ fn run_elevated(args: &str) -> bool {
     let params = wide(&format!("/c {args}"));
     let mut info = SHELLEXECUTEINFOW {
         cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
-        fMask: SEE_MASK_NOCLOSEPROCESS,
+        // NOASYNC: chi chiama non ha un ciclo di messaggi, l'avvio deve completarsi prima di tornare (altrimenti puo' non partire).
+        fMask: SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC,
         lpVerb: windows::core::PCWSTR(verb.as_ptr()),
         lpFile: windows::core::PCWSTR(file.as_ptr()),
         lpParameters: windows::core::PCWSTR(params.as_ptr()),
@@ -88,7 +99,12 @@ fn run_elevated(args: &str) -> bool {
         ..Default::default()
     };
     unsafe {
-        if ShellExecuteExW(&mut info).is_err() || info.hProcess.is_invalid() {
+        if let Err(e) = ShellExecuteExW(&mut info) {
+            note(&format!("avvio come amministratore non riuscito: {e}"));
+            return false;
+        }
+        if info.hProcess.is_invalid() {
+            note("avvio come amministratore: nessun processo");
             return false;
         }
         WaitForSingleObject(info.hProcess, INFINITE);
@@ -276,7 +292,10 @@ pub fn apply(dark: bool) -> Result<usize, String> {
     {
         let icon = path.to_string_lossy().to_string();
         let prev: Vec<ShellVal> = SHELL_FOLDER_IDS.iter().map(|n| ShellVal { name: (*n).to_string(), prev: shell_icon_value(n) }).collect();
-        if run_elevated(&shell_add_command(&icon)) && shell_icon_value("3").as_deref() == Some(icon.as_str()) {
+        let ran = run_elevated(&shell_add_command(&icon));
+        let now = shell_icon_value("3");
+        note(&format!("cartelle: comando eseguito={ran}, valore nel registro={now:?}"));
+        if ran && now.as_deref() == Some(icon.as_str()) {
             st.shell = prev;
             written += 1;
         }

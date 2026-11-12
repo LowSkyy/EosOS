@@ -11,10 +11,12 @@
     "mc-*",
     "settings",
     "capture",
-    "dock-*"
+    "dock-*",
+    "finder-*"
   ],
   "permissions": [
     "core:default",
-    "core:window:allow-start-dragging"
+    "core:window:allow-start-dragging",
+    "core:window:allow-internal-toggle-maximize"
   ]
 }
