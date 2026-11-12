@@ -1,5 +1,8 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { MacTile } from "./MacIcon";
+import { useIconStyle } from "./useIconStyle";
+import { packFor } from "../lib/iconpack";
 
 type TrayApp = { id: string; name: string; icon: string | null };
 
@@ -10,6 +13,7 @@ type TrayApp = { id: string; name: string; icon: string | null };
  * mostrano la loro finestra). La pagina manda solo l'id che ha ricevuto; il percorso lo ricava Rust. Frecce per muoversi, Invio apre, Esc chiude.
  */
 const TrayPanel = forwardRef<HTMLDivElement, { opens: number }>(function TrayPanel({ opens }, ref) {
+  const { mac, theme } = useIconStyle();
   const [apps, setApps] = useState<TrayApp[] | null>(null);
   const [error, setError] = useState("");
   const list = useRef<HTMLDivElement>(null);
@@ -51,7 +55,9 @@ const TrayPanel = forwardRef<HTMLDivElement, { opens: number }>(function TrayPan
             aria-label={a.name}
             onClick={() => void open(a)}
           >
-            {a.icon ? (
+            {mac ? (
+              <span className="tray-icon tray-tile"><MacTile pack={packFor({ name: a.name, path: "" })} src={a.icon ?? null} alt={a.name} theme={theme} /></span>
+            ) : a.icon ? (
               <img className="tray-icon" src={a.icon} alt="" draggable={false} />
             ) : (
               <span className="tray-icon tray-icon-fallback" aria-hidden>

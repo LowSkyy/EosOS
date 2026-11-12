@@ -71,6 +71,8 @@ impl Backend for Live {
             "dock.anim" => Some(Value::Text(crate::dockstore::anim_id(&mc().dock_anim).to_string())),
             "dock.magnify" => b(!mc().dock_magnify_off),
             "dock.icons" => b(!mc().dock_icons_off),
+            "dock.icon_theme" => Some(Value::Text(crate::dockstore::icon_theme_id(&mc().dock_icon_theme).to_string())),
+            "icons.system" => b(mc().icons_system && crate::iconpack::is_applied()),
             "dock.keys" => Some(Value::Text(match mc().dock_keys.as_str() { "" => "ctrl_alt".to_string(), s => s.to_string() })),
             "dock.size" => Some(Value::Text(match mc().dock_size.as_str() { "" => "medium".to_string(), s => s.to_string() })),
             "lights.on" => b(!mc().lights_off),
@@ -207,6 +209,31 @@ impl Backend for Live {
                 }
                 crate::mcstore::set_dock_anim(id);
                 self.dock_changed();
+            }
+            "dock.icon_theme" => {
+                let id = want_text(value)?;
+                if !crate::dockstore::ICON_THEMES.iter().any(|t| t.0 == id) {
+                    return Err(SettingsError("Scelta non ammessa.".into()));
+                }
+                crate::mcstore::set_dock_icon_theme(id);
+                self.dock_changed();
+                // Con le icone di sistema accese si riscrivono le .ico nel nuovo tema (le chiavi del registro non cambiano).
+                if crate::mcstore::load().icons_system {
+                    let choice = id.to_string();
+                    std::thread::spawn(move || {
+                        let _ = crate::iconpack::apply(crate::iconpack::want_dark(&choice));
+                    });
+                }
+            }
+            "icons.system" => {
+                let on = want_bool(value)?;
+                crate::mcstore::set_icons_system(on);
+                if on {
+                    let choice = crate::dockstore::icon_theme_id(&crate::mcstore::load().dock_icon_theme).to_string();
+                    crate::iconpack::apply(crate::iconpack::want_dark(&choice)).map_err(SettingsError)?;
+                } else {
+                    crate::iconpack::revert();
+                }
             }
             "dock.icons" => {
                 crate::mcstore::set_dock_icons(want_bool(value)?);

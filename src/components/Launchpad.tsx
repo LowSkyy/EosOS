@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { MacTile } from "./MacIcon";
+import { useIconStyle } from "./useIconStyle";
+import { packFor } from "../lib/iconpack";
 import { filterApps, layoutFor, moveInPages, nextOffsets, pageCount, pageOf, pageSlice, type GridApp } from "../lib/launchpad";
 
 /** Quante app si chiedono a Rust per volta (le prime arrivano subito, le altre man mano). */
@@ -18,6 +21,7 @@ type Page = { total: number; items: GridApp[] };
  * nello sfondo chiude. Le app arrivano a pagine da Rust; la pagina manda solo l'id di un'app che ha ricevuto.
  */
 export default function Launchpad({ opens }: { opens: number }) {
+  const { mac, theme } = useIconStyle();
   const [apps, setApps] = useState<GridApp[]>([]);
   const [query, setQuery] = useState("");
   const [sel, setSel] = useState(0);
@@ -175,7 +179,7 @@ export default function Launchpad({ opens }: { opens: number }) {
                     onClick={() => !drag.current?.moved && void open(a)}
                     onMouseMove={() => i !== sel && setSel(i)}
                   >
-                    {a.icon ? <img className="launchpad-icon" src={a.icon} alt="" draggable={false} /> : <span className="launchpad-icon launchpad-icon-fallback">{a.name.charAt(0).toUpperCase()}</span>}
+                    {mac ? <span className="launchpad-icon launchpad-tile"><MacTile pack={packFor({ name: a.name, path: "" })} src={a.icon ?? null} alt={a.name} theme={theme} /></span> : a.icon ? <img className="launchpad-icon" src={a.icon} alt="" draggable={false} /> : <span className="launchpad-icon launchpad-icon-fallback">{a.name.charAt(0).toUpperCase()}</span>}
                     <span className="launchpad-name">{a.name}</span>
                   </button>
                 );

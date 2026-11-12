@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useBackdrop } from "./useBackdrop";
+import { MacTile } from "./MacIcon";
+import { useIconStyle } from "./useIconStyle";
+import { packFor } from "../lib/iconpack";
 import Launchpad from "./Launchpad";
 import {
   clampSelection,
@@ -32,6 +35,7 @@ const BLUR_MARGIN = 28;
  * La pagina manda a Rust solo l'id di un risultato che Rust le ha dato.
  */
 export default function Launcher() {
+  const { mac, theme } = useIconStyle();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(null);
   const [fast, setFast] = useState<LauncherItem[]>([]);
@@ -267,7 +271,9 @@ export default function Launcher() {
               }}
               onClick={(e) => void launch(it, e.ctrlKey)}
             >
-              {it.icon ? (
+              {mac && it.kind === "app" ? (
+                <span className="launcher-icon launcher-tile"><MacTile pack={packFor({ name: it.name, path: "" })} src={it.icon} alt={it.name} theme={theme} /></span>
+              ) : it.icon ? (
                 <img className="launcher-icon" src={it.icon} alt="" draggable={false} />
               ) : (
                 <span className="launcher-icon launcher-icon-fallback">{glyphFor(it)}</span>

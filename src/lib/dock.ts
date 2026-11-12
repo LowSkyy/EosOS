@@ -75,7 +75,7 @@ export function dotState(item: Pick<DockItem, "running" | "background">): "runni
 }
 
 /** Impostazioni del Dock salvate da Rust. */
-export type DockSettings = { autohide: boolean; glass: number; blur: boolean; reserve: boolean; size?: number; anim?: "bounce" | "pulse" | "none"; magnify?: boolean; icons?: boolean; game?: boolean };
+export type DockSettings = { autohide: boolean; glass: number; blur: boolean; reserve: boolean; size?: number; anim?: "bounce" | "pulse" | "none"; magnify?: boolean; icons?: boolean; game?: boolean; icon_theme?: string };
 
 /** Misure di base del Dock (px logici) con la dimensione «media»: la dimensione scelta le moltiplica tutte. */
 export const DOCK_BASE = { icon: 50, pad: 12, gap: 8, radius: 24, head: 90, side: 72 } as const;

@@ -92,12 +92,22 @@ pub struct Ui {
     pub icons: bool,
     /// Un'app a tutto schermo e' in primo piano: niente sfocatura ne' animazioni (vedi `gamemode`).
     pub game: bool,
+    /// Tema delle icone: «auto», «light» o «dark».
+    pub icon_theme: &'static str,
+}
+
+/// Le scelte del tema delle icone: (id, etichetta).
+pub const ICON_THEMES: &[(&str, &str)] = &[("auto", "Automatico (come Windows)"), ("light", "Chiaro"), ("dark", "Scuro")];
+
+/// Il tema da un id salvato (vuoto o sconosciuto = automatico). Pura, testata.
+pub fn icon_theme_id(saved: &str) -> &'static str {
+    ICON_THEMES.iter().find(|t| t.0 == saved).map_or("auto", |t| t.0)
 }
 
 /// Le impostazioni complete per la pagina del Dock.
 pub fn ui() -> Ui {
     let mc = crate::mcstore::load();
-    Ui { base: Settings { blur: settings().blur && !crate::remote::blur_suspended() && !crate::gamemode::active(), ..settings() }, size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off, icons: !mc.dock_icons_off, game: crate::gamemode::active() }
+    Ui { base: Settings { blur: settings().blur && !crate::remote::blur_suspended() && !crate::gamemode::active(), ..settings() }, size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off, icons: !mc.dock_icons_off, game: crate::gamemode::active(), icon_theme: icon_theme_id(&mc.dock_icon_theme) }
 }
 
 /// Valore di un livello di vetro dall'id. Pura, testata.

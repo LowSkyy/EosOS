@@ -59,6 +59,7 @@ mod vdreport;
 mod panelwin;
 mod lights;
 mod gamemode;
+mod iconpack;
 mod remote;
 mod lockscreen;
 mod taskbar;

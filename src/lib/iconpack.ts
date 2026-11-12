@@ -1,6 +1,7 @@
 /** Pacchetto di icone in stile macOS per il Dock: quali app di sistema hanno un'icona disegnata apposta. */
 
-export type PackId = "finder" | "settings" | "notes" | "calculator" | "paint" | "terminal" | "monitor" | "snip" | "store" | "photos" | "camera" | "clock";
+export type { PackId } from "../components/iconart";
+import type { PackId } from "../components/iconart";
 
 /** Nome del file senza percorso né estensione, minuscolo. Pura, testata. */
 export function exeStem(path: string): string {
