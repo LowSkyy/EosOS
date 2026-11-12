@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794507608.9583507,
-    "seen": 1794508104.251807,
-    "ast_hash": "b9d69aeb2fd4bf1e500f7ee8c295eb98",
+    "mtime": 1794508541.9390175,
+    "seen": 1794508735.1902418,
+    "ast_hash": "f9834dacbce9b97ecda2a789391f800d",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/watchdog.rs": {
-    "mtime": 1794487423.3708804,
-    "seen": 1794489086.9634914,
-    "ast_hash": "7225553026df46c724715f63f4381cb8",
+    "mtime": 1794508541.9390175,
+    "seen": 1794508735.1902728,
+    "ast_hash": "d7ff47405c93b928ca1b6cf8f675af6a",
     "semantic_hash": ""
   },
   "scripts/test-taskbar.ps1": {
@@ -1827,6 +1827,12 @@
     "mtime": 1794507890.825927,
     "seen": 1794508104.251894,
     "ast_hash": "45c9c0f79e99204178d75c73ac017cec",
+    "semantic_hash": ""
+  },
+  "src-tauri/src/desktopicons.rs": {
+    "mtime": 1794508541.9390175,
+    "seen": 1794508735.190217,
+    "ast_hash": "36a4f0d4dbe8bb259a9c3d2a3cb28ac5",
     "semantic_hash": ""
   },
   "package-lock.json": {

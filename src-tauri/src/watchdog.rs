@@ -129,6 +129,7 @@ fn restore_everything() {
     appbar::remove_if_registered();
     // Le finestre a cui EosOS aveva tolto i tasti di Windows (semafori) li riprendono: lo dicono con la loro proprieta'.
     let lights = crate::lights::restore_orphans();
+    crate::desktopicons::end();
     log(&format!("ripristino eseguito (taskbar nascoste: {n}, finestre con i tasti rimessi: {lights})"));
 }
 

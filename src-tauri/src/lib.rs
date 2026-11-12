@@ -58,6 +58,7 @@ mod vdprofile;
 mod vdreport;
 mod panelwin;
 mod lights;
+mod desktopicons;
 mod finder;
 mod finder2;
 mod gamemode;
@@ -1464,6 +1465,7 @@ fn cleanup() {
     appbar::remove_if_registered();
     taskbar::restore_if_hidden();
     lights::restore_all();
+    desktopicons::end();
 }
 
 unsafe extern "system" fn on_ctrl(_event: u32) -> BOOL {
@@ -1532,9 +1534,12 @@ pub fn run() {
     // Recupero: se un'esecuzione precedente è stata uccisa lasciando l'auto-nascondi attivo.
     taskbar::restore_autohide();
     install_local_safety_nets();
+    // Icone del desktop: si fotografano prima che EosOS cambi l'area di lavoro, e si rimettono dopo (Windows le risistemerebbe).
+    desktopicons::begin();
     if hide_requested() {
         enable_taskbar_hiding();
     }
+    desktopicons::restore_soon();
 
     // Solo build debug o con la feature `test-hooks`: provoca un panic dopo 9 s per testare il panic hook.
     #[cfg(any(debug_assertions, feature = "test-hooks"))]
