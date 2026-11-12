@@ -1597,6 +1597,10 @@ pub fn run() {
                 chromeguard::protect(&w);
             }
             appbar::start(app.handle());
+            // Per le prove: con EOSOS_OPEN_FINDER=1 all'avvio si apre una finestra del Finder.
+            if std::env::var("EOSOS_OPEN_FINDER").is_ok_and(|v| v == "1") {
+                finder::open(app.handle(), None);
+            }
             dockwin::start(app.handle());
             dockkeys::start();
             winsnap::start();

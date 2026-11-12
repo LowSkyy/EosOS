@@ -312,7 +312,9 @@ pub fn open(app: &AppHandle, path: Option<String>) {
             .build();
         match made {
             Ok(win) => {
-                crate::webmem::watch(&win);
+                // Stessa protezione delle altre finestre di EosOS: nessuna area non client, quindi niente cornice ne' filo chiaro di
+                // Windows attorno (la guardia delle cornici toglie la barra del titolo e Windows disegnava al suo posto il bordo sottile).
+                crate::chromeguard::protect(&win);
                 // Come le finestre di macOS: angoli arrotondati e nessun filo bianco attorno. Windows lo rimette quando la finestra
                 // si mostra, si attiva o cambia dimensione: si riapplica in quei momenti (vedi `on_window_event`).
                 frame(&win.as_ref().window());

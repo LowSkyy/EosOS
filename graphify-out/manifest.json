@@ -48,9 +48,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/lib.rs": {
-    "mtime": 1794512506.9942346,
-    "seen": 1794512725.07994,
-    "ast_hash": "9c8e13a9d1d1bc6cf440aa068bae38f7",
+    "mtime": 1794513097.1151633,
+    "seen": 1794513276.0177078,
+    "ast_hash": "e58e8bf6c1071d38e1a0322e805a8cbf",
     "semantic_hash": ""
   },
   "src-tauri/src/main.rs": {
@@ -1776,9 +1776,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/finder.rs": {
-    "mtime": 1794512552.9631362,
-    "seen": 1794512725.0799236,
-    "ast_hash": "83b93be63800f4c6c3334cb111c7aed8",
+    "mtime": 1794513097.1141636,
+    "seen": 1794513276.0176914,
+    "ast_hash": "9709dab9729e218979703bbadbf547e7",
     "semantic_hash": ""
   },
   "src/components/Finder.tsx": {
