@@ -53,6 +53,7 @@ function Icon({
   theme,
   onClick,
   onPointerDown,
+  onMenuDone,
 }: {
   item: DockItem;
   /** Il testo del badge delle notifiche (assente = nessuna notifica). */
@@ -66,12 +67,16 @@ function Icon({
   theme: "light" | "dark";
   onClick: (item: DockItem) => void;
   onPointerDown: (e: React.PointerEvent, item: DockItem) => void;
+  /** Il menu del clic destro si e' chiuso (anche senza scegliere nulla). */
+  onMenuDone: () => void;
 }) {
   // Il frontend manda solo l'id: il percorso da eseguire lo ricava Rust dall'elenco del Dock.
   const menu = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation(); // il menu dello sfondo è un'altra cosa
-    void invoke("dock_menu", { id: item.id });
+    // Il menu di Windows si prende il mouse: il Dock non sente piu' l'uscita del puntatore e le icone resterebbero ingrandite.
+    // Il comando torna quando il menu si chiude: li' si rimette tutto a riposo.
+    void invoke("dock_menu", { id: item.id }).finally(onMenuDone);
   };
   return (
     <div
@@ -556,7 +561,7 @@ export default function Dock() {
   const background = (e: React.MouseEvent) => {
     e.preventDefault();
     const onCapsule = e.target === pill.current || (e.target as HTMLElement).closest(".dock-separator");
-    if (onCapsule) void invoke("dock_settings_menu");
+    if (onCapsule) void invoke("dock_settings_menu").finally(rest);
   };
 
   const { pinned, others } = splitDock(items);
@@ -586,6 +591,7 @@ export default function Dock() {
       theme={theme}
       onClick={onIconClick}
       onPointerDown={pointerDown}
+      onMenuDone={rest}
     />
   );
   return (

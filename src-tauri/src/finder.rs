@@ -313,6 +313,16 @@ pub fn open(app: &AppHandle, path: Option<String>) {
         match made {
             Ok(win) => {
                 crate::webmem::watch(&win);
+                // Come le finestre di macOS: angoli arrotondati e nessun filo bianco attorno (Windows lo mette alle finestre senza cornice).
+                if let Ok(h) = win.hwnd() {
+                    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE};
+                    let none: u32 = 0xFFFF_FFFE; // DWMWA_COLOR_NONE
+                    let round: u32 = 2; // DWMWCP_ROUND
+                    unsafe {
+                        let _ = DwmSetWindowAttribute(h, DWMWA_BORDER_COLOR, &none as *const _ as *const _, 4);
+                        let _ = DwmSetWindowAttribute(h, DWMWA_WINDOW_CORNER_PREFERENCE, &round as *const _ as *const _, 4);
+                    }
+                }
                 let _ = win.show();
                 let _ = win.set_focus();
             }

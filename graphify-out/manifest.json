@@ -372,9 +372,9 @@
     "semantic_hash": ""
   },
   "src/components/Dock.tsx": {
-    "mtime": 1794475703.3128462,
-    "seen": 1794476061.2093434,
-    "ast_hash": "3a4c9fd9d2bf92a2f604eada0ce9b419",
+    "mtime": 1794511370.8999074,
+    "seen": 1794511550.0235195,
+    "ast_hash": "bec24481896d308d546246a577a4d203",
     "semantic_hash": ""
   },
   "src/lib/dock.test.ts": {
@@ -1776,9 +1776,9 @@
     "semantic_hash": ""
   },
   "src-tauri/src/finder.rs": {
-    "mtime": 1794507608.9583507,
-    "seen": 1794508104.2517903,
-    "ast_hash": "7db595d80844351892a527912eda2bb0",
+    "mtime": 1794511383.700411,
+    "seen": 1794511550.0234203,
+    "ast_hash": "39d54e6f75744d63508515ee14a7552e",
     "semantic_hash": ""
   },
   "src/components/Finder.tsx": {
