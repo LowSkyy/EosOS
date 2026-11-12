@@ -93,6 +93,7 @@ pub fn protect_hwnd(h: HWND) {
 /// `SetWindowSubclass` funziona solo dal thread che possiede la finestra (il principale di Tauri): se si e' su un altro thread (le barre in alto
 /// si creano cosi') si passa dal thread principale e si aspetta, al massimo 2 secondi.
 pub fn protect(win: &tauri::WebviewWindow) {
+    crate::webmem::watch(win);
     let Ok(h) = win.hwnd() else { return };
     let same_thread = unsafe { GetWindowThreadProcessId(h, None) == GetCurrentThreadId() };
     if same_thread {

@@ -34,3 +34,26 @@ pub fn hidden(win: &tauri::WebviewWindow) {
 pub fn shown(win: &tauri::WebviewWindow) {
     set_low(win, false);
 }
+
+/// Un solo processo di rendering per tutte le pagine di EosOS (`--process-per-site`, vedi `lib.rs`) fa risparmiare circa 200 MB, ma se quel
+/// processo cade cadono tutte le pagine insieme. Qui ogni finestra, se il rendering termina, si ricarica da sola.
+pub fn watch(win: &tauri::WebviewWindow) {
+    let label = win.label().to_string();
+    let _ = win.with_webview(move |wv| unsafe {
+        use webview2_com::Microsoft::Web::WebView2::Win32::COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED;
+        use webview2_com::ProcessFailedEventHandler;
+        let Ok(core) = wv.controller().CoreWebView2() else { return };
+        let handler = ProcessFailedEventHandler::create(Box::new(move |sender, args| {
+            if let (Some(sender), Some(args)) = (sender, args) {
+                let mut kind = Default::default();
+                if args.ProcessFailedKind(&mut kind).is_ok() && kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED {
+                    eprintln!("pagina {label}: rendering terminato, ricarico");
+                    let _ = sender.Reload();
+                }
+            }
+            Ok(())
+        }));
+        let mut token = Default::default();
+        let _ = core.add_ProcessFailed(&handler, &mut token);
+    });
+}

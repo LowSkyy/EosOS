@@ -1306,6 +1306,16 @@ fn enable_taskbar_hiding() {
 pub fn run() {
     // Modalità watchdog: niente Tauri, solo sorveglianza.
     let args: Vec<String> = std::env::args().collect();
+    // Memoria: tutte le pagine di EosOS (stesso sito) stanno in un solo processo di rendering invece di uno per finestra (circa -200 MB).
+    // Prima di creare qualunque finestra; le opzioni eventualmente gia' impostate (per esempio per il debug) restano.
+    if args.get(1).is_none_or(|a| !a.starts_with("--")) {
+        let key = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS";
+        let cur = std::env::var(key).unwrap_or_default();
+        if !cur.contains("--process-per-site") {
+            // SAFETY: si e' ancora a inizio programma, in un solo thread, prima di creare finestre o thread.
+            unsafe { std::env::set_var(key, format!("{cur} --process-per-site").trim()) };
+        }
+    }
     if args.get(1).map(String::as_str) == Some("--watchdog") {
         let pid = args.get(2).and_then(|s| s.parse().ok()).unwrap_or_else(|| {
             eprintln!("uso: --watchdog <pid>");
