@@ -313,16 +313,16 @@ pub fn open(app: &AppHandle, path: Option<String>) {
         match made {
             Ok(win) => {
                 crate::webmem::watch(&win);
-                // Come le finestre di macOS: angoli arrotondati e nessun filo bianco attorno (Windows lo mette alle finestre senza cornice).
-                if let Ok(h) = win.hwnd() {
-                    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE};
-                    let none: u32 = 0xFFFF_FFFE; // DWMWA_COLOR_NONE
-                    let round: u32 = 2; // DWMWCP_ROUND
-                    unsafe {
-                        let _ = DwmSetWindowAttribute(h, DWMWA_BORDER_COLOR, &none as *const _ as *const _, 4);
-                        let _ = DwmSetWindowAttribute(h, DWMWA_WINDOW_CORNER_PREFERENCE, &round as *const _ as *const _, 4);
+                // Come le finestre di macOS: angoli arrotondati e nessun filo bianco attorno. Windows lo rimette quando la finestra
+                // si mostra, si attiva o cambia dimensione: si riapplica in quei momenti (vedi `on_window_event`).
+                frame(&win.as_ref().window());
+                let w2 = win.clone();
+                std::thread::spawn(move || {
+                    for ms in [80u64, 300, 900] {
+                        std::thread::sleep(std::time::Duration::from_millis(ms));
+                        frame(&w2.as_ref().window());
                     }
-                }
+                });
                 let _ = win.show();
                 let _ = win.set_focus();
             }
@@ -346,8 +346,26 @@ pub fn urlencode(s: &str) -> String {
 }
 
 /// Chiudere una finestra del Finder chiude solo lei (le altre finestre di EosOS, chiudendosi, chiudono tutta l'app).
-pub fn on_window_event(window: &tauri::Window, _event: &tauri::WindowEvent) -> bool {
-    is_label(window.label())
+pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) -> bool {
+    if !is_label(window.label()) {
+        return false;
+    }
+    if matches!(event, tauri::WindowEvent::Focused(_) | tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. }) {
+        frame(window);
+    }
+    true
+}
+
+/// Angoli arrotondati e nessun bordo di Windows (il filo chiaro attorno alle finestre senza cornice).
+fn frame(window: &tauri::Window) {
+    use windows::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE};
+    let Ok(h) = window.hwnd() else { return };
+    let none: u32 = 0xFFFF_FFFE; // DWMWA_COLOR_NONE
+    let round: u32 = 2; // DWMWCP_ROUND
+    unsafe {
+        let _ = DwmSetWindowAttribute(h, DWMWA_BORDER_COLOR, &none as *const _ as *const _, 4);
+        let _ = DwmSetWindowAttribute(h, DWMWA_WINDOW_CORNER_PREFERENCE, &round as *const _ as *const _, 4);
+    }
 }
 
 #[cfg(test)]

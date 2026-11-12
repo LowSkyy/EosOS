@@ -184,6 +184,11 @@ export default function Dock() {
   // Quante app girano in background (area di notifica): l'icona compare solo se almeno una.
   const [stacks, setStacks] = useState<StackItem[]>([]);
   const [bouncing, setBouncing] = useState<Set<string>>(new Set());
+  // Mentre un'icona rimbalza la finestra mostra tutta la sua zona (Rust la ridurrebbe alla capsula, tagliando l'icona che sale).
+  const anyBounce = bouncing.size > 0;
+  useEffect(() => {
+    void invoke("dock_busy", { on: anyBounce }).catch(() => {});
+  }, [anyBounce]);
   const zone = useRef<HTMLDivElement>(null);
   const pill = useRef<HTMLDivElement>(null);
   const ghost = useRef<HTMLDivElement>(null);

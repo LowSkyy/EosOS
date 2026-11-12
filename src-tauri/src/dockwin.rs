@@ -67,6 +67,23 @@ static AUTOHIDE: AtomicBool = AtomicBool::new(false);
 static BLUR: AtomicBool = AtomicBool::new(true);
 static RESERVE: AtomicBool = AtomicBool::new(true);
 
+/// Dock con un'icona che rimbalza (app in avvio): la zona visibile resta tutta la finestra, altrimenti l'icona che sale
+/// verrebbe tagliata al bordo della capsula.
+static BUSY: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+pub fn set_busy(label: &str, on: bool) {
+    if let Ok(mut b) = BUSY.lock() {
+        b.retain(|l| l != label);
+        if on {
+            b.push(label.to_string());
+        }
+    }
+}
+
+fn busy(label: &str) -> bool {
+    BUSY.lock().is_ok_and(|b| b.iter().any(|l| l == label))
+}
+
 pub fn set_menu_open(open: bool) {
     MENU_OPEN.store(open, Ordering::Relaxed);
 }
@@ -521,7 +538,9 @@ fn tick(label: &str) {
     let grace = st
         .left_at
         .is_some_and(|t| now.duration_since(t).as_secs_f64() < SHRINK_GRACE_SECONDS);
-    let region_active = active || grace;
+    // Anche con un menu aperto (il cursore e' sul menu, non sul Dock) e con un'icona che rimbalza: la zona ridotta alla capsula
+    // taglierebbe le icone ingrandite o in salto e gli angoli arrotondati.
+    let region_active = active || grace || MENU_OPEN.load(Ordering::Relaxed) || busy(label);
     let vis_h = visible_height(y, shown.h, geo.monitor.y + geo.monitor.h);
     let radius = (fit.radius * geo.scale).round() as i32;
     let client = unsafe { client_rect(hwnd_of(st.hwnd)) }.unwrap_or(Rect { x: 0, y: 0, w: shown.w, h: shown.h });
