@@ -36,7 +36,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     TranslateMessage, UpdateLayeredWindow, GWL_EXSTYLE, GWL_STYLE, GW_HWNDNEXT, GW_HWNDPREV, HWND_MESSAGE, HWND_TOP, HWND_TOPMOST, MSG, SC_CLOSE,
     SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOOWNERZORDER, SWP_NOSIZE, SW_SHOWNOACTIVATE, ULW_ALPHA, WINDOW_EX_STYLE,
     WM_APP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_SYSCOMMAND, WM_TIMER, WNDCLASSW, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUP, WS_THICKFRAME, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUP, WS_THICKFRAME, WS_SYSMENU, SWP_FRAMECHANGED, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, WM_CLOSE, ShowWindowAsync, SetWindowLongPtrW, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
 };
 
 const WM_MOUSELEAVE: u32 = 0x02A3;
@@ -51,6 +51,45 @@ static HOST: AtomicIsize = AtomicIsize::new(0);
 static PENDING: AtomicBool = AtomicBool::new(false);
 /// Finestre di Esplora file alle quali e' stato cambiato il bordo (per ripristinarle).
 static TOUCHED: Mutex<Vec<isize>> = Mutex::new(Vec::new());
+/// Finestre a cui si sono tolti i tasti di Windows (stile `WS_SYSMENU`) e dove stavano: (larghezza, altezza, distanza dall'alto e dal
+/// bordo destro della cornice, in pixel). Si rimettono allo spegnimento, alla chiusura di EosOS e al blocco dello schermo.
+static BARE: Mutex<Vec<(isize, i32, i32, i32, i32)>> = Mutex::new(Vec::new());
+
+/// Classi con la barra del titolo disegnata dall'app: lì i tasti non si possono togliere e resta la finestrina sopra.
+fn keeps_native_buttons(class: &str) -> bool {
+    class.starts_with("Chrome_WidgetWin") || class.starts_with("Mozilla") || class == "ApplicationFrameWindow" || class.starts_with("Windows.UI") || class.starts_with("Qt")
+}
+
+fn bare_geom(h: HWND) -> Option<(i32, i32, i32, i32)> {
+    BARE.lock().ok()?.iter().find(|b| b.0 == h.0 as isize).map(|b| (b.1, b.2, b.3, b.4))
+}
+
+/// Toglie i tasti di Windows dalla finestra (la barra resta, senza tasti e senza icona).
+fn strip_buttons(h: HWND, geom: (i32, i32, i32, i32)) {
+    unsafe {
+        let style = GetWindowLongPtrW(h, GWL_STYLE);
+        SetWindowLongPtrW(h, GWL_STYLE, style & !(WS_SYSMENU.0 as isize));
+        let _ = SetWindowPos(h, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+    }
+    if let Ok(mut b) = BARE.lock() {
+        b.push((h.0 as isize, geom.0, geom.1, geom.2, geom.3));
+    }
+}
+
+/// Rimette i tasti di Windows a tutte le finestre a cui sono stati tolti.
+pub fn restore_buttons() {
+    let list: Vec<(isize, i32, i32, i32, i32)> = BARE.lock().map(|mut b| std::mem::take(&mut *b)).unwrap_or_default();
+    for (k, ..) in list {
+        let h = HWND(k as *mut _);
+        unsafe {
+            if windows::Win32::UI::WindowsAndMessaging::IsWindow(Some(h)).as_bool() {
+                let style = GetWindowLongPtrW(h, GWL_STYLE);
+                SetWindowLongPtrW(h, GWL_STYLE, style | WS_SYSMENU.0 as isize);
+                let _ = SetWindowPos(h, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+            }
+        }
+    }
+}
 
 // ------------------------------------------------------------------ parte pura (testata)
 
@@ -206,6 +245,8 @@ pub struct Paint<'a> {
     pub corner: (bool, f32),
     /// Forma a capsula (cerchi a sinistra) invece del rettangolo pieno.
     pub capsule: bool,
+    /// Senza sfondo: solo i cerchi (i tasti di Windows sono stati tolti, la barra vera si vede attorno).
+    pub bare: bool,
 }
 
 /// Disegna la finestrina: `w*h` pixel BGRA premoltiplicati.
@@ -229,7 +270,7 @@ pub fn render(p: &Paint) -> Vec<u32> {
         for x in 0..w {
             let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
             let mut col = bg;
-            let mut alpha = 1.0f32;
+            let mut alpha = if p.bare { 0.0f32 } else { 1.0f32 };
             if p.capsule {
                 // distanza con segno da una capsula (un segmento orizzontale ingrossato)
                 let hx = (w as f32 / 2.0 - prad).max(0.0);
@@ -291,6 +332,7 @@ struct Ov {
     corner: (bool, f32),
     hover: bool,
     down: Option<usize>,
+    bare: bool,
     sampled: Instant,
     tracking: bool,
     /// Rettangolo della finestra vera all'ultima passata: serve a accorgersi subito se si e' mossa.
@@ -327,6 +369,8 @@ struct Info {
     zoomed: bool,
     topmost: bool,
     explorer: bool,
+    /// I tasti di Windows sono stati tolti: i cerchi li sostituiscono davvero.
+    bare: bool,
 }
 
 fn class_of(h: HWND) -> String {
@@ -372,8 +416,20 @@ fn inspect(h: HWND) -> Option<Info> {
         let scale = (GetDpiForWindow(h).max(96) as f32) / 96.0;
         // Con la barra di sistema Windows dice dove sono i tasti; se non lo dice (barra disegnata dall'app: restituisce una larghezza nulla)
         // o la barra non c'e', si usa la posizione di Windows 11.
-        let from_dwm = if has_caption { dwm_rect(h, DWMWA_CAPTION_BUTTON_BOUNDS).filter(|r| r.right - r.left >= 20 && r.bottom - r.top >= 10) } else { None };
+        let mut bare = false;
+        let from_dwm = if let Some((bw, bh, top_rel, right_off)) = bare_geom(h) {
+            bare = true;
+            let l = fr.right - wr.left - right_off - bw;
+            let t = fr.top - wr.top + top_rel;
+            Some(RECT { left: l, top: t, right: l + bw, bottom: t + bh })
+        } else if has_caption { dwm_rect(h, DWMWA_CAPTION_BUTTON_BOUNDS).filter(|r| r.right - r.left >= 20 && r.bottom - r.top >= 10) } else { None };
         let cb = if let Some(r) = from_dwm {
+            // Finestra normale con barra di sistema: si tolgono i tasti veri e al loro posto restano solo i cerchi.
+            if !bare && style & WS_SYSMENU.0 != 0 && !keeps_native_buttons(&class) && (r.right - r.left) >= (100.0 * scale) as i32 {
+                let geom = (r.right - r.left, r.bottom - r.top, r.top - (fr.top - wr.top), fr.right - (wr.left + r.right));
+                strip_buttons(h, geom);
+                bare = true;
+            }
             r
         } else {
             // Finestre senza barra di sistema (VS Code, Discord, Spotify, app Electron...): i tasti li disegna l'app in alto a destra, di
@@ -418,6 +474,7 @@ fn inspect(h: HWND) -> Option<Info> {
             zoomed,
             topmost: ex & WS_EX_TOPMOST.0 != 0,
             explorer: class == "CabinetWClass",
+            bare,
         })
     }
 }
@@ -484,7 +541,8 @@ fn present(ov: &Ov) {
             hover: ov.hover,
             down: ov.down,
             corner: ov.corner,
-            capsule: !ov.kinds.is_empty() && !ov.corner.0,
+            capsule: !ov.kinds.is_empty() && !ov.corner.0 && !ov.bare,
+            bare: ov.bare,
         });
         let bmi = BITMAPINFO { bmiHeader: BITMAPINFOHEADER { biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32, biWidth: w, biHeight: -h, biPlanes: 1, biBitCount: 32, biCompression: BI_RGB.0, ..Default::default() }, ..Default::default() };
         let mut bits: *mut core::ffi::c_void = std::ptr::null_mut();
@@ -548,6 +606,7 @@ fn unstyle_all(st: &mut State) {
 
 /// Rimette il bordo di Windows alle finestre di Esplora file toccate.
 pub fn restore_all() {
+    restore_buttons();
     let list: Vec<isize> = TOUCHED.lock().map(|mut t| std::mem::take(&mut *t)).unwrap_or_default();
     for k in list {
         let h = HWND(k as *mut _);
@@ -567,6 +626,7 @@ fn sync() {
         let Ok(mut st) = cell.try_borrow_mut() else { return };
         if !enabled {
             destroy_all(&mut st);
+            restore_buttons();
             if cfg.finder_off {
                 unstyle_all(&mut st);
             }
@@ -596,10 +656,10 @@ fn sync() {
             let extra = info.ny - top;
             // Le parti: i cerchi e, se stanno a sinistra, una finestrina liscia che copre i tasti di Windows a destra.
             // Barra piu' alta dei tasti (Chrome: la fila delle schede): i cerchi stanno al centro della barra vera.
-            let strip = strip_height(base, info.nx - 3, info.ny, (info.h as f32 * 1.6) as i32, info.frame_left, info.frame_right);
+            let strip = if info.bare { 0 } else { strip_height(base, info.nx - 3, info.ny, (info.h as f32 * 1.6) as i32, info.frame_left, info.frame_right) };
             let main = layout(&order, info.scale, right, info.native_w, (info.h + extra).max(strip + extra));
             let mut parts: Vec<Part> = vec![(base, if right { info.nx } else { info.frame_left }, main, kinds, (right, radius))];
-            if !right {
+            if !right && !info.bare {
                 parts.push((base ^ COVER_BIT, info.nx, Layout { w: info.native_w, h: info.h + extra, r: 0.0, centers: Vec::new() }, Vec::new(), (true, radius)));
             }
             for (key, x, lay, kinds, corner) in parts {
@@ -611,7 +671,7 @@ fn sync() {
                     st.by_overlay.insert(hwnd.0 as isize, key);
                     st.ovs.insert(
                         key,
-                        Ov { hwnd, target: info.hwnd, x, y, layout: lay.clone(), kinds: kinds.clone(), scale: info.scale, bg: [32, 32, 32], active, zoomed: info.zoomed, corner, hover: false, down: None, sampled: Instant::now() - RESAMPLE, tracking: false, trect: RECT::default() },
+                        Ov { hwnd, target: info.hwnd, x, y, layout: lay.clone(), kinds: kinds.clone(), scale: info.scale, bg: [32, 32, 32], active, zoomed: info.zoomed, corner, hover: false, down: None, bare: info.bare, sampled: Instant::now() - RESAMPLE, tracking: false, trect: RECT::default() },
                     );
                 }
                 let State { ovs, by_overlay, .. } = &mut *st;
@@ -619,7 +679,7 @@ fn sync() {
                 // Il colore della barra: a ogni cambio di aspetto o ogni tanto.
                 let mut changed = !existing;
                 let moved = ov.x != x || ov.y != y;
-                if ov.layout != lay || ov.kinds != kinds || ov.active != active || ov.zoomed != info.zoomed || ov.corner != corner || ov.scale != info.scale {
+                if ov.bare != info.bare || ov.layout != lay || ov.kinds != kinds || ov.active != active || ov.zoomed != info.zoomed || ov.corner != corner || ov.scale != info.scale {
                     changed = true;
                 }
                 if changed || ov.sampled.elapsed() >= RESAMPLE {
@@ -640,6 +700,7 @@ fn sync() {
                 }
                 ov.layout = lay;
                 ov.kinds = kinds;
+                ov.bare = info.bare;
                 ov.active = active;
                 ov.zoomed = info.zoomed;
                 ov.corner = corner;
@@ -858,7 +919,22 @@ unsafe extern "system" fn ov_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
                         {
                             let cmd = command_for(kind, ov.zoomed);
                             unsafe {
-                                let _ = PostMessageW(Some(ov.target), WM_SYSCOMMAND, WPARAM(cmd as usize), LPARAM(0));
+                                if ov.bare {
+                                    // Senza i tasti di sistema i comandi della barra non sono piu' garantiti: si agisce sulla finestra.
+                                    match kind {
+                                        Kind::Close => {
+                                            let _ = PostMessageW(Some(ov.target), WM_CLOSE, WPARAM(0), LPARAM(0));
+                                        }
+                                        Kind::Min => {
+                                            let _ = ShowWindowAsync(ov.target, SW_MINIMIZE);
+                                        }
+                                        Kind::Zoom => {
+                                            let _ = ShowWindowAsync(ov.target, if ov.zoomed { SW_RESTORE } else { SW_MAXIMIZE });
+                                        }
+                                    }
+                                } else {
+                                    let _ = PostMessageW(Some(ov.target), WM_SYSCOMMAND, WPARAM(cmd as usize), LPARAM(0));
+                                }
                             }
                         }
                     }
@@ -959,7 +1035,7 @@ mod tests {
     }
 
     fn paint(l: &Layout, kinds: &[(Kind, bool)], active: bool, hover: bool, corner: (bool, f32)) -> Vec<u32> {
-        render(&Paint { layout: l, kinds, scale: 1.0, bg: [30, 30, 30], active, zoomed: false, hover, down: None, corner, capsule: false })
+        render(&Paint { layout: l, kinds, scale: 1.0, bg: [30, 30, 30], active, zoomed: false, hover, down: None, corner, capsule: false, bare: false })
     }
 
     #[test]
@@ -1018,7 +1094,7 @@ mod tests {
         let k = kinds_order(false, true);
         let l = layout(&k, 1.0, false, 138, 32);
         let kinds: Vec<(Kind, bool)> = k.iter().map(|x| (*x, true)).collect();
-        let px = render(&Paint { layout: &l, kinds: &kinds, scale: 1.0, bg: [30, 30, 30], active: true, zoomed: false, hover: false, down: None, corner: (false, 8.0), capsule: true });
+        let px = render(&Paint { layout: &l, kinds: &kinds, scale: 1.0, bg: [30, 30, 30], active: true, zoomed: false, hover: false, down: None, corner: (false, 8.0), capsule: true, bare: false });
         assert_eq!(px[0] >> 24, 0, "fuori dalla capsula si vede l'app");
         let c = l.centers[0];
         assert_eq!(px[(c.2 as usize) * l.w as usize + c.1 as usize], 0xFFFF5F57);
@@ -1032,5 +1108,22 @@ mod tests {
         assert!(skipped_class("Progman"));
         assert!(skipped_class("Shell_TrayWnd"));
         assert!(!skipped_class("Notepad"));
+    }
+
+    #[test]
+    fn bare_mode_draws_only_the_circles() {
+        let k = kinds_order(true, true);
+        let l = layout(&k, 1.0, true, 138, 32);
+        let kinds: Vec<(Kind, bool)> = k.iter().map(|x| (*x, true)).collect();
+        let px = render(&Paint { layout: &l, kinds: &kinds, scale: 1.0, bg: [30, 30, 30], active: true, zoomed: false, hover: false, down: None, corner: (true, 0.0), capsule: false, bare: true });
+        assert_eq!(px[0] >> 24, 0, "fuori dai cerchi trasparente");
+        let c = l.centers.iter().find(|c| c.0 == Kind::Close).copied().unwrap();
+        assert_eq!(px[(c.2 as usize) * l.w as usize + c.1 as usize] & 0xFFFFFF, 0xFF5F57);
+    }
+
+    #[test]
+    fn custom_frame_apps_keep_the_overlay() {
+        assert!(keeps_native_buttons("Chrome_WidgetWin_1"));
+        assert!(!keeps_native_buttons("CabinetWClass"));
     }
 }

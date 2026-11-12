@@ -22,3 +22,8 @@ Se EosOS si chiude o si blocca, le finestrine spariscono e **i tasti di Windows 
 
 ## Prove
 Rust: ordine e disposizione dei cerchi, clic, colori, simboli, angolo arrotondato, comandi (10 test). Dal vivo, con una finestra di prova e clic veri (build `test-hooks`): a sinistra e a destra i cerchi compaiono al posto dei tasti, verde ingrandisce e ripristina, giallo riduce a icona, rosso chiude.
+
+## Aggiornamento 12 nov: tasti di Windows tolti davvero (finestre normali)
+Per le finestre con la barra del titolo di sistema (Esplora file, Impostazioni classiche, app Win32/WinForms/WPF...) EosOS toglie lo stile `WS_SYSMENU`: i tasti di Windows (e l'icona della barra) spariscono e restano solo i tre cerchi, senza riquadro sopra e senza colore da leggere. Il clic agisce sulla finestra (`WM_CLOSE`, `ShowWindowAsync`). Si rimettono con lo spegnimento dell'impostazione, alla chiusura di EosOS e durante il blocco dello schermo. **Rischio dichiarato:** se EosOS viene ucciso di colpo le finestre aperte restano senza i tasti di Windows finche' non si riaprono.
+Chrome, Firefox, app UWP e Qt (barra disegnata dall'app) continuano a usare la finestrina sopra i tasti.
+Provato dal vivo: finestra di prova (tasti spariti, cerchi centrati sul titolo, rosso chiude).
