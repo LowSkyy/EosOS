@@ -1167,8 +1167,10 @@ html:has(.lock), html:has(.lock) body { background: #000; }
   pointer-events: none;
 }
 .mac-tile[data-pack="app"] { background: linear-gradient(180deg, #ffffff, #dcdde4); }
+.mac-tile[data-tint] { background: linear-gradient(180deg, var(--t1), var(--t2)); }
 /* App senza disegno proprio: la loro icona sta dentro la tessera, con un margine come in macOS. */
-.mac-tile-img { width: 78%; height: 78%; object-fit: contain; border-radius: 0; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.25)); }
+/* L'icona riempie la tessera: i margini trasparenti che le icone di Windows hanno di loro si tagliano con l'ingrandimento (la tessera ha overflow nascosto). */
+.mac-tile-img { width: 70%; height: 70%; object-fit: contain; border-radius: 0; filter: drop-shadow(0 1.5px 2px rgba(0, 0, 0, 0.35)); }
 .mac-tile-letter { font-size: 26px; font-weight: 600; color: #3a3a40; }
 .dock-launchpad-icon[data-mac="true"] { background: linear-gradient(180deg, #e9ebf2, #aeb2c0); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.28), 0 1.5px 3px rgba(0, 0, 0, 0.35), inset 0 0.5px 0 rgba(255, 255, 255, 0.7); }
 @supports (corner-shape: squircle) {
@@ -1187,7 +1189,7 @@ html:has(.lock), html:has(.lock) body { background: #000; }
 .tray-tile .mac-tile { box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.28); }
 .tray-tile .mac-tile::after { display: none; }
 /* Aspetto scuro: tessere delle app senza disegno proprio scure, riflesso piu' tenue. */
-.mac-tile[data-theme="dark"][data-pack="app"] { background: linear-gradient(180deg, #4a4b52, #26272b); }
+.mac-tile[data-theme="dark"][data-pack="app"]:not([data-tint]) { background: linear-gradient(180deg, #4a4b52, #26272b); }
 .mac-tile[data-theme="dark"]::after { background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 52%); }
 .mac-tile[data-theme="dark"] .mac-tile-letter { color: #e6e6ea; }
 .dock-launchpad-icon[data-mac="true"][data-theme="dark"] { background: linear-gradient(180deg, #4b4d57, #23242a); }

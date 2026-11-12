@@ -27,3 +27,21 @@ Rust: ordine e disposizione dei cerchi, clic, colori, simboli, angolo arrotondat
 Per le finestre con la barra del titolo di sistema (Esplora file, Impostazioni classiche, app Win32/WinForms/WPF...) EosOS toglie lo stile `WS_SYSMENU`: i tasti di Windows (e l'icona della barra) spariscono e restano solo i tre cerchi, senza riquadro sopra e senza colore da leggere. Il clic agisce sulla finestra (`WM_CLOSE`, `ShowWindowAsync`). Si rimettono con lo spegnimento dell'impostazione, alla chiusura di EosOS e durante il blocco dello schermo. **Rischio dichiarato:** se EosOS viene ucciso di colpo le finestre aperte restano senza i tasti di Windows finche' non si riaprono.
 Chrome, Firefox, app UWP e Qt (barra disegnata dall'app) continuano a usare la finestrina sopra i tasti.
 Provato dal vivo: finestra di prova (tasti spariti, cerchi centrati sul titolo, rosso chiude).
+
+## Aggiornamento 12 nov (sera): semafori dentro le finestre
+Prima ogni semaforo era una finestrina a parte che EosOS spostava e riordinava «a mano» dietro la finestra vera: nei trascinamenti e nei cambi di finestra poteva restare indietro di un fotogramma (tasti di Windows che riaffioravano, cerchi sopra la finestra sbagliata). Ora la finestrina e' **legata alla finestra dell'app**:
+
+- **App con la barra disegnata da se'** (Chrome, Edge, VS Code, Discord, app Electron, app moderne): i cerchi sono un riquadro *figlio* dentro la finestra. Windows lo muove, lo ordina, lo ritaglia e lo anima insieme a lei: niente piu' ritardi. I clic li raccoglie una finestrina invisibile *posseduta* dalla finestra, sopra i cerchi (queste app si prendono tutti i clic della loro barra, anche sopra un riquadro figlio).
+- **Finestre con la barra di Windows**: la finestrina e' *posseduta* dalla finestra: Windows la tiene sempre subito sopra di lei e la nasconde con lei (prima l'ordine si aggiustava ogni 16 ms).
+- Un thread per finestrina: una finestra legata a quella di un'altra app ne condivide la coda di tastiera e mouse; con un thread solo, un'app bloccata avrebbe fermato i semafori (e l'input) di tutte. Il thread non fa lavoro, passa i messaggi del mouse al thread dei semafori.
+- Il manifesto dell'eseguibile (`src-tauri/app.manifest`) dichiara Windows 8+: serve per i riquadri figli «a strati».
+
+Altre correzioni dello stesso giro:
+- **Verde/giallo/rosso sui browser**: Chrome, Edge e le app Electron ignorano il comando della barra (`WM_SYSCOMMAND`) mandato da fuori: il verde non ingrandiva. Ora si agisce sulla finestra (`ShowWindowAsync`, `WM_CLOSE`) per tutte.
+- **Colore sbagliato («patacca») sulle finestre coperte**: il colore della barra si leggeva dallo schermo anche quando sopra c'era un'altra finestra. Ora si legge solo se in quel punto si vede davvero la finestra giusta.
+- **Tasti di Windows persi dopo un riavvio di EosOS**: le finestre a cui sono stati tolti i tasti portano una proprieta' (`EosOS.Bare`); un EosOS riavviato le riconosce, e il processo di guardia rimette i tasti se EosOS muore di colpo (prima restavano senza tasti, o con una pezza sopra).
+- **Finestre avviate come amministratore**: non si lasciano toccare; niente semafori (prima comparivano ma non funzionavano).
+- Passando il mouse i cerchi si colorano e mostrano i simboli anche sulle finestre non attive, come in macOS.
+- Finestre ingrandite: i cerchi partono dalla parte visibile della barra.
+
+Provato dal vivo su una finestra di Edge con profilo temporaneo: cerchi dentro la finestra con il colore giusto, simboli al passaggio, verde ingrandisce e ripristina, giallo riduce, rosso chiude.

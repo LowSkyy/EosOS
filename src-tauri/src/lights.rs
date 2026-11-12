@@ -33,13 +33,23 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{ReleaseCapture, SetCapture, Tr
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, LoadCursorW, IDC_ARROW, DestroyWindow, DispatchMessageW, EnumWindows, GetClassNameW, GetForegroundWindow, GetMessageW, GetWindow, GetWindowLongPtrW,
     GetWindowRect, GetWindowThreadProcessId, IsIconic, IsWindowVisible, IsZoomed, PostMessageW, RegisterClassW, SetTimer, SetWindowPos, ShowWindow,
-    TranslateMessage, UpdateLayeredWindow, GWL_EXSTYLE, GWL_STYLE, GW_HWNDNEXT, GW_HWNDPREV, HWND_MESSAGE, HWND_TOP, HWND_TOPMOST, MSG, SC_CLOSE,
-    SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOOWNERZORDER, SWP_NOSIZE, SW_SHOWNOACTIVATE, ULW_ALPHA, WINDOW_EX_STYLE,
-    WM_APP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_SYSCOMMAND, WM_TIMER, WNDCLASSW, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+    TranslateMessage, UpdateLayeredWindow, GWL_EXSTYLE, GWL_STYLE, GW_HWNDNEXT, GW_HWNDPREV, HWND_MESSAGE, HWND_TOP, HWND_TOPMOST, MSG,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOOWNERZORDER, SWP_NOSIZE, SW_SHOWNOACTIVATE, ULW_ALPHA, WINDOW_EX_STYLE,
+    WM_APP, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEACTIVATE, WM_MOUSEMOVE, WM_TIMER, WNDCLASSW, WS_CAPTION, WS_EX_LAYERED, WS_EX_NOACTIVATE,
     WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_POPUP, WS_THICKFRAME, WS_SYSMENU, SWP_FRAMECHANGED, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, WM_CLOSE, ShowWindowAsync, SetWindowLongPtrW, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
 };
 
+use windows::Win32::Foundation::HANDLE;
+use windows::Win32::Graphics::Gdi::ClientToScreen;
+use windows::Win32::UI::HiDpi::{GetAwarenessFromDpiAwarenessContext, GetWindowDpiAwarenessContext, DPI_AWARENESS_PER_MONITOR_AWARE};
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetAncestor, GetClientRect, GetPropW, IsWindow, PostQuitMessage, RemovePropW, SetPropW, WindowFromPoint, GA_ROOT, GWLP_USERDATA, WM_NCDESTROY, WS_CHILD,
+    WS_CLIPSIBLINGS, WS_EX_NOPARENTNOTIFY,
+};
+
 const WM_MOUSELEAVE: u32 = 0x02A3;
+/// Messaggio con cui il thread di una finestrina passa i movimenti e i clic del mouse al thread dei semafori.
+const WM_LIGHT_MOUSE: u32 = WM_APP + 1;
 const TICK_MS: u32 = 100;
 const FAST_MS: u32 = 16;
 /// Bit che distingue la finestrina di copertura dei tasti di Windows da quella dei cerchi della stessa finestra.
@@ -62,35 +72,101 @@ fn keeps_native_buttons(class: &str) -> bool {
     class.starts_with("Chrome_WidgetWin") || class.starts_with("Mozilla") || class == "ApplicationFrameWindow" || class.starts_with("Windows.UI") || class.starts_with("Qt")
 }
 
-fn bare_geom(h: HWND) -> Option<(i32, i32, i32, i32)> {
-    BARE.lock().ok()?.iter().find(|b| b.0 == h.0 as isize).map(|b| (b.1, b.2, b.3, b.4))
+/// Proprieta' lasciata sulla finestra a cui si sono tolti i tasti (con dentro dove stavano): cosi' un EosOS riavviato la riconosce, e
+/// il processo di guardia puo' rimettere i tasti se EosOS muore di colpo.
+const BARE_PROP: windows::core::PCWSTR = w!("EosOS.Bare");
+/// Finestre che non si lasciano toccare (di solito avviate come amministratore): niente semafori, non funzionerebbero.
+static UNTOUCHABLE: Mutex<Vec<isize>> = Mutex::new(Vec::new());
+/// Possono esserci finestre senza tasti da ripristinare (anche lasciate da un EosOS precedente).
+static MAY_HAVE_BARE: AtomicBool = AtomicBool::new(true);
+
+/// La geometria dei tasti in un numero solo (mai zero), per la proprieta' della finestra. Pura, testata.
+pub fn pack_geom(g: (i32, i32, i32, i32)) -> isize {
+    let f = |v: i32, bias: i32| (v + bias).clamp(0, 0x7FFF) as u64;
+    (f(g.0, 0) | (f(g.1, 0) << 16) | (f(g.2, 1000) << 32) | (f(g.3, 1000) << 48)) as isize
 }
 
-/// Toglie i tasti di Windows dalla finestra (la barra resta, senza tasti e senza icona).
-fn strip_buttons(h: HWND, geom: (i32, i32, i32, i32)) {
+/// L'inverso di `pack_geom`. Pura, testata.
+pub fn unpack_geom(v: isize) -> (i32, i32, i32, i32) {
+    let v = v as u64;
+    ((v & 0xFFFF) as i32, ((v >> 16) & 0xFFFF) as i32, ((v >> 32) & 0xFFFF) as i32 - 1000, ((v >> 48) & 0xFFFF) as i32 - 1000)
+}
+
+/// Classi dove i semafori possono stare dentro la finestra (riquadro figlio): browser e app Electron, Esplora file. Nelle app UWP
+/// (Impostazioni di Windows) la barra dell'app si disegna sopra qualunque riquadro figlio: li' resta la finestrina posseduta.
+fn draws_inside(class: &str) -> bool {
+    class.starts_with("Chrome_WidgetWin") || class == "CabinetWClass"
+}
+
+fn bare_geom(h: HWND) -> Option<(i32, i32, i32, i32)> {
+    let known = BARE.lock().ok()?.iter().find(|b| b.0 == h.0 as isize).map(|b| (b.1, b.2, b.3, b.4));
+    if known.is_some() {
+        return known;
+    }
+    // Tasti tolti da un EosOS precedente (riavvio): la finestra lo dice con la sua proprieta'.
+    let v = unsafe { GetPropW(h, BARE_PROP) }.0 as isize;
+    if v == 0 {
+        return None;
+    }
+    let g = unpack_geom(v);
+    BARE.lock().ok()?.push((h.0 as isize, g.0, g.1, g.2, g.3));
+    MAY_HAVE_BARE.store(true, Ordering::SeqCst);
+    Some(g)
+}
+
+/// Toglie i tasti di Windows dalla finestra (la barra resta, senza tasti e senza icona). `false` se la finestra non si lascia toccare.
+fn strip_buttons(h: HWND, geom: (i32, i32, i32, i32)) -> bool {
     unsafe {
         let style = GetWindowLongPtrW(h, GWL_STYLE);
         SetWindowLongPtrW(h, GWL_STYLE, style & !(WS_SYSMENU.0 as isize));
+        if GetWindowLongPtrW(h, GWL_STYLE) & WS_SYSMENU.0 as isize != 0 {
+            return false;
+        }
         let _ = SetWindowPos(h, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        let _ = SetPropW(h, BARE_PROP, Some(HANDLE(pack_geom(geom) as *mut _)));
     }
-    if let Ok(mut b) = BARE.lock() {
+    MAY_HAVE_BARE.store(true, Ordering::SeqCst);
+    if let Ok(mut b) = BARE.lock()
+        && !b.iter().any(|e| e.0 == h.0 as isize)
+    {
         b.push((h.0 as isize, geom.0, geom.1, geom.2, geom.3));
     }
+    true
+}
+
+unsafe extern "system" fn restore_one(h: HWND, data: LPARAM) -> BOOL {
+    unsafe {
+        if !GetPropW(h, BARE_PROP).0.is_null() {
+            let style = GetWindowLongPtrW(h, GWL_STYLE);
+            SetWindowLongPtrW(h, GWL_STYLE, style | WS_SYSMENU.0 as isize);
+            let _ = SetWindowPos(h, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+            let _ = RemovePropW(h, BARE_PROP);
+            // SAFETY: `data` e' il contatore di `restore_orphans`, valido per tutta l'enumerazione.
+            *(data.0 as *mut usize) += 1;
+        }
+    }
+    BOOL(1)
+}
+
+/// Rimette i tasti di Windows a ogni finestra che porta la nostra proprieta', anche se a toglierli e' stato un altro processo di EosOS
+/// (lo usa il processo di guardia quando EosOS muore). Ritorna quante finestre ha ripristinato.
+pub fn restore_orphans() -> usize {
+    let mut n = 0usize;
+    unsafe {
+        let _ = EnumWindows(Some(restore_one), LPARAM(&mut n as *mut usize as isize));
+    }
+    if let Ok(mut b) = BARE.lock() {
+        b.clear();
+    }
+    n
 }
 
 /// Rimette i tasti di Windows a tutte le finestre a cui sono stati tolti.
 pub fn restore_buttons() {
-    let list: Vec<BareEntry> = BARE.lock().map(|mut b| std::mem::take(&mut *b)).unwrap_or_default();
-    for (k, ..) in list {
-        let h = HWND(k as *mut _);
-        unsafe {
-            if windows::Win32::UI::WindowsAndMessaging::IsWindow(Some(h)).as_bool() {
-                let style = GetWindowLongPtrW(h, GWL_STYLE);
-                SetWindowLongPtrW(h, GWL_STYLE, style | WS_SYSMENU.0 as isize);
-                let _ = SetWindowPos(h, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
-            }
-        }
+    if !MAY_HAVE_BARE.swap(false, Ordering::SeqCst) {
+        return;
     }
+    restore_orphans();
 }
 
 // ------------------------------------------------------------------ parte pura (testata)
@@ -146,20 +222,6 @@ pub fn hit(l: &Layout, x: f32, y: f32, scale: f32) -> Option<usize> {
     l.centers.iter().position(|(_, cx, cy)| (x - cx).hypot(y - cy) <= l.r + slack)
 }
 
-/// Il `WM_SYSCOMMAND` da mandare alla finestra vera per un cerchio.
-pub fn command_for(kind: Kind, zoomed: bool) -> u32 {
-    match kind {
-        Kind::Close => SC_CLOSE,
-        Kind::Min => SC_MINIMIZE,
-        Kind::Zoom => {
-            if zoomed {
-                SC_RESTORE
-            } else {
-                SC_MAXIMIZE
-            }
-        }
-    }
-}
 
 fn clamp01(v: f32) -> f32 {
     v.clamp(0.0, 1.0)
@@ -285,13 +347,14 @@ pub fn render(p: &Paint) -> Vec<u32> {
                     continue;
                 }
                 let usable = p.kinds.iter().find(|(kk, _)| kk == k).is_none_or(|(_, u)| *u);
-                let mut base = light_color(*k, usable, p.active, p.bg);
+                // Come in macOS: passando il mouse i cerchi si colorano e mostrano i simboli anche se la finestra non e' attiva.
+                let mut base = light_color(*k, usable, p.active || p.hover, p.bg);
                 if p.down == Some(i) {
                     base = mix(base, [0.0, 0.0, 0.0], 0.2);
                 }
                 col = mix(col, base, c);
                 alpha = alpha.max(c);
-                if p.hover && usable && p.active {
+                if p.hover && usable {
                     let gc = glyph_cov(*k, p.zoomed, fx - cx, fy - cy, p.layout.r, p.scale);
                     col = mix(col, mix(base, [0.0, 0.0, 0.0], 0.62), gc * c);
                 }
@@ -335,8 +398,14 @@ struct Ov {
     hover: bool,
     down: Option<usize>,
     bare: bool,
+    /// Vero: finestra figlia dentro la finestra dell'app (si muove e si disegna con lei). Falso: finestrina posseduta dalla finestra.
+    child: bool,
+    /// Solo con `child`: finestrina invisibile posseduta dalla finestra, sopra i semafori, che raccoglie il mouse. I browser e le
+    /// app Electron si prendono tutti i clic della loro barra, anche sopra un riquadro figlio: il disegno sta dentro la finestra
+    /// (sempre in passo con lei), i clic li prende questa. Con la sua posizione sullo schermo e la sua dimensione.
+    input: Option<HWND>,
+    spot: (i32, i32, i32, i32),
     sampled: Instant,
-    tracking: bool,
     /// Rettangolo della finestra vera all'ultima passata: serve a accorgersi subito se si e' mossa.
     trect: RECT,
 }
@@ -346,6 +415,8 @@ struct State {
     ovs: HashMap<isize, Ov>,
     by_overlay: HashMap<isize, isize>,
     styled: HashSet<isize>,
+    /// Finestrine che non si sono potute creare: si riprova dopo qualche secondo, non a ogni passata.
+    failed: HashMap<isize, Instant>,
 }
 
 thread_local! {
@@ -373,6 +444,12 @@ struct Info {
     explorer: bool,
     /// I tasti di Windows sono stati tolti: i cerchi li sostituiscono davvero.
     bare: bool,
+    /// Area dell'app (schermo): se i tasti ci stanno dentro, i semafori diventano una parte della finestra.
+    client: RECT,
+    /// La finestra ragiona in pixel veri come noi (serve per starle dentro).
+    pm_aware: bool,
+    /// App dove un riquadro figlio si vede davvero sopra la barra (provato dal vivo).
+    inside_ok: bool,
 }
 
 fn class_of(h: HWND) -> String {
@@ -409,7 +486,7 @@ fn inspect(h: HWND) -> Option<Info> {
             return None;
         }
         let class = class_of(h);
-        if skipped_class(&class) {
+        if skipped_class(&class) || UNTOUCHABLE.lock().is_ok_and(|u| u.contains(&(h.0 as isize))) {
             return None;
         }
         let mut wr = RECT::default();
@@ -421,6 +498,12 @@ fn inspect(h: HWND) -> Option<Info> {
         let mut bare = false;
         let from_dwm = if let Some((bw, bh, top_rel, right_off)) = bare_geom(h) {
             bare = true;
+            // L'app ha rimesso i suoi tasti (cambio di stile): si ritolgono, altrimenti si vedrebbero tasti e cerchi insieme.
+            if style & WS_SYSMENU.0 != 0 {
+                let now = GetWindowLongPtrW(h, GWL_STYLE);
+                SetWindowLongPtrW(h, GWL_STYLE, now & !(WS_SYSMENU.0 as isize));
+                let _ = SetWindowPos(h, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+            }
             let l = fr.right - wr.left - right_off - bw;
             let t = fr.top - wr.top + top_rel;
             Some(RECT { left: l, top: t, right: l + bw, bottom: t + bh })
@@ -429,7 +512,12 @@ fn inspect(h: HWND) -> Option<Info> {
             // Finestra normale con barra di sistema: si tolgono i tasti veri e al loro posto restano solo i cerchi.
             if !bare && style & WS_SYSMENU.0 != 0 && !keeps_native_buttons(&class) && (r.right - r.left) >= (100.0 * scale) as i32 {
                 let geom = (r.right - r.left, r.bottom - r.top, r.top - (fr.top - wr.top), fr.right - (wr.left + r.right));
-                strip_buttons(h, geom);
+                if !strip_buttons(h, geom) {
+                    if let Ok(mut u) = UNTOUCHABLE.lock() {
+                        u.push(h.0 as isize);
+                    }
+                    return None;
+                }
                 bare = true;
             }
             r
@@ -460,6 +548,12 @@ fn inspect(h: HWND) -> Option<Info> {
         }
         let native_w = cb.right - cb.left;
         let three = native_w as f32 >= 100.0 * scale;
+        let mut cl = RECT::default();
+        let _ = GetClientRect(h, &mut cl);
+        let mut org = POINT::default();
+        let _ = ClientToScreen(h, &mut org);
+        let client = RECT { left: org.x, top: org.y, right: org.x + cl.right, bottom: org.y + cl.bottom };
+        let pm_aware = GetAwarenessFromDpiAwarenessContext(GetWindowDpiAwarenessContext(h)) == DPI_AWARENESS_PER_MONITOR_AWARE;
         let kinds = vec![(Kind::Close, true), (Kind::Min, three && style & WS_MINIMIZEBOX.0 != 0), (Kind::Zoom, three && style & WS_MAXIMIZEBOX.0 != 0)];
         Some(Info {
             hwnd: h,
@@ -477,6 +571,9 @@ fn inspect(h: HWND) -> Option<Info> {
             topmost: ex & WS_EX_TOPMOST.0 != 0,
             explorer: class == "CabinetWClass",
             bare,
+            client,
+            pm_aware,
+            inside_ok: draws_inside(&class),
         })
     }
 }
@@ -503,18 +600,37 @@ fn sample_bg(x: i32, y: i32) -> [u8; 3] {
     }
 }
 
+/// Il punto dello schermo mostra davvero questa finestra (non un'altra che le sta sopra)?
+fn shows(target: HWND, x: i32, y: i32) -> bool {
+    unsafe {
+        let at = WindowFromPoint(POINT { x, y });
+        !at.0.is_null() && GetAncestor(at, GA_ROOT) == target
+    }
+}
+
+/// Colore della barra della finestra, solo se in quel punto si vede lei: con un'altra finestra sopra si leggerebbe il colore sbagliato.
+fn sample_target(target: HWND, x: i32, y: i32) -> Option<[u8; 3]> {
+    shows(target, x, y).then(|| sample_bg(x, y))
+}
+
 thread_local! {
-    static STRIP: std::cell::RefCell<HashMap<isize, (i32, Instant)>> = std::cell::RefCell::new(HashMap::new());
+    static STRIP: std::cell::RefCell<HashMap<isize, (i32, Instant, bool)>> = std::cell::RefCell::new(HashMap::new());
 }
 
 /// Altezza della barra in alto, letta dallo schermo: si scende finche' il colore resta lo stesso. Mai oltre `max`.
-/// Il risultato resta in memoria 2 secondi per finestra.
+/// Il risultato resta in memoria 2 secondi per finestra; la prima misura si conferma dopo poco, perche' una finestra appena aperta
+/// o ripristinata e' ancora in animazione e la misura puo' essere falsa.
 fn strip_height(key: isize, x: i32, y: i32, max: i32, left: i32, right: i32) -> i32 {
-    let cached = STRIP.with(|c| c.borrow().get(&key).filter(|(_, t)| t.elapsed() < Duration::from_secs(2)).map(|(h, _)| *h));
+    let fresh = |t: &Instant, confirmed: bool| t.elapsed() < if confirmed { Duration::from_secs(2) } else { Duration::from_millis(400) };
+    let cached = STRIP.with(|c| c.borrow().get(&key).filter(|(_, t, ok)| fresh(t, *ok)).map(|(h, ..)| *h));
     if let Some(h) = cached {
         return h;
     }
     let x = x.max(left + 1).min(right - 1);
+    // Con un'altra finestra sopra la misura sarebbe falsa: resta l'ultima buona (o zero).
+    if !shows(HWND(key as *mut _), x, y + 8) {
+        return STRIP.with(|c| c.borrow().get(&key).map_or(0, |(h, ..)| *h));
+    }
     let top = sample_bg(x, y + 8);
     let mut h = 0;
     for dy in 9..max {
@@ -525,8 +641,36 @@ fn strip_height(key: isize, x: i32, y: i32, max: i32, left: i32, right: i32) -> 
         }
         h = dy;
     }
-    STRIP.with(|c| c.borrow_mut().insert(key, (h, Instant::now())));
+    STRIP.with(|c| {
+        let mut m = c.borrow_mut();
+        let confirmed = m.contains_key(&key);
+        m.insert(key, (h, Instant::now(), confirmed));
+    });
     h
+}
+
+/// Colore «trasparente» delle finestrine figlie (rosso e blu uguali: vale sia come pixel sia come COLORREF).
+const KEY: u32 = 0x0001_FE01;
+/// L'ultima immagine di ogni finestrina figlia (larghezza, altezza, pixel): la disegna il suo thread quando Windows glielo chiede.
+type Frames = HashMap<isize, (i32, i32, Vec<u32>)>;
+static FRAMES: Mutex<Option<Frames>> = Mutex::new(None);
+
+/// Dall'immagine con trasparenza a una piena: i pixel del tutto trasparenti diventano il colore chiave (li buca Windows), gli altri
+/// si fondono sul colore della barra. Serve alle finestrine figlie, che dentro le finestre delle app non mostrano la trasparenza per
+/// pixel. Pura, testata.
+pub fn flatten(pixels: &[u32], bg: [u8; 3]) -> Vec<u32> {
+    pixels
+        .iter()
+        .map(|px| {
+            let a = px >> 24;
+            if a == 0 {
+                return KEY;
+            }
+            let ch = |shift: u32, b: u8| (((px >> shift) & 0xFF) + u32::from(b) * (255 - a) / 255).min(255);
+            let out = (ch(16, bg[0]) << 16) | (ch(8, bg[1]) << 8) | ch(0, bg[2]);
+            if out == KEY { out ^ 1 } else { out }
+        })
+        .collect()
 }
 
 /// Disegna e mostra la finestrina (posizione e contenuto).
@@ -546,6 +690,15 @@ fn present(ov: &Ov) {
             capsule: !ov.kinds.is_empty() && !ov.corner.0 && !ov.bare,
             bare: ov.bare,
         });
+        if ov.child {
+            // Dentro la finestra dell'app: l'immagine si consegna al thread della finestrina, che la disegna.
+            if let Ok(mut f) = FRAMES.lock() {
+                f.get_or_insert_with(HashMap::new).insert(ov.hwnd.0 as isize, (w, h, flatten(&pixels, ov.bg)));
+            }
+            let _ = SetWindowPos(ov.hwnd, None, ov.x, ov.y, w, h, SWP_NOZORDER | SWP_NOACTIVATE);
+            let _ = windows::Win32::Graphics::Gdi::InvalidateRect(Some(ov.hwnd), None, false);
+            return;
+        }
         let bmi = BITMAPINFO { bmiHeader: BITMAPINFOHEADER { biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32, biWidth: w, biHeight: -h, biPlanes: 1, biBitCount: 32, biCompression: BI_RGB.0, ..Default::default() }, ..Default::default() };
         let mut bits: *mut core::ffi::c_void = std::ptr::null_mut();
         let mem = CreateCompatibleDC(None);
@@ -568,21 +721,92 @@ fn present(ov: &Ov) {
     }
 }
 
-fn create_overlay(info: &Info) -> Option<HWND> {
+/// Crea la finestrina dei semafori **legata alla finestra dell'app**: figlia (dentro la finestra: si muove, si ordina e si anima con
+/// lei, senza ritardi) o, se i tasti stanno nella cornice di Windows, posseduta (Windows la tiene sempre subito sopra e la nasconde
+/// con lei).
+///
+/// Ogni finestrina ha il suo thread: una finestra legata a quella di un altro programma ne condivide la coda dei messaggi di
+/// tastiera e mouse, e con un thread solo per tutte un'app bloccata fermerebbe i semafori (e l'input) di tutte le altre. Il thread
+/// non fa lavoro: passa i messaggi del mouse al thread dei semafori e basta, cosi' non rallenta mai l'app.
+fn create_overlay(target: HWND, child: bool, topmost: bool, x: i32, y: i32) -> Option<(HWND, Option<HWND>)> {
+    let (tx, rx) = std::sync::mpsc::channel::<(isize, isize)>();
+    let abandoned = std::sync::Arc::new(AtomicBool::new(false));
+    let (t, gone) = (target.0 as isize, abandoned.clone());
+    std::thread::Builder::new()
+        .name("eosos-light".into())
+        .stack_size(256 * 1024)
+        .spawn(move || unsafe {
+            let Ok(hi) = GetModuleHandleW(None) else {
+                let _ = tx.send((0, 0));
+                return;
+            };
+            let (ex, style) = if child {
+                (WS_EX_LAYERED.0 | WS_EX_NOACTIVATE.0 | WS_EX_NOPARENTNOTIFY.0, WS_CHILD | WS_CLIPSIBLINGS)
+            } else {
+                (WS_EX_LAYERED.0 | WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0 | if topmost { WS_EX_TOPMOST.0 } else { 0 }, WS_POPUP)
+            };
+            let made = CreateWindowExW(WINDOW_EX_STYLE(ex), w!("EosOSLights"), w!(""), style, x, y, 10, 10, Some(HWND(t as *mut _)), None, Some(hi.into()), None);
+            let Ok(hwnd) = made else {
+                let _ = tx.send((0, 0));
+                return;
+            };
+            let mut input = 0isize;
+            if child {
+                use windows::Win32::UI::WindowsAndMessaging::{SetLayeredWindowAttributes, LWA_ALPHA, LWA_COLORKEY};
+                let _ = SetLayeredWindowAttributes(hwnd, COLORREF(KEY), 255, LWA_COLORKEY);
+                // La finestrina dei clic: posseduta dalla finestra (Windows la tiene subito sopra di lei), quasi del tutto trasparente
+                // (1 su 255: non si vede, ma il mouse la sente).
+                let ex = WS_EX_LAYERED.0 | WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0 | if topmost { WS_EX_TOPMOST.0 } else { 0 };
+                if let Ok(i) = CreateWindowExW(WINDOW_EX_STYLE(ex), w!("EosOSLights"), w!(""), WS_POPUP, 0, 0, 10, 10, Some(HWND(t as *mut _)), None, Some(hi.into()), None) {
+                    let _ = SetLayeredWindowAttributes(i, COLORREF(0), 1, LWA_ALPHA);
+                    input = i.0 as isize;
+                }
+            }
+            if tx.send((hwnd.0 as isize, input)).is_err() || gone.load(Ordering::SeqCst) {
+                let _ = DestroyWindow(hwnd);
+                if input != 0 {
+                    let _ = DestroyWindow(HWND(input as *mut _));
+                }
+                return;
+            }
+            let mut msg = MSG::default();
+            while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                DispatchMessageW(&msg);
+            }
+        })
+        .ok()?;
+    match rx.recv_timeout(Duration::from_millis(800)) {
+        Ok((h, i)) if h != 0 => Some((HWND(h as *mut _), (i != 0).then_some(HWND(i as *mut _)))),
+        _ => {
+            abandoned.store(true, Ordering::SeqCst);
+            None
+        }
+    }
+}
+
+/// Chiude una finestrina: la distrugge il suo thread (una finestra si distrugge solo dal thread che l'ha creata).
+fn close_overlay(hwnd: HWND) {
     unsafe {
-        let hi = GetModuleHandleW(None).ok()?;
-        let ex = WS_EX_LAYERED.0 | WS_EX_TOOLWINDOW.0 | WS_EX_NOACTIVATE.0 | if info.topmost { WS_EX_TOPMOST.0 } else { 0 };
-        CreateWindowExW(WINDOW_EX_STYLE(ex), w!("EosOSLights"), w!(""), WS_POPUP, info.nx, info.ny, 10, 10, None, None, Some(hi.into()), None).ok()
+        let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
+    }
+}
+
+/// Toglie una finestrina (e la sua finestrina dei clic) e le voci che la riguardano.
+fn drop_ov(by_overlay: &mut HashMap<isize, isize>, ov: &Ov) {
+    by_overlay.remove(&(ov.hwnd.0 as isize));
+    close_overlay(ov.hwnd);
+    if let Some(i) = ov.input {
+        by_overlay.remove(&(i.0 as isize));
+        close_overlay(i);
     }
 }
 
 fn destroy_all(st: &mut State) {
-    for (_, ov) in st.ovs.drain() {
-        unsafe {
-            let _ = DestroyWindow(ov.hwnd);
-        }
+    let State { ovs, by_overlay, .. } = st;
+    for (_, ov) in ovs.drain() {
+        drop_ov(by_overlay, &ov);
     }
-    st.by_overlay.clear();
+    by_overlay.clear();
 }
 
 fn style_explorer(st: &mut State, info: &Info, want: bool) {
@@ -654,7 +878,12 @@ fn sync() {
             let radius = if info.zoomed { 0.0 } else { 8.0 * info.scale };
             let active = fg == info.hwnd;
             // La finestrina parte dal bordo alto visibile (di 1 pixel sopra i tasti di Windows) per non lasciare una riga.
-            let top = info.ny.min(info.frame_top);
+            let mut top = info.ny.min(info.frame_top);
+            // Finestra ingrandita di un'app con la barra propria: la cornice esce di qualche pixel dallo schermo, la parte che si vede
+            // comincia dall'area dell'app. I semafori partono da li' (e restano dentro la finestra).
+            if info.pm_aware && info.inside_ok && info.client.top > top && info.client.top - top <= 12 {
+                top = info.client.top;
+            }
             let extra = info.ny - top;
             // Le parti: i cerchi e, se stanno a sinistra, una finestrina liscia che copre i tasti di Windows a destra.
             // Barra piu' alta dei tasti (Chrome: la fila delle schede): i cerchi stanno al centro della barra vera.
@@ -667,13 +896,36 @@ fn sync() {
             for (key, x, lay, kinds, corner) in parts {
                 seen.insert(key);
                 let y = top;
+                // Dentro la finestra (figlia) quando la zona dei tasti sta nell'area dell'app (barre disegnate dalle app: browser, app
+                // Electron, app moderne di Windows); altrimenti finestrina posseduta dalla finestra, in coordinate dello schermo.
+                let c = info.client;
+                let child = info.pm_aware && info.inside_ok && x >= c.left - 2 && y >= c.top - 2 && x + lay.w <= c.right + 2 && y + lay.h <= c.bottom;
+                let spot = (x, y, lay.w.max(1), lay.h.max(1));
+                let (x, y) = if child { (x - c.left, y - c.top) } else { (x, y) };
+                // Finestrina sparita (l'app l'ha distrutta) o modo cambiato: si rifa'.
+                if st.ovs.get(&key).is_some_and(|o| o.child != child || !unsafe { IsWindow(Some(o.hwnd)) }.as_bool())
+                    && let Some(old) = st.ovs.remove(&key)
+                {
+                    drop_ov(&mut st.by_overlay, &old);
+                }
                 let existing = st.ovs.contains_key(&key);
                 if !existing {
-                    let Some(hwnd) = create_overlay(info) else { continue };
+                    if st.failed.get(&key).is_some_and(|t| t.elapsed() < Duration::from_secs(5)) {
+                        continue;
+                    }
+                    let Some((hwnd, input)) = create_overlay(info.hwnd, child, info.topmost, x, y) else {
+                        st.failed.insert(key, Instant::now());
+                        continue;
+                    };
+                    st.failed.remove(&key);
                     st.by_overlay.insert(hwnd.0 as isize, key);
+                    if let Some(i) = input {
+                        st.by_overlay.insert(i.0 as isize, key);
+                    }
+                    let bg = if crate::iconpack::system_is_dark() { [32, 32, 32] } else { [243, 243, 243] };
                     st.ovs.insert(
                         key,
-                        Ov { hwnd, target: info.hwnd, x, y, layout: lay.clone(), kinds: kinds.clone(), scale: info.scale, bg: [32, 32, 32], active, zoomed: info.zoomed, corner, hover: false, down: None, bare: info.bare, sampled: Instant::now() - RESAMPLE, tracking: false, trect: RECT::default() },
+                        Ov { hwnd, target: info.hwnd, x, y, layout: lay.clone(), kinds: kinds.clone(), scale: info.scale, bg, active, zoomed: info.zoomed, corner, hover: false, down: None, bare: info.bare, child, input, spot: (0, 0, 0, 0), sampled: Instant::now() - RESAMPLE, trect: RECT::default() },
                     );
                 }
                 let State { ovs, by_overlay, .. } = &mut *st;
@@ -685,11 +937,13 @@ fn sync() {
                     changed = true;
                 }
                 if changed || ov.sampled.elapsed() >= RESAMPLE {
-                    let bg = sample_bg((info.nx - 3).max(info.frame_left + 1).min(info.frame_right - 1), info.ny + (info.h / 2).max(4));
-                    if bg != ov.bg {
+                    // Solo se in quel punto si vede davvero questa finestra: con un'altra sopra resta il colore di prima.
+                    if let Some(bg) = sample_target(info.hwnd, (info.nx - 3).max(info.frame_left + 1).min(info.frame_right - 1), info.ny + (info.h / 2).max(4))
+                        && bg != ov.bg
+                    {
                         changed = true;
+                        ov.bg = bg;
                     }
-                    ov.bg = bg;
                     ov.sampled = Instant::now();
                 }
                 ov.x = x;
@@ -713,24 +967,40 @@ fn sync() {
                 if changed {
                     present(ov);
                 }
-                // Ordine: la finestrina sta subito sopra la sua finestra (o sopra l'altra finestrina della stessa finestra).
+                // Ordine: una finestrina posseduta la tiene Windows subito sopra la sua finestra. Quella figlia deve stare sopra gli
+                // altri riquadri dell'app, che ne puo' creare di nuovi sopra il nostro.
                 unsafe {
-                    let next = GetWindow(ov.hwnd, GW_HWNDNEXT).ok();
-                    let in_place = next == Some(info.hwnd) || next.is_some_and(|n| by_overlay.get(&(n.0 as isize)).is_some_and(|k| (*k & !COVER_BIT) == base));
-                    if !in_place {
-                        let prev = GetWindow(info.hwnd, GW_HWNDPREV).ok();
-                        let after = match prev {
-                            Some(p) if p != ov.hwnd => p,
-                            Some(_) => info.hwnd,
-                            None => {
-                                if info.topmost {
-                                    HWND_TOPMOST
-                                } else {
-                                    HWND_TOP
+                    if ov.child && !child_on_top(ov.hwnd, base, by_overlay) {
+                        let _ = SetWindowPos(ov.hwnd, Some(HWND_TOP), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                    }
+                    // Le finestrine possedute: Windows le tiene sopra la loro finestra, ma non per forza SUBITO sopra (appena create
+                    // finiscono in cima a tutto): si rimettono al loro posto, altrimenti coprirebbero le altre finestre.
+                    for popup in [(!ov.child).then_some(ov.hwnd), ov.input].into_iter().flatten() {
+                        if !popup_in_place(popup, info.hwnd, base, by_overlay) {
+                            let prev = GetWindow(info.hwnd, GW_HWNDPREV).ok();
+                            let after = match prev {
+                                Some(p) if p != popup => p,
+                                Some(_) => info.hwnd,
+                                None => {
+                                    if info.topmost {
+                                        HWND_TOPMOST
+                                    } else {
+                                        HWND_TOP
+                                    }
                                 }
-                            }
-                        };
-                        let _ = SetWindowPos(ov.hwnd, Some(after), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                            };
+                            let _ = SetWindowPos(popup, Some(after), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                        }
+                    }
+                    // La finestrina dei clic sta esattamente sopra i semafori disegnati dentro la finestra.
+                    if let Some(i) = ov.input {
+                        if ov.spot != spot {
+                            ov.spot = spot;
+                            let _ = SetWindowPos(i, None, spot.0, spot.1, spot.2, spot.3, SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                        }
+                        if !IsWindowVisible(i).as_bool() {
+                            let _ = ShowWindow(i, SW_SHOWNOACTIVATE);
+                        }
                     }
                     if !IsWindowVisible(ov.hwnd).as_bool() {
                         let _ = ShowWindow(ov.hwnd, SW_SHOWNOACTIVATE);
@@ -742,19 +1012,32 @@ fn sync() {
         let gone: Vec<isize> = st.ovs.keys().copied().filter(|k| !seen.contains(k)).collect();
         for k in gone {
             if let Some(ov) = st.ovs.remove(&k) {
-                st.by_overlay.remove(&(ov.hwnd.0 as isize));
-                unsafe {
-                    let _ = DestroyWindow(ov.hwnd);
-                }
+                drop_ov(&mut st.by_overlay, &ov);
             }
         }
         st.styled.retain(|k| seen.contains(k));
+        st.failed.retain(|k, _| seen.contains(k));
+        if let Ok(mut u) = UNTOUCHABLE.lock() {
+            u.retain(|k| unsafe { IsWindow(Some(HWND(*k as *mut _))).as_bool() });
+        }
         // Memoria: niente voci per le finestre che non ci sono piu' (altrimenti crescono per tutta la sessione).
         STRIP.with(|c| c.borrow_mut().retain(|k, _| seen.contains(k)));
         if let Ok(mut b) = BARE.lock() {
             b.retain(|e| unsafe { windows::Win32::UI::WindowsAndMessaging::IsWindow(Some(HWND(e.0 as *mut _))).as_bool() });
         }
     });
+}
+
+/// La finestrina posseduta sta subito sopra la sua finestra (o sopra un'altra nostra della stessa finestra)?
+fn popup_in_place(popup: HWND, target: HWND, base: isize, by_overlay: &HashMap<isize, isize>) -> bool {
+    let next = unsafe { GetWindow(popup, GW_HWNDNEXT) }.ok();
+    next == Some(target) || next.is_some_and(|n| by_overlay.get(&(n.0 as isize)).is_some_and(|k| (*k & !COVER_BIT) == base))
+}
+
+/// La finestrina figlia e' sopra gli altri riquadri della sua finestra (a parte le nostre)?
+fn child_on_top(hwnd: HWND, base: isize, by_overlay: &HashMap<isize, isize>) -> bool {
+    let prev = unsafe { GetWindow(hwnd, GW_HWNDPREV) }.ok();
+    prev.is_none_or(|p| by_overlay.get(&(p.0 as isize)).is_some_and(|k| (*k & !COVER_BIT) == base))
 }
 
 /// Controllo leggero (ogni pochi millisecondi): la finestra vera si e' mossa o e' finita sopra la sua finestrina? Se si', passata completa.
@@ -769,9 +1052,9 @@ fn needs_sync() -> bool {
             if r != ov.trect {
                 return true;
             }
-            let next = GetWindow(ov.hwnd, GW_HWNDNEXT).ok();
             let base = ov.target.0 as isize;
-            !(next == Some(ov.target) || next.is_some_and(|n| st.by_overlay.get(&(n.0 as isize)).is_some_and(|k| (*k & !COVER_BIT) == base)))
+            (ov.child && !child_on_top(ov.hwnd, base, &st.by_overlay))
+                || [(!ov.child).then_some(ov.hwnd), ov.input].into_iter().flatten().any(|p| !popup_in_place(p, ov.target, base, &st.by_overlay))
         })
     })
     .unwrap_or(false)
@@ -813,6 +1096,18 @@ fn nudge(target: HWND) -> bool {
             if dx == 0 && dy == 0 {
                 continue;
             }
+            // Dentro la finestra: si e' gia' mossa con lei.
+            if ov.child {
+                ov.trect = r;
+                if let Some(i) = ov.input {
+                    ov.spot.0 += dx;
+                    ov.spot.1 += dy;
+                    unsafe {
+                        let _ = SetWindowPos(i, None, ov.spot.0, ov.spot.1, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+                    }
+                }
+                continue;
+            }
             ov.x += dx;
             ov.y += dy;
             ov.trect = r;
@@ -825,6 +1120,12 @@ fn nudge(target: HWND) -> bool {
     .unwrap_or(false)
 }
 
+/// I semafori di questa finestra stanno tutti dentro di lei (finestre figlie)?
+fn inside(target: HWND) -> bool {
+    let key = target.0 as isize;
+    ST.try_with(|cell| cell.try_borrow().is_ok_and(|st| st.ovs.iter().filter(|(k, _)| (**k & !COVER_BIT) == key).all(|(_, o)| o.child))).unwrap_or(false)
+}
+
 /// Durante il trascinamento (o il ridimensionamento) con il mouse: di continuo (senza aspettare il disegno del desktop) le finestrine vanno dove
 /// e' la finestra, cosi' i tasti di Windows non fanno in tempo a vedersi. Al massimo 60 secondi.
 fn follow_drag(target: HWND) {
@@ -834,8 +1135,13 @@ fn follow_drag(target: HWND) {
         if !nudge(target) {
             sync();
         }
-        // Niente attesa dell'immagine del desktop: aggiornando subito dopo la finestra si arriva prima del disegno, non dopo.
-        std::thread::yield_now();
+        if inside(target) {
+            // Semafori dentro la finestra: si muovono da soli, basta accorgersi dei cambi di dimensione.
+            std::thread::sleep(Duration::from_millis(2));
+        } else {
+            // Niente attesa dell'immagine del desktop: aggiornando subito dopo la finestra si arriva prima del disegno, non dopo.
+            std::thread::yield_now();
+        }
     }
     poke();
 }
@@ -874,6 +1180,10 @@ unsafe extern "system" fn host_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
             sync();
             LRESULT(0)
         }
+        WM_LIGHT_MOUSE => {
+            on_mouse(HWND(wp.0 as *mut _), (lp.0 >> 32) as u32, LPARAM(lp.0 & 0xFFFF_FFFF));
+            LRESULT(0)
+        }
         _ => unsafe { DefWindowProcW(hwnd, msg, wp, lp) },
     }
 }
@@ -882,78 +1192,113 @@ fn lparam_xy(lp: LPARAM) -> (f32, f32) {
     ((lp.0 & 0xFFFF) as i16 as f32, ((lp.0 >> 16) & 0xFFFF) as i16 as f32)
 }
 
+/// Finestra delle finestrine, nel thread di ciascuna: non fa lavoro (non deve mai rallentare l'app a cui e' legata), passa i messaggi
+/// del mouse al thread dei semafori.
 unsafe extern "system" fn ov_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     match msg {
         WM_MOUSEACTIVATE => LRESULT(3), // MA_NOACTIVATE: il clic non ruba il focus
         WM_MOUSEMOVE | WM_MOUSELEAVE | WM_LBUTTONDOWN | WM_LBUTTONUP => {
-            let _ = ST.try_with(|cell| {
-                let Ok(mut st) = cell.try_borrow_mut() else { return };
-                let Some(key) = st.by_overlay.get(&(hwnd.0 as isize)).copied() else { return };
-                let Some(ov) = st.ovs.get_mut(&key) else { return };
-                let (x, y) = lparam_xy(lp);
-                let hot = hit(&ov.layout, x, y, ov.scale);
-                let before = (ov.hover, ov.down);
+            unsafe {
                 match msg {
                     WM_MOUSEMOVE => {
-                        ov.hover = true;
-                        if !ov.tracking {
-                            ov.tracking = true;
+                        if GetWindowLongPtrW(hwnd, GWLP_USERDATA) == 0 {
+                            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 1);
                             let mut t = TRACKMOUSEEVENT { cbSize: std::mem::size_of::<TRACKMOUSEEVENT>() as u32, dwFlags: TME_LEAVE, hwndTrack: hwnd, dwHoverTime: 0 };
-                            unsafe {
-                                let _ = TrackMouseEvent(&mut t);
-                            }
+                            let _ = TrackMouseEvent(&mut t);
                         }
                     }
                     WM_MOUSELEAVE => {
-                        ov.hover = false;
-                        ov.tracking = false;
+                        SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
                     }
                     WM_LBUTTONDOWN => {
-                        ov.down = hot;
-                        unsafe {
-                            SetCapture(hwnd);
-                        }
+                        SetCapture(hwnd);
                     }
                     _ => {
-                        unsafe {
-                            let _ = ReleaseCapture();
-                        }
-                        let pressed = ov.down.take();
-                        if let (Some(p), Some(h)) = (pressed, hot)
-                            && p == h
-                            && let Some(kind) = ov.layout.centers.get(h).map(|c| c.0)
-                            && ov.kinds.iter().any(|(k, usable)| *k == kind && *usable)
-                        {
-                            let cmd = command_for(kind, ov.zoomed);
-                            unsafe {
-                                if ov.bare {
-                                    // Senza i tasti di sistema i comandi della barra non sono piu' garantiti: si agisce sulla finestra.
-                                    match kind {
-                                        Kind::Close => {
-                                            let _ = PostMessageW(Some(ov.target), WM_CLOSE, WPARAM(0), LPARAM(0));
-                                        }
-                                        Kind::Min => {
-                                            let _ = ShowWindowAsync(ov.target, SW_MINIMIZE);
-                                        }
-                                        Kind::Zoom => {
-                                            let _ = ShowWindowAsync(ov.target, if ov.zoomed { SW_RESTORE } else { SW_MAXIMIZE });
-                                        }
-                                    }
-                                } else {
-                                    let _ = PostMessageW(Some(ov.target), WM_SYSCOMMAND, WPARAM(cmd as usize), LPARAM(0));
-                                }
+                        let _ = ReleaseCapture();
+                    }
+                }
+                let host = HOST.load(Ordering::SeqCst);
+                if host != 0 {
+                    let packed = ((msg as isize) << 32) | (lp.0 & 0xFFFF_FFFF);
+                    let _ = PostMessageW(Some(HWND(host as *mut _)), WM_LIGHT_MOUSE, WPARAM(hwnd.0 as usize), LPARAM(packed));
+                }
+            }
+            LRESULT(0)
+        }
+        // Solo le finestrine figlie ricevono il disegno: copiano l'ultima immagine preparata dal thread dei semafori.
+        windows::Win32::UI::WindowsAndMessaging::WM_ERASEBKGND => LRESULT(1),
+        windows::Win32::UI::WindowsAndMessaging::WM_PAINT => {
+            use windows::Win32::Graphics::Gdi::{BeginPaint, EndPaint, SetDIBitsToDevice, PAINTSTRUCT};
+            unsafe {
+                let mut ps = PAINTSTRUCT::default();
+                let dc = BeginPaint(hwnd, &mut ps);
+                if let Ok(f) = FRAMES.lock()
+                    && let Some((w, h, px)) = f.as_ref().and_then(|m| m.get(&(hwnd.0 as isize)))
+                {
+                    let bmi = BITMAPINFO { bmiHeader: BITMAPINFOHEADER { biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32, biWidth: *w, biHeight: -*h, biPlanes: 1, biBitCount: 32, biCompression: BI_RGB.0, ..Default::default() }, ..Default::default() };
+                    SetDIBitsToDevice(dc, 0, 0, *w as u32, *h as u32, 0, 0, 0, *h as u32, px.as_ptr() as *const _, &bmi, DIB_RGB_COLORS);
+                }
+                let _ = EndPaint(hwnd, &ps);
+            }
+            LRESULT(0)
+        }
+        WM_NCDESTROY => {
+            if let Ok(mut f) = FRAMES.lock()
+                && let Some(m) = f.as_mut()
+            {
+                m.remove(&(hwnd.0 as isize));
+            }
+            unsafe {
+                PostQuitMessage(0);
+                DefWindowProcW(hwnd, msg, wp, lp)
+            }
+        }
+        _ => unsafe { DefWindowProcW(hwnd, msg, wp, lp) },
+    }
+}
+
+/// Movimento o clic del mouse su una finestrina (arriva dal suo thread): aspetto al passaggio, comando al rilascio.
+fn on_mouse(hwnd: HWND, msg: u32, lp: LPARAM) {
+    let _ = ST.try_with(|cell| {
+        let Ok(mut st) = cell.try_borrow_mut() else { return };
+        let Some(key) = st.by_overlay.get(&(hwnd.0 as isize)).copied() else { return };
+        let Some(ov) = st.ovs.get_mut(&key) else { return };
+        let (x, y) = lparam_xy(lp);
+        let hot = hit(&ov.layout, x, y, ov.scale);
+        let before = (ov.hover, ov.down);
+        match msg {
+            WM_MOUSEMOVE => ov.hover = true,
+            WM_MOUSELEAVE => ov.hover = false,
+            WM_LBUTTONDOWN => ov.down = hot,
+            _ => {
+                let pressed = ov.down.take();
+                if let (Some(p), Some(h)) = (pressed, hot)
+                    && p == h
+                    && let Some(kind) = ov.layout.centers.get(h).map(|c| c.0)
+                    && ov.kinds.iter().any(|(k, usable)| *k == kind && *usable)
+                {
+                    // Si agisce sulla finestra, non con il comando della barra: i browser e le app Electron lo ignorano se arriva da fuori,
+                    // e senza i tasti di sistema non e' garantito nemmeno per le finestre normali.
+                    unsafe {
+                        match kind {
+                            Kind::Close => {
+                                let _ = PostMessageW(Some(ov.target), WM_CLOSE, WPARAM(0), LPARAM(0));
+                            }
+                            Kind::Min => {
+                                let _ = ShowWindowAsync(ov.target, SW_MINIMIZE);
+                            }
+                            Kind::Zoom => {
+                                let _ = ShowWindowAsync(ov.target, if ov.zoomed { SW_RESTORE } else { SW_MAXIMIZE });
                             }
                         }
                     }
                 }
-                if (ov.hover, ov.down) != before {
-                    present(ov);
-                }
-            });
-            LRESULT(0)
+            }
         }
-        _ => unsafe { DefWindowProcW(hwnd, msg, wp, lp) },
-    }
+        if (ov.hover, ov.down) != before {
+            present(ov);
+        }
+    });
 }
 
 /// Avvia il thread dei semafori (finestre, hook degli eventi delle finestre, timer).
@@ -994,6 +1339,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn flatten_keys_out_the_transparent_pixels_and_blends_the_rest() {
+        let out = flatten(&[0x0000_0000, 0xFFFF_0000, 0x8000_0000], [100, 100, 100]);
+        assert_eq!(out[0], KEY);
+        assert_eq!(out[1], 0x00FF_0000);
+        // Meta' trasparente su grigio 100: circa 50 per canale.
+        assert!(((out[2] >> 16) & 0xFF).abs_diff(50) <= 1 && (out[2] & 0xFF).abs_diff(50) <= 1, "{:x}", out[2]);
+        // Un colore pieno uguale alla chiave non deve bucarsi.
+        assert_ne!(flatten(&[0xFF00_0000 | KEY], [0, 0, 0])[0], KEY);
+    }
+
+    #[test]
+    fn button_geometry_survives_the_window_property() {
+        for g in [(138, 30, 1, 0), (141, 33, 0, 7), (46, 29, -1, -3), (0, 0, 0, 0)] {
+            let v = pack_geom(g);
+            assert_ne!(v, 0, "zero vorrebbe dire «nessuna proprieta'»");
+            assert_eq!(unpack_geom(v), g);
+        }
+    }
+
+    #[test]
     fn order_follows_the_chosen_side() {
         assert_eq!(kinds_order(false, true), vec![Kind::Close, Kind::Min, Kind::Zoom]);
         assert_eq!(kinds_order(true, true), vec![Kind::Min, Kind::Zoom, Kind::Close]);
@@ -1031,14 +1396,6 @@ mod tests {
         assert_eq!(hit(&l, cx + l.r + 1.0, cy, 1.0), Some(1));
         assert_eq!(hit(&l, cx, cy + 40.0, 1.0), None);
         assert_eq!(hit(&l, -50.0, 5.0, 1.0), None);
-    }
-
-    #[test]
-    fn commands_match_the_windows_buttons() {
-        assert_eq!(command_for(Kind::Close, false), SC_CLOSE);
-        assert_eq!(command_for(Kind::Min, true), SC_MINIMIZE);
-        assert_eq!(command_for(Kind::Zoom, false), SC_MAXIMIZE);
-        assert_eq!(command_for(Kind::Zoom, true), SC_RESTORE);
     }
 
     fn paint(l: &Layout, kinds: &[(Kind, bool)], active: bool, hover: bool, corner: (bool, f32)) -> Vec<u32> {

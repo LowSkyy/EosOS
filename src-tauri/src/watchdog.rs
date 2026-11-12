@@ -127,7 +127,9 @@ fn same_exe(a: &Path, b: &Path) -> bool {
 fn restore_everything() {
     let n = taskbar::restore_real();
     appbar::remove_if_registered();
-    log(&format!("ripristino eseguito (taskbar nascoste: {n})"));
+    // Le finestre a cui EosOS aveva tolto i tasti di Windows (semafori) li riprendono: lo dicono con la loro proprieta'.
+    let lights = crate::lights::restore_orphans();
+    log(&format!("ripristino eseguito (taskbar nascoste: {n}, finestre con i tasti rimessi: {lights})"));
 }
 
 /// Entry point del processo watchdog. Non ritorna.

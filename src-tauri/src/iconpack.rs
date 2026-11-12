@@ -17,7 +17,11 @@ use windows::Win32::System::Registry::{
     RegCloseKey, RegCreateKeyExW, RegDeleteKeyW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW, HKEY, HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, KEY_QUERY_VALUE,
     KEY_SET_VALUE, REG_OPEN_CREATE_OPTIONS, REG_SZ, REG_VALUE_TYPE,
 };
-use windows::Win32::UI::Shell::{SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_IDLIST};
+use windows::Win32::Foundation::CloseHandle;
+use windows::Win32::System::Registry::HKEY_LOCAL_MACHINE;
+use windows::Win32::System::Threading::{WaitForSingleObject, INFINITE};
+use windows::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_IDLIST};
+use windows::Win32::UI::WindowsAndMessaging::SW_HIDE;
 
 macro_rules! ico {
     ($($id:literal),*) => { &[$(($id, include_bytes!(concat!("../iconpack/", $id, "-light.ico")), include_bytes!(concat!("../iconpack/", $id, "-dark.ico")))),*] };
@@ -50,9 +54,67 @@ struct Entry {
     parent_created: bool,
 }
 
+/// Un valore di `Shell Icons` (HKLM) che abbiamo cambiato: il nome ("3" cartella chiusa, "4" aperta) e quello che c'era.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+struct ShellVal {
+    name: String,
+    prev: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Default)]
 struct State {
     entries: Vec<Entry>,
+    /// Cartelle: Windows 11 non legge `Folder\DefaultIcon` per utente, solo `Shell Icons` in HKLM (serve l'amministratore).
+    #[serde(default)]
+    shell: Vec<ShellVal>,
+}
+
+const SHELL_ICONS: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Icons";
+/// Cartella chiusa e aperta.
+const SHELL_FOLDER_IDS: [&str; 2] = ["3", "4"];
+
+/// Esegue `cmd /c <args>` con i permessi di amministratore (richiesta UAC) e aspetta la fine. `false` se rifiutata o fallita.
+fn run_elevated(args: &str) -> bool {
+    let verb = wide("runas");
+    let file = wide("cmd.exe");
+    let params = wide(&format!("/c {args}"));
+    let mut info = SHELLEXECUTEINFOW {
+        cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+        fMask: SEE_MASK_NOCLOSEPROCESS,
+        lpVerb: windows::core::PCWSTR(verb.as_ptr()),
+        lpFile: windows::core::PCWSTR(file.as_ptr()),
+        lpParameters: windows::core::PCWSTR(params.as_ptr()),
+        nShow: SW_HIDE.0,
+        ..Default::default()
+    };
+    unsafe {
+        if ShellExecuteExW(&mut info).is_err() || info.hProcess.is_invalid() {
+            return false;
+        }
+        WaitForSingleObject(info.hProcess, INFINITE);
+        let _ = CloseHandle(info.hProcess);
+    }
+    true
+}
+
+fn shell_icon_value(name: &str) -> Option<String> {
+    get_string(HKEY_LOCAL_MACHINE, SHELL_ICONS, name)
+}
+
+/// I comandi `reg` che puntano le cartelle alla nostra icona. Pura, testata.
+pub fn shell_add_command(icon: &str) -> String {
+    SHELL_FOLDER_IDS.iter().map(|n| format!(r#"reg add "HKLM\{SHELL_ICONS}" /v {n} /t REG_SZ /d "{icon}" /f"#)).collect::<Vec<_>>().join(" & ")
+}
+
+/// I comandi che rimettono le cartelle com'erano (valore di prima, o via il valore se non c'era). Pura, testata.
+pub fn shell_restore_command(vals: &[(String, Option<String>)]) -> String {
+    vals.iter()
+        .map(|(n, prev)| match prev {
+            Some(v) => format!(r#"reg add "HKLM\{SHELL_ICONS}" /v {n} /t REG_SZ /d "{v}" /f"#),
+            None => format!(r#"reg delete "HKLM\{SHELL_ICONS}" /v {n} /f"#),
+        })
+        .collect::<Vec<_>>()
+        .join(" & ")
 }
 
 fn data_dir() -> Option<PathBuf> {
@@ -208,6 +270,17 @@ pub fn apply(dark: bool) -> Result<usize, String> {
         }
         written += 1;
     }
+    // Cartelle: una sola richiesta UAC, solo la prima volta (poi il valore e' gia' nostro e il file .ico si riscrive e basta).
+    if st.shell.is_empty()
+        && let Some(path) = ico_path("folder")
+    {
+        let icon = path.to_string_lossy().to_string();
+        let prev: Vec<ShellVal> = SHELL_FOLDER_IDS.iter().map(|n| ShellVal { name: (*n).to_string(), prev: shell_icon_value(n) }).collect();
+        if run_elevated(&shell_add_command(&icon)) && shell_icon_value("3").as_deref() == Some(icon.as_str()) {
+            st.shell = prev;
+            written += 1;
+        }
+    }
     save_state(&st);
     notify();
     Ok(written)
@@ -233,6 +306,11 @@ pub fn revert() -> usize {
         }
         n += 1;
     }
+    if !st.shell.is_empty() {
+        let vals: Vec<(String, Option<String>)> = st.shell.iter().map(|v| (v.name.clone(), v.prev.clone())).collect();
+        run_elevated(&shell_restore_command(&vals));
+        n += 1;
+    }
     if let Some(p) = state_path() {
         let _ = std::fs::remove_file(p);
     }
@@ -252,6 +330,14 @@ pub fn want_dark(choice: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shell_commands_cover_closed_and_open_folder_and_restore_exactly() {
+        let add = shell_add_command(r"C:\x\folder.ico");
+        assert!(add.contains("/v 3 ") && add.contains("/v 4 ") && add.contains(r#"/d "C:\x\folder.ico""#));
+        let back = shell_restore_command(&[("3".into(), Some(r"C:\old.ico".into())), ("4".into(), None)]);
+        assert!(back.contains("reg add") && back.contains(r"C:\old.ico") && back.contains("reg delete") && back.contains("/v 4 /f"));
+    }
 
     #[test]
     fn every_extension_group_has_an_icon_file() {
