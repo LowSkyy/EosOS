@@ -4,7 +4,44 @@ import type { FileId, FolderBadge } from "../components/iconart";
 
 export type Entry = { name: string; path: string; dir: boolean; size: number; modified: number; ext: string; hidden: boolean };
 export type Listing = { path: string; name: string; parent: string | null; entries: Entry[]; error: string | null };
-export type Place = { name: string; path: string; kind: FolderBadge };
+export type Place = { name: string; path: string; kind: FolderBadge | "trash" };
+export type TrashItem = { id: string; name: string; origin: string; dir: boolean; size: number; deleted: number; ext: string };
+export type ViewMode = "icons" | "list" | "columns" | "gallery";
+
+/** Il Cestino e le etichette non sono cartelle vere: hanno un «percorso» proprio. */
+export const TRASH = "eosos:trash";
+export const TAG_PREFIX = "eosos:tag:";
+export const TAGS: { id: string; name: string; color: string }[] = [
+  { id: "red", name: "Rosso", color: "#ff453a" },
+  { id: "orange", name: "Arancione", color: "#ff9f0a" },
+  { id: "yellow", name: "Giallo", color: "#ffd60a" },
+  { id: "green", name: "Verde", color: "#30d158" },
+  { id: "blue", name: "Blu", color: "#0a84ff" },
+  { id: "purple", name: "Viola", color: "#bf5af2" },
+  { id: "gray", name: "Grigio", color: "#98989d" },
+];
+
+/** Il percorso e' una cartella vera (non il Cestino o un'etichetta)? Pura, testata. */
+export function isRealFolder(path: string): boolean {
+  return !path.startsWith("eosos:");
+}
+
+/** I percorsi con un'etichetta. Pura, testata. */
+export function taggedWith(tags: Record<string, string[]>, color: string): string[] {
+  return Object.entries(tags)
+    .filter(([, c]) => c.includes(color))
+    .map(([p]) => p);
+}
+
+/** Una voce del Cestino come voce dell'elenco (il percorso e' il file nel Cestino, la data e' quella dell'eliminazione). Pura, testata. */
+export function trashEntry(t: TrashItem): Entry {
+  return { name: t.name, path: t.id, dir: t.dir, size: t.size, modified: t.deleted, ext: t.ext, hidden: false };
+}
+
+/** La catena di cartelle per la vista a colonne: dall'unita' alla cartella aperta. Pura, testata. */
+export function columnChain(path: string): string[] {
+  return crumbs(path).map((c) => c.path);
+}
 export type SortKey = "name" | "modified" | "size" | "kind";
 export type Sort = { key: SortKey; asc: boolean };
 
@@ -106,5 +143,6 @@ export function clickSelect(order: string[], selected: string[], anchor: string 
 /** Il simbolo da imprimere sulla cartella, se e' una delle cartelle dell'utente. Pura, testata. */
 export function badgeFor(path: string, places: Place[]): FolderBadge | undefined {
   const norm = (p: string) => p.replace(/[\\/]+$/, "").toLowerCase();
-  return places.find((pl) => pl.kind !== "drive" && norm(pl.path) === norm(path))?.kind;
+  const k = places.find((pl) => pl.kind !== "drive" && pl.kind !== "trash" && norm(pl.path) === norm(path))?.kind;
+  return k === "trash" ? undefined : k;
 }

@@ -59,6 +59,7 @@ mod vdreport;
 mod panelwin;
 mod lights;
 mod finder;
+mod finder2;
 mod gamemode;
 mod iconpack;
 mod remote;
@@ -203,19 +204,105 @@ fn finder_trash(window: tauri::Window, paths: Vec<String>) -> Result<(), String>
     finder::trash(&paths)
 }
 
-/// Finder di EosOS: copia (o taglia) i file scelti. Risponde con quanti sono.
-#[tauri::command]
-fn finder_clip(window: tauri::Window, paths: Vec<String>, cut: bool) -> usize {
-    guard!(window, "finder_clip", 0);
-    finder::clip_set(paths, cut);
-    finder::clip_count()
+/// Finder di EosOS: copia (o taglia) i file negli appunti di Windows. Risponde con quanti sono.
+#[tauri::command(async)]
+fn finder_clip(window: tauri::Window, paths: Vec<String>, cut: bool) -> Result<usize, String> {
+    cmdpolicy::guard(window.label(), "finder_clip", None)?;
+    finder2::clip_set(&paths, cut)?;
+    Ok(paths.len())
 }
 
-/// Finder di EosOS: quanti file ci sono da incollare.
-#[tauri::command]
+/// Finder di EosOS: quanti file ci sono negli appunti di Windows.
+#[tauri::command(async)]
 fn finder_clip_count(window: tauri::Window) -> usize {
     guard!(window, "finder_clip_count", 0);
-    finder::clip_count()
+    finder2::clip_get().0.len()
+}
+
+/// Finder di EosOS: comincia a trascinare dei file (verso altre app, Esplora file o un'altra cartella).
+#[tauri::command]
+fn finder_drag(window: tauri::Window, app: tauri::AppHandle, paths: Vec<String>) {
+    guard!(window, "finder_drag");
+    let _ = app.run_on_main_thread(move || finder2::drag_out(&paths));
+}
+
+/// Finder di EosOS: file lasciati su una cartella (da questa o da un'altra finestra, da Esplora file, dal desktop).
+#[tauri::command(async)]
+fn finder_drop(window: tauri::Window, paths: Vec<String>, dest: String) -> Result<(), String> {
+    cmdpolicy::guard(window.label(), "finder_drop", None)?;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_CONTROL};
+    let ctrl = unsafe { GetAsyncKeyState(VK_CONTROL.0 as i32) } as u16 & 0x8000 != 0;
+    finder2::drop_into(&paths, &dest, ctrl)
+}
+
+/// Finder di EosOS: cerca per nome nella cartella e nelle sottocartelle.
+#[tauri::command(async)]
+fn finder_search(window: tauri::Window, root: String, query: String) -> Vec<finder::Entry> {
+    guard!(window, "finder_search", Vec::new());
+    finder2::search(&root, &query)
+}
+
+/// Finder di EosOS: le voci di un elenco di percorsi (etichette).
+#[tauri::command(async)]
+fn finder_entries(window: tauri::Window, paths: Vec<String>) -> Vec<finder::Entry> {
+    guard!(window, "finder_entries", Vec::new());
+    finder2::entries(&paths)
+}
+
+/// Finder di EosOS: il contenuto del Cestino.
+#[tauri::command(async)]
+fn finder_trash_list(window: tauri::Window) -> Vec<finder2::TrashItem> {
+    guard!(window, "finder_trash_list", Vec::new());
+    finder2::trash_list()
+}
+
+/// Finder di EosOS: rimette gli elementi del Cestino dove stavano.
+#[tauri::command(async)]
+fn finder_trash_restore(window: tauri::Window, ids: Vec<String>) -> Result<usize, String> {
+    cmdpolicy::guard(window.label(), "finder_trash_restore", None)?;
+    finder2::trash_restore(&ids)
+}
+
+/// Finder di EosOS: elimina per sempre elementi del Cestino.
+#[tauri::command(async)]
+fn finder_trash_delete(window: tauri::Window, ids: Vec<String>) -> Result<usize, String> {
+    cmdpolicy::guard(window.label(), "finder_trash_delete", None)?;
+    finder2::trash_delete(&ids)
+}
+
+/// Finder di EosOS: svuota il Cestino.
+#[tauri::command(async)]
+fn finder_trash_empty(window: tauri::Window) -> Result<(), String> {
+    cmdpolicy::guard(window.label(), "finder_trash_empty", None)?;
+    finder2::trash_empty()
+}
+
+/// Finder di EosOS: tutte le etichette colorate (percorso -> colori).
+#[tauri::command(async)]
+fn finder_tags(window: tauri::Window) -> std::collections::BTreeMap<String, Vec<String>> {
+    guard!(window, "finder_tags", Default::default());
+    finder2::tags()
+}
+
+/// Finder di EosOS: mette o toglie un'etichetta. Risponde con tutte le etichette.
+#[tauri::command(async)]
+fn finder_tag(window: tauri::Window, paths: Vec<String>, color: String, on: bool) -> std::collections::BTreeMap<String, Vec<String>> {
+    guard!(window, "finder_tag", Default::default());
+    finder2::tag(&paths, &color, on)
+}
+
+/// Finder di EosOS: informazioni su un elemento (per le cartelle, dimensione e numero di elementi).
+#[tauri::command(async)]
+fn finder_info(window: tauri::Window, path: String) -> Option<finder2::Info> {
+    guard!(window, "finder_info", None);
+    finder2::info(&path)
+}
+
+/// Finder di EosOS: anteprima rapida (testo o immagine grande).
+#[tauri::command(async)]
+fn finder_peek(window: tauri::Window, path: String) -> finder2::Peek {
+    guard!(window, "finder_peek", Default::default());
+    finder2::peek(&path)
 }
 
 /// Finder di EosOS: incolla nella cartella.
@@ -1479,7 +1566,7 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![lock_info, lock_wallpaper, lock_try_password, lock_try_blank, lock_try_hello, get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, launcher_grid, dock_launchpad, dock_badges, tray_count, tray_apps, tray_open, winsys_info, winsys_drives, winsys_displays, winsys_theme, winsys_theme_set, winsys_power, winsys_power_set, winsys_startup, winsys_startup_set, eosmenu_run, eosmenu_about, dockkeys_fire, dockkeys_registered, winsnap_fire, winsnap_registered, capture_run, capture_region, capture_cancel, capture_fire, capture_registered, control_state, control_set, winsettings_list, winsettings_open, winsettings_last_open, bar_backdrop, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop, finder_list, finder_places, finder_open, finder_window, finder_reveal, finder_rename, finder_new_folder, finder_trash, finder_clip, finder_clip_count, finder_paste, finder_image, finder_win])
+        .invoke_handler(tauri::generate_handler![lock_info, lock_wallpaper, lock_try_password, lock_try_blank, lock_try_hello, get_active_app, notif_list, notif_dismiss, notif_open, notif_clear_app, notif_last_opened, notif_probe, notif_count_for, settings_open, settings_close, settings_pick_folder, settings_action, settings_all, settings_set, settings_search, menubar_current, menubar_open, menubar_hover, menubar_menu, menubar_choose, glass_state, dock_items, dock_fit, dock_activate, dock_menu, dock_settings_menu, dock_settings, dock_reorder, dock_stacks, launcher_grid, dock_launchpad, dock_badges, tray_count, tray_apps, tray_open, winsys_info, winsys_drives, winsys_displays, winsys_theme, winsys_theme_set, winsys_power, winsys_power_set, winsys_startup, winsys_startup_set, eosmenu_run, eosmenu_about, dockkeys_fire, dockkeys_registered, winsnap_fire, winsnap_registered, capture_run, capture_region, capture_cancel, capture_fire, capture_registered, control_state, control_set, winsettings_list, winsettings_open, winsettings_last_open, bar_backdrop, oggi_reminders, oggi_add, oggi_toggle, oggi_remove, oggi_clear_done, oggi_weather, update_status, update_check, update_install, stack_list, stack_open, stack_open_folder, stack_last_open, dock_backdrop, launcher_search, launcher_launch, launcher_files, launcher_open_file, launcher_clip_set, launcher_clip_use, launcher_clip_delete, indicators_get, mc_windows, mc_open, mc_close, mc_activate, mc_close_window, mc_backdrop, mc_state, mc_desktops, mc_switch_desktop, mc_new_desktop, mc_move_window, mc_remove_desktop, mc_rename_desktop, mc_thumb_visible, mc_vd_report, menu_probe_all, indicators_menu, indicator_open, panel_toggle, panel_hide, panel_fit, panel_backdrop, volume_set, volume_mute, launcher_action, launcher_hide, launcher_fit, launcher_backdrop, finder_list, finder_places, finder_open, finder_window, finder_reveal, finder_rename, finder_new_folder, finder_trash, finder_clip, finder_clip_count, finder_drag, finder_drop, finder_search, finder_entries, finder_trash_list, finder_trash_restore, finder_trash_delete, finder_trash_empty, finder_tags, finder_tag, finder_info, finder_peek, finder_paste, finder_image, finder_win])
         // Chiudere una barra (es. Alt+F4) chiude l'intera app e fa scattare il
         // ripristino. Le barre rimosse da `reconcile` usano destroy(), che non
         // passa di qui.

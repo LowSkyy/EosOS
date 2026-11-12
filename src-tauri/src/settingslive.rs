@@ -279,6 +279,8 @@ impl Backend for Live {
                 }
                 crate::mcstore::set_lights_left(id == "left");
                 crate::lights::poke();
+                // Anche le finestre di EosOS (Finder, Impostazioni) spostano i loro semafori.
+                self.dock_changed();
             }
             "finder.app" => {
                 crate::mcstore::set_finder_app(want_bool(value)?);

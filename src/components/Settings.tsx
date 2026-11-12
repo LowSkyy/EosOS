@@ -21,6 +21,8 @@ import {
 } from "../lib/settings";
 import UpdateBox from "./UpdateBox";
 import WinSettings from "./WinSettings";
+import { Lights } from "./Lights";
+import { useIconStyle } from "./useIconStyle";
 
 /**
  * Impostazioni di EosOS (finestra "settings", vista ?view=settings): barra laterale con le sezioni e a destra le
@@ -28,6 +30,18 @@ import WinSettings from "./WinSettings";
  * risposta; se Rust rifiuta, mostra il messaggio e rilegge lo stato vero.
  */
 export default function Settings() {
+  const { left } = useIconStyle();
+  const [focused, setFocused] = useState(true);
+  useEffect(() => {
+    const on = () => setFocused(true);
+    const off = () => setFocused(false);
+    window.addEventListener("focus", on);
+    window.addEventListener("blur", off);
+    return () => {
+      window.removeEventListener("focus", on);
+      window.removeEventListener("blur", off);
+    };
+  }, []);
   const [entries, setEntries] = useState<SettingEntry[]>([]);
   const [section, setSection] = useState("");
   const [query, setQuery] = useState("");
@@ -117,9 +131,8 @@ export default function Settings() {
         <span className="settings-title" data-tauri-drag-region>
           Impostazioni di EosOS
         </span>
-        <button type="button" className="settings-close" aria-label="Chiudi" onClick={() => void invoke("settings_close")}>
-          ×
-        </button>
+        {/* Come le altre finestre: semafori sul lato scelto. Riduci e ingrandisci non servono a questa finestra (grigi, come nei pannelli di macOS). */}
+        <Lights left={left} active={focused} enabled={{ min: false, zoom: false }} onAction={(k) => k === "close" && void invoke("settings_close")} />
       </div>
       <aside className="settings-side">
         <input

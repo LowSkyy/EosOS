@@ -94,6 +94,8 @@ pub struct Ui {
     pub game: bool,
     /// Tema delle icone: «auto», «light» o «dark».
     pub icon_theme: &'static str,
+    /// Semafori a sinistra (come macOS) o a destra: vale per le finestre delle app e per quelle di EosOS (Finder, Impostazioni...).
+    pub lights_left: bool,
 }
 
 /// Le scelte del tema delle icone: (id, etichetta).
@@ -107,7 +109,7 @@ pub fn icon_theme_id(saved: &str) -> &'static str {
 /// Le impostazioni complete per la pagina del Dock.
 pub fn ui() -> Ui {
     let mc = crate::mcstore::load();
-    Ui { base: Settings { blur: settings().blur && !crate::remote::blur_suspended() && !crate::gamemode::active(), ..settings() }, size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off, icons: !mc.dock_icons_off, game: crate::gamemode::active(), icon_theme: icon_theme_id(&mc.dock_icon_theme) }
+    Ui { base: Settings { blur: settings().blur && !crate::remote::blur_suspended() && !crate::gamemode::active(), ..settings() }, size: size_factor(&mc.dock_size), anim: anim_id(&mc.dock_anim), magnify: !mc.dock_magnify_off, icons: !mc.dock_icons_off, game: crate::gamemode::active(), icon_theme: icon_theme_id(&mc.dock_icon_theme), lights_left: mc.lights_left }
 }
 
 /// Valore di un livello di vetro dall'id. Pura, testata.

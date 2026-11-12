@@ -192,7 +192,7 @@ export const ART: Record<PackId, Art> = {
 
 /** Icone di cartelle e file (Esplora file): forme intere, senza tessera. */
 /** Le cartelle speciali hanno un simbolo impresso sul davanti, come in macOS. */
-export type FolderBadge = "home" | "desktop" | "documents" | "downloads" | "pictures" | "music" | "videos" | "drive";
+export type FolderBadge = "home" | "desktop" | "documents" | "downloads" | "pictures" | "music" | "videos" | "cloud" | "drive";
 
 export const FOLDER_GLYPHS: Record<Exclude<FolderBadge, "drive">, React.ReactNode> = {
   home: <path d="M50 46l-13 11v13h9v-9h8v9h9V57z" />,
@@ -216,6 +216,7 @@ export const FOLDER_GLYPHS: Record<Exclude<FolderBadge, "drive">, React.ReactNod
       <path d="M37 68l9-9 6 6 4-4 7 7z" />
     </g>
   ),
+  cloud: <path d="M41 68a7 7 0 0 1-.8-13.95A10 10 0 0 1 59.3 52a8 8 0 0 1 .7 16z" />,
   music: <path d="M45 67.5a4.5 4.5 0 1 1-3-4.2V48l17-3.5v19.7a4.5 4.5 0 1 1-3-4.2V51l-11 2.3z" />,
   videos: (
     <g>

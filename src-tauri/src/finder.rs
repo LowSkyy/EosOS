@@ -8,7 +8,6 @@
 use std::os::windows::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Mutex;
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
@@ -23,9 +22,9 @@ use windows::Win32::UI::Shell::{
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 pub const PREFIX: &str = "finder-";
+/// Il «percorso» del Cestino nella barra laterale (non e' una cartella vera: lo elenca `finder2::trash_list`).
+pub const TRASH: &str = "eosos:trash";
 static NEXT: AtomicU32 = AtomicU32::new(1);
-/// File copiati o tagliati in una finestra del Finder (percorsi, tagliati?): si incollano in un'altra cartella.
-static CLIP: Mutex<(Vec<String>, bool)> = Mutex::new((Vec::new(), false));
 
 const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
 const FILE_ATTRIBUTE_SYSTEM: u32 = 0x4;
@@ -60,7 +59,7 @@ pub struct Listing {
 pub struct Place {
     pub name: String,
     pub path: String,
-    /// home, desktop, documents, downloads, pictures, music, videos, drive.
+    /// home, desktop, documents, downloads, pictures, music, videos, cloud, trash, drive.
     pub kind: &'static str,
 }
 
@@ -172,6 +171,10 @@ pub fn places() -> Vec<Place> {
             out.push(Place { name, path, kind });
         }
     }
+    if let Some(path) = known(&windows::Win32::UI::Shell::FOLDERID_SkyDrive).filter(|p| Path::new(p).is_dir()) {
+        out.push(Place { name: "OneDrive".into(), path, kind: "cloud" });
+    }
+    out.push(Place { name: "Cestino".into(), path: TRASH.into(), kind: "trash" });
     let mask = unsafe { GetLogicalDrives() };
     for i in 0..26u32 {
         if mask & (1 << i) == 0 {
@@ -215,7 +218,9 @@ pub fn rename(path: &str, new_name: &str) -> Result<String, String> {
         return Err("Esiste gia' un elemento con questo nome.".into());
     }
     std::fs::rename(from, &to).map_err(|e| format!("Non riesco a rinominare: {e}"))?;
-    Ok(to.to_string_lossy().to_string())
+    let to = to.to_string_lossy().to_string();
+    crate::finder2::tag_moved(path, &to);
+    Ok(to)
 }
 
 /// Crea «Nuova cartella» (o «Nuova cartella 2»...) dentro `dir`. Risponde con il suo percorso.
@@ -261,26 +266,22 @@ pub fn trash(paths: &[String]) -> Result<(), String> {
     shell_op(FO_DELETE, paths, None, FOF_ALLOWUNDO | FOF_NOCONFIRMATION)
 }
 
-/// Ricorda i file copiati (o tagliati).
-pub fn clip_set(paths: Vec<String>, cut: bool) {
-    if let Ok(mut c) = CLIP.lock() {
-        *c = (paths, cut);
-    }
+/// Copia o sposta dei file in `dest` (con l'avanzamento, le domande e l'annulla di Windows; nella stessa cartella fa una copia).
+pub fn transfer(paths: &[String], dest: &str, mv: bool) -> Result<(), String> {
+    shell_op(if mv { FO_MOVE } else { FO_COPY }, paths, Some(dest), FOF_ALLOWUNDO | FOF_RENAMEONCOLLISION)
 }
 
-/// Quanti file ci sono da incollare.
-pub fn clip_count() -> usize {
-    CLIP.lock().map(|c| c.0.len()).unwrap_or(0)
-}
-
-/// Incolla in `dest` i file copiati o tagliati (con l'avanzamento e le domande di Windows; nella stessa cartella fa una copia).
+/// Incolla in `dest` i file degli appunti di Windows (copiati qui o in Esplora file).
 pub fn paste(dest: &str) -> Result<(), String> {
-    let (paths, cut) = CLIP.lock().map(|c| c.clone()).unwrap_or_default();
-    let res = shell_op(if cut { FO_MOVE } else { FO_COPY }, &paths, Some(dest), FOF_ALLOWUNDO | FOF_RENAMEONCOLLISION);
-    if cut && res.is_ok() {
-        clip_set(Vec::new(), false);
+    let (paths, cut) = crate::finder2::clip_get();
+    if paths.is_empty() {
+        return Err("Negli appunti non ci sono file.".into());
     }
-    res
+    transfer(&paths, dest, cut)?;
+    if cut {
+        crate::finder2::clip_clear();
+    }
+    Ok(())
 }
 
 /// Icona (o, per immagini e video, anteprima) dell'elemento, come data URL PNG.

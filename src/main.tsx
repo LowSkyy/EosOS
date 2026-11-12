@@ -3,6 +3,8 @@ import ReactDOM from "react-dom/client";
 import "@fontsource-variable/inter";
 import "./styles.css";
 import "./finder.css";
+import "./finder2.css";
+import "./lights.css";
 import App from "./App";
 import Capture from "./components/Capture";
 import Dock from "./components/Dock";

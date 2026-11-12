@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { parseFrame } from "../lib/backdrop";
+import { useIconStyle } from "./useIconStyle";
 import {
   advancedHint,
   boxStyle,
@@ -26,6 +27,7 @@ import {
  * con l'icona e il titolo. La pagina conosce le finestre solo per `id`: attivare o chiudere lo fa Rust.
  */
 export default function Mc() {
+  const { left: lightsLeft } = useIconStyle();
   const monitor = Number(new URLSearchParams(window.location.search).get("m") ?? 0);
   const [view, setView] = useState<McView | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -285,15 +287,14 @@ export default function Mc() {
               <button
                 type="button"
                 className="mc-close"
+                data-side={lightsLeft ? "left" : "right"}
                 aria-label={`Chiudi ${cellTitle(w)}`}
                 title="Chiudi la finestra"
                 onClick={(e) => {
                   e.stopPropagation();
                   void invoke("mc_close_window", { id: w.id });
                 }}
-              >
-                ×
-              </button>
+              />
             </div>
           </div>
         );

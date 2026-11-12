@@ -577,23 +577,24 @@ body {
 .mc-label-icon { width: 20px; height: 20px; flex: none; object-fit: contain; }
 .mc-label-letter { display: grid; place-items: center; width: 20px; height: 20px; flex: none; border-radius: 5px; background: rgba(128, 128, 128, 0.4); font-size: 11px; }
 .mc-label-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Chiudi in Mission Control: il cerchio rosso dei semafori, sul lato scelto per tutte le finestre. */
 .mc-close {
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
+  position: relative;
+  width: 14px;
+  height: 14px;
+  padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
-  color: #fff;
-  font-size: 16px;
-  line-height: 1;
+  background: #ff5f57;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.25);
   cursor: default;
   opacity: 0;
 }
+.mc-close[data-side="left"] { order: -1; }
+.mc-close::after { content: ""; position: absolute; inset: 0; opacity: 0.62; background: center / 9px 9px no-repeat url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 8 8%27%3E%3Cpath d=%27M1.6 1.6l4.8 4.8M6.4 1.6L1.6 6.4%27 stroke=%27%23000%27 stroke-width=%271.2%27 stroke-linecap=%27round%27/%3E%3C/svg%3E"); }
 .mc-cell[data-hover="true"] .mc-close, .mc-close:focus-visible { opacity: 1; }
-.mc-close:hover { background: #ff453a; }
+.mc-close:active { filter: brightness(0.85); }
 
 /* Fascia dei desktop virtuali in cima alla panoramica (lo spazio e' riservato da mc.rs: TOP_RESERVED). */
 .mc-spaces {
@@ -722,19 +723,9 @@ body {
   z-index: 2;
 }
 .settings-title { position: absolute; left: 0; right: 0; text-align: center; font-weight: var(--weight-strong); color: var(--bar-fg-muted); pointer-events: auto; }
-.settings-close {
-  position: relative;
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  color: var(--bar-fg-muted);
-  font-size: 18px;
-  line-height: 1;
-  cursor: default;
-}
-.settings-close:hover { background: rgba(128, 128, 128, 0.25); color: var(--bar-fg); }
+.settings-titlebar .tl { position: absolute; top: 12px; }
+.settings-titlebar .tl[data-side="left"] { left: 14px; }
+.settings-titlebar .tl[data-side="right"] { right: 14px; }
 .settings-side { padding: 44px 10px 12px; background: rgba(128, 128, 128, 0.12); display: flex; flex-direction: column; gap: 10px; border-right: 1px solid rgba(128, 128, 128, 0.25); }
 .settings-search {
   width: 100%;
